@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="880" viewBox="0 0 1280 880" fill="none" role="img" aria-labelledby="preview-title preview-desc">
+  <title id="preview-title">Go TaaS brand identity</title>
+  <desc id="preview-desc">Token-stream T symbol, light and dark wordmarks, circular avatar, small icons and brand palette.</desc>
+  <defs>
+    <g id="mark">
+      <path fill="currentColor" d="M36 48H164L148 88H132V176L92 208V88H36Z"/>
+      <path fill="#F06445" d="M180 48H220L204 88H164Z"/>
+    </g>
+    <clipPath id="circle"><circle cx="128" cy="128" r="128"/></clipPath>
+  </defs>
+  <path fill="#FFFFFF" d="M0 0H1280V880H0Z"/>
+  <g font-family="DejaVu Sans" letter-spacing="0">
+    <text x="56" y="69" fill="#17272B" font-size="30" font-weight="700">Go TaaS</text>
+    <text x="1224" y="65" text-anchor="end" fill="#637477" font-size="14">TOKEN AS A SERVICE / VISUAL IDENTITY</text>
+    <path fill="#F3F7F7" d="M0 112H768V624H0Z"/>
+    <path fill="#17272B" d="M768 112H1280V624H768Z"/>
+    <text x="56" y="155" fill="#637477" font-size="12">01 / TOKEN STREAM</text>
+    <use href="#mark" color="#007F86" transform="translate(192 153) scale(1.5)"/>
+    <text x="56" y="587" fill="#637477" font-size="14">One platform. Every token.</text>
+    <text x="808" y="155" fill="#ABBCBF" font-size="12">02 / PRODUCT SIGNATURE</text>
+    <g transform="translate(820 211) scale(1.06)">
+      <g transform="translate(-4) scale(.375)">
+        <path fill="#42CDD0" d="M36 48H164L148 88H132V176L92 208V88H36Z"/>
+        <path fill="#FF896B" d="M180 48H220L204 88H164Z"/>
+      </g>
+      <text x="99" y="64" fill="#F3F7F7" font-size="56" font-weight="700">Go TaaS</text>
+    </g>
+    <path stroke="#3B4C50" d="M808 359H1240"/>
+    <path fill="#FFFFFF" d="M808 407H1240V527H808Z"/>
+    <g transform="translate(834 419)">
+      <use href="#mark" color="#007F86" transform="translate(-4) scale(.375)"/>
+      <text x="99" y="64" fill="#17272B" font-size="56" font-weight="700">Go TaaS</text>
+    </g>
+    <text x="808" y="587" fill="#ABBCBF" font-size="14">Inference / Metering / Scale</text>
+    <text x="56" y="672" fill="#637477" font-size="12">03 / AVATAR</text>
+    <g transform="translate(56 696) scale(.5)" clip-path="url(#circle)">
+      <path fill="#F3F7F7" d="M0 0H256V256H0Z"/>
+      <use href="#mark" color="#007F86"/>
+    </g>
+    <text x="272" y="672" fill="#637477" font-size="12">04 / UI SIZES</text>
+    <use href="#mark" color="#007F86" transform="translate(272 724) scale(.25)"/>
+    <use href="#mark" color="#007F86" transform="translate(366 732) scale(.1875)"/>
+    <use href="#mark" color="#007F86" transform="translate(444 740) scale(.125)"/>
+    <use href="#mark" color="#007F86" transform="translate(506 748) scale(.0625)"/>
+    <g fill="#637477" font-size="11" text-anchor="middle">
+      <text x="304" y="820">64</text>
+      <text x="390" y="820">48</text>
+      <text x="460" y="820">32</text>
+      <text x="514" y="820">16</text>
+    </g>
+    <text x="624" y="672" fill="#637477" font-size="12">05 / MONO</text>
+    <path fill="#17272B" transform="translate(624 715) scale(.32)" d="M36 48H164L148 88H132V176L92 208V88H36Z M180 48H220L204 88H164Z"/>
+    <text x="808" y="672" fill="#637477" font-size="12">06 / PALETTE</text>
+    <path fill="#007F86" d="M808 716H936V776H808Z"/>
+    <path fill="#F06445" d="M952 716H1080V776H952Z"/>
+    <path fill="#17272B" d="M1096 716H1224V776H1096Z"/>
+    <g fill="#637477" font-size="13">
+      <text x="808" y="808">#007F86</text>
+      <text x="952" y="808">#F06445</text>
+      <text x="1096" y="808">#17272B</text>
+    </g>
+  </g>
+</svg>
