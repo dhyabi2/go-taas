@@ -1,3 +1,12 @@
+# [1.1.0](https://github.com/go-taas/go-taas/compare/v1.0.0...v1.1.0) (2026-09-23)
+
+
+### Features
+
+* **auth:** add API key lifecycle management ([b4f8f9d](https://github.com/go-taas/go-taas/commit/b4f8f9de77c5f1216d92c05887c4e6d903bac11e))
+* **model,infer:** add model catalog and one-click deployment ([9da37a0](https://github.com/go-taas/go-taas/commit/9da37a08b57a5cbc1c9d3464c6fc58cb718f3579))
+* **web:** add admin console for api keys, model catalog and inference services ([57969d4](https://github.com/go-taas/go-taas/commit/57969d4b33b1791ee7fdc06833b4d0e4c2ea3a95))
+
 # 1.0.0 (2026-09-16)
 
 
