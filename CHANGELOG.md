@@ -1,3 +1,11 @@
+# [1.8.0](https://github.com/go-taas/go-taas/compare/v1.7.0...v1.8.0) (2026-09-24)
+
+
+### Features
+
+* **auth,billing:** add per-key rate limits and org spend limits (feature-11) ([4c83708](https://github.com/go-taas/go-taas/commit/4c83708de4639bd480de779dc79b6e10aa3b8291))
+* **console:** add rate limit and spend limit fields (feature-11) ([2846bea](https://github.com/go-taas/go-taas/commit/2846beaac6532e5946c73c31ece018037de1cb46))
+
 # [1.7.0](https://github.com/go-taas/go-taas/compare/v1.6.0...v1.7.0) (2026-09-24)
 
 
