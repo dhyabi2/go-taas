@@ -17,6 +17,8 @@ import ServiceDetailPage from './pages/ServiceDetailPage';
 import ImagesPage from './pages/ImagesPage';
 import ImageDetailPage from './pages/ImageDetailPage';
 import UsagePage from './pages/UsagePage';
+import RequestLogsPage from './pages/RequestLogsPage';
+import PlaygroundPage from './pages/PlaygroundPage';
 import PricingPage from './pages/PricingPage';
 import BillsPage from './pages/BillsPage';
 import AccountsPage from './pages/AccountsPage';
@@ -45,6 +47,8 @@ export default function App() {
             <Route path="/admin/inference-services" element={<InferenceServicesPage />} />
             <Route path="/admin/inference-services/:id" element={<ServiceDetailPage />} />
             <Route path="/admin/usage" element={<UsagePage />} />
+            <Route path="/admin/request-logs" element={<RequestLogsPage />} />
+            <Route path="/admin/playground" element={<PlaygroundPage />} />
             <Route path="/admin/pricing" element={<PricingPage />} />
             <Route path="/admin/billing" element={<BillsPage />} />
             <Route path="/admin/billing/accounts" element={<AccountsPage />} />
@@ -100,6 +104,8 @@ const NAV_ITEMS = [
   { path: '/admin/images', label: 'Images' },
   { path: '/admin/api-keys', label: 'API Keys' },
   { path: '/admin/usage', label: 'Usage' },
+  { path: '/admin/request-logs', label: 'Request Logs' },
+  { path: '/admin/playground', label: 'Playground' },
   { path: '/admin/pricing', label: 'Pricing' },
   { path: '/admin/billing', label: 'Bills' },
   { path: '/admin/billing/accounts', label: 'Accounts' },

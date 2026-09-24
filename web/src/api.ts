@@ -232,6 +232,43 @@ export interface UsageDashboardResponse {
   dailyBuckets?: DailyBucket[];
 }
 
+// ---- request logs (feature #12) ----
+
+export interface RequestLog {
+  requestLogId: string;
+  requestId: string;
+  organizationId: string;
+  apiKeyId: string;
+  modelId: string;
+  serviceId: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  latencyMs: string;
+  status: string; // success | error | streaming
+  error: string;
+  createdAt: string;
+}
+
+export interface ListRequestLogsResponse {
+  response: { code: number; message: string };
+  requestLogs: RequestLog[];
+  pageMeta?: PageMeta;
+}
+
+// ---- playground (feature #12) ----
+
+export interface PlaygroundInferResponse {
+  response: { code: number; message: string };
+  completion: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  latencyMs: string;
+}
+
 // ---- billing balance (feature #8, reused by the widget) ----
 
 export interface BalanceResponse {
