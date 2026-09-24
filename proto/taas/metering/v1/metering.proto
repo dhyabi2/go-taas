@@ -43,6 +43,14 @@ service MeteringService {
   rpc ListUsageRecords(ListUsageRecordsRequest) returns (ListUsageRecordsResponse) {
     option (google.api.http) = {get: "/api/v1/admin/metering/usage-records"};
   }
+
+  // GetUsageDashboard returns summary cards and daily time buckets
+  // grouped by a dimension, joining metering usage with billing charge
+  // records for a unified usage x cost view (feature #9).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetUsageDashboard(GetUsageDashboardRequest) returns (GetUsageDashboardResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/metering/usage-dashboard"};
+  }
 }
 
 message IngestMeteringEventRequest {
@@ -105,6 +113,12 @@ message VoucherSummary {
   // settled reports whether the settlement runner has linked this
   // voucher to a usage record.
   bool settled = 9;
+  // estimated_cost_cents is the per-request estimated cost in minor
+  // units, computed on read against the effective-dated price at
+  // completed_at (feature #9). 0 when unpriced.
+  int64 estimated_cost_cents = 10;
+  // priced reports whether a price entry applied to this request.
+  bool priced = 11;
 }
 
 message GetVoucherRequest {
@@ -175,4 +189,73 @@ message ListUsageRecordsResponse {
   taas.common.v1.Response response = 1;
   repeated UsageRecordSummary records = 2;
   taas.common.v1.PageMeta page_meta = 3;
+}
+
+// DashboardGroupBy selects the aggregation dimension of the usage
+// dashboard.
+enum DashboardGroupBy {
+  DASHBOARD_GROUP_BY_UNSPECIFIED = 0;
+  // DASHBOARD_GROUP_BY_API_KEY groups by api_key_id (default).
+  DASHBOARD_GROUP_BY_API_KEY = 1;
+  // DASHBOARD_GROUP_BY_MODEL groups by model_id.
+  DASHBOARD_GROUP_BY_MODEL = 2;
+  // DASHBOARD_GROUP_BY_ACCELERATOR_TYPE groups by accelerator_type.
+  DASHBOARD_GROUP_BY_ACCELERATOR_TYPE = 3;
+}
+
+message GetUsageDashboardRequest {
+  // organization_id is derived from the X-Organization-Id header by the
+  // gateway; the field exists for gRPC-direct callers.
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // group_by selects the aggregation dimension: "api_key" (default),
+  // "model" or "accelerator_type".
+  string group_by = 4;
+}
+
+// DashboardCard is the headline summary of the dashboard range.
+message DashboardCard {
+  // total_cost_cents is the summed charge amount in minor units.
+  int64 total_cost_cents = 1;
+  string currency = 2;
+  int64 prompt_tokens = 3;
+  int64 completion_tokens = 4;
+  int64 cached_tokens = 5;
+  int64 reasoning_tokens = 6;
+  int64 request_count = 7;
+  // unpriced_request_count counts requests with no applied price.
+  int64 unpriced_request_count = 8;
+  // data_through is the last complete hour covered by charging (the
+  // charge watermark); hours past it are pending.
+  int64 data_through = 9;
+}
+
+// DashboardGroup is one group's aggregate within a daily bucket.
+message DashboardGroup {
+  // group_key is the api_key_id / model_id / accelerator_type.
+  string group_key = 1;
+  int64 cost_cents = 2;
+  int64 prompt_tokens = 3;
+  int64 completion_tokens = 4;
+  int64 cached_tokens = 5;
+  int64 reasoning_tokens = 6;
+  int64 request_count = 7;
+  // priced is false when any contributing charge record is unpriced.
+  bool priced = 8;
+}
+
+// DailyBucket is one UTC day's groups.
+message DailyBucket {
+  // date is the UTC day start, unix seconds.
+  int64 date = 1;
+  repeated DashboardGroup groups = 2;
+}
+
+message GetUsageDashboardResponse {
+  taas.common.v1.Response response = 1;
+  DashboardCard cards = 2;
+  repeated DailyBucket daily_buckets = 3;
 }

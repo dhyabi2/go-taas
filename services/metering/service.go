@@ -58,6 +58,11 @@ type Service struct {
 	repo      *Repository
 	publisher mq.Client
 
+	// costAttributor computes per-request estimated cost on read
+	// (feature #9, AD3). Nil until wired: unit tests skip attribution;
+	// main.go and FVT always wire it.
+	costAttributor *CostAttributor
+
 	// orgGuard validates the transitional organization context against
 	// the organizations table (feature #6). Nil until wired: unit tests
 	// skip validation; main.go and FVT always wire it.
@@ -75,6 +80,11 @@ func New(components server.Components) *Service {
 // pattern). Production and FVT wire it; unit tests leave it nil so
 // checkOrg no-ops.
 func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
+
+// SetCostAttributor injects the per-request cost attributor (feature
+// #9). Production and FVT wire it; unit tests leave it nil so voucher
+// attribution no-ops.
+func (s *Service) SetCostAttributor(c *CostAttributor) { s.costAttributor = c }
 
 // checkOrg validates the org context: existence on reads, active
 // state on gated writes. No-op when the guard is not wired.
@@ -347,6 +357,17 @@ func (s *Service) ListVouchers(ctx context.Context, req *meteringv1.ListVouchers
 	for _, row := range rows {
 		vouchers = append(vouchers, summarizeVoucher(row))
 	}
+	// Feature #9: attach per-request estimated cost on read (AD3).
+	if s.costAttributor != nil {
+		costs, priced, err := s.costAttributor.attributePage(ctx, rows)
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range vouchers {
+			v.EstimatedCostCents = costs[v.GetVoucherId()]
+			v.Priced = priced[v.GetVoucherId()]
+		}
+	}
 	return &meteringv1.ListVouchersResponse{
 		Response: okResponse(),
 		Vouchers: vouchers,
@@ -371,9 +392,19 @@ func (s *Service) GetVoucher(ctx context.Context, req *meteringv1.GetVoucherRequ
 	if err != nil {
 		return nil, err
 	}
+	out := summarizeVoucher(row)
+	// Feature #9: attach per-request estimated cost on read (AD3).
+	if s.costAttributor != nil {
+		cost, priced, err := s.costAttributor.estimateCost(ctx, row)
+		if err != nil {
+			return nil, err
+		}
+		out.EstimatedCostCents = cost
+		out.Priced = priced
+	}
 	return &meteringv1.GetVoucherResponse{
 		Response: okResponse(),
-		Voucher:  summarizeVoucher(row),
+		Voucher:  out,
 	}, nil
 }
 

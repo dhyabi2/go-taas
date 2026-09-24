@@ -95,6 +95,9 @@ func main() {
 			inferSvc.SetOrgGuard(orgGuard)
 			meteringSvc.SetOrgGuard(orgGuard)
 			billingSvc.SetOrgGuard(orgGuard)
+			// The per-request cost attributor reads billing's
+			// price_entries over the shared database (feature #9, AD3).
+			meteringSvc.SetCostAttributor(metering.NewCostAttributor(gormDB))
 			// The delete-model and delete-image reference guards need the
 			// infer repository (AC3, feature #3 D7).
 			modelSvc.SetDeleteGuard(infer.NewDeleteModelGuard(gormDB))
