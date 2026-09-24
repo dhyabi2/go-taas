@@ -13,6 +13,7 @@
     "test:balance-quota": "nightwatch --tag balance-quota",
     "test:usage-dashboard": "nightwatch --tag usage-dashboard",
     "test:org-members-rbac": "nightwatch --tag org-members-rbac",
+    "test:rate-limits-spend-limits": "nightwatch --tag rate-limits-spend-limits",
     "test:tenancy": "nightwatch --tag tenancy",
     "test:sso": "nightwatch --tag sso"
   },
