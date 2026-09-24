@@ -1,3 +1,11 @@
+# [1.6.0](https://github.com/go-taas/go-taas/compare/v1.5.0...v1.6.0) (2026-09-24)
+
+
+### Features
+
+* **console:** add usage dashboard with chart, metric toggle, CSV export and balance widget (feature-09) ([4cb4a42](https://github.com/go-taas/go-taas/commit/4cb4a42d0061cfa2d8cbbc8c42b082e29af7ed0b))
+* **metering:** add usage dashboard and per-request cost attribution (feature-09) ([9c93881](https://github.com/go-taas/go-taas/commit/9c93881c26bb0b68cb78f4c2e6c1d4814220d301))
+
 # [1.5.0](https://github.com/go-taas/go-taas/compare/v1.4.0...v1.5.0) (2026-09-24)
 
 
