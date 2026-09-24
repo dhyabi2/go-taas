@@ -30,7 +30,7 @@ IMAGE_TARGETS ?= taas-server controller console
 # Network build-args for image builds. Override on the command line for
 # restricted networks, e.g.:
 #   make compose-up GOPROXY=https://goproxy.cn,direct NPM_REGISTRY=https://registry.npmmirror.com
-GOPROXY ?= https://proxy.golang.org,direct
+GOPROXY ?= https://goproxy.cn,direct
 NPM_REGISTRY ?= https://registry.npmjs.org
 
 # Shared docker build flags (metadata + network proxies).
