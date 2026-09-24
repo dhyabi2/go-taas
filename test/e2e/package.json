@@ -11,6 +11,7 @@
     "test:metering": "nightwatch --tag metering",
     "test:pricing": "nightwatch --tag pricing",
     "test:balance-quota": "nightwatch --tag balance-quota",
+    "test:usage-dashboard": "nightwatch --tag usage-dashboard",
     "test:tenancy": "nightwatch --tag tenancy",
     "test:sso": "nightwatch --tag sso"
   },

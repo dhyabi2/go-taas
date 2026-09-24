@@ -51,7 +51,10 @@ type DashboardAggregateRow struct {
 	CachedTokens     int64
 	ReasoningTokens  int64
 	RequestCount     int64
-	Priced           bool
+	// PricedRaw is the MIN(CASE WHEN priced THEN 1 ELSE 0 END) result
+	// (0/1), portable across sqlite and Postgres; converted to Priced.
+	PricedRaw int
+	Priced    bool
 }
 
 // DashboardRepository aggregates charge records into the usage
@@ -95,7 +98,7 @@ func (r *DashboardRepository) DashboardAggregate(ctx context.Context, orgID stri
 			"COALESCE(SUM(cached_tokens),0) AS cached_tokens, "+
 			"COALESCE(SUM(reasoning_tokens),0) AS reasoning_tokens, "+
 			"COALESCE(SUM(request_count),0) AS request_count, "+
-			"MIN(priced) AS priced").
+			"MIN(CASE WHEN priced THEN 1 ELSE 0 END) AS priced_raw").
 		Where("organization_id = ? AND period_start >= ? AND period_start < ?",
 			orgID, since, until).
 		Group("day, " + col).
@@ -103,6 +106,9 @@ func (r *DashboardRepository) DashboardAggregate(ctx context.Context, orgID stri
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
+	}
+	for i := range rows {
+		rows[i].Priced = rows[i].PricedRaw != 0
 	}
 	return rows, nil
 }
