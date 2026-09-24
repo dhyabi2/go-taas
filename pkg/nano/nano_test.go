@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestParseXNOExactSubCent pins the fee-floor edge: a $0.0005 charge
+// TestParseXNOExactSubCent pins the fee-floor edge: a 0.0005 XNO charge
 // (smaller than any card minimum invoice) parses to exactly 5e26 raw,
 // with no floating-point rounding.
 func TestParseXNOExactSubCent(t *testing.T) {
@@ -127,11 +127,10 @@ func TestAddSubCompare(t *testing.T) {
 	require.Equal(t, 0, a.Cmp(NewRaw(new(big.Int).Set(a.Raw()))))
 }
 
-// TestIsZero checks the zero sentinel and ParseXNOOrZero fallback.
+// TestIsZero checks the zero sentinel.
 func TestIsZero(t *testing.T) {
 	z, _ := ParseXNO("0")
 	require.True(t, z.IsZero())
-	require.True(t, ParseXNOOrZero("not-a-number").IsZero())
 	require.False(t, RawFromInt(1).IsZero())
 }
 

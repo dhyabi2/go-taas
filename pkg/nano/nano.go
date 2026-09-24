@@ -162,16 +162,6 @@ func ParseXNO(s string) (Amount, error) {
 	return NewRaw(raw), nil
 }
 
-// ParseXNOOrZero is ParseXNO with a zero fallback for callers that
-// treat a malformed string as zero.
-func ParseXNOOrZero(s string) Amount {
-	a, err := ParseXNO(s)
-	if err != nil {
-		return zero
-	}
-	return a
-}
-
 // Format renders the amount as a trimmed human decimal string, dropping
 // trailing zeros and the decimal point when the fraction is zero. The
 // zero-value Amount{} renders as "0". A negative amount renders with a
