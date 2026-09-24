@@ -30,6 +30,7 @@ type Session struct {
 	SessionID      string   `json:"session_id"`
 	UserID         string   `json:"user_id"`
 	Username       string   `json:"username"`
+	Email          string   `json:"email"`
 	Roles          []string `json:"roles"`
 	AccessibleOrgs []string `json:"accessible_orgs"`
 	ActiveOrg      string   `json:"active_org"`
@@ -65,6 +66,7 @@ func (s *SessionStore) Create(ctx context.Context, sess *Session, accessToken st
 	if err := s.client.HSet(ctx, key, map[string]any{
 		"user_id":         sess.UserID,
 		"username":        sess.Username,
+		"email":           sess.Email,
 		"roles":           string(roles),
 		"accessible_orgs": string(orgs),
 		"active_org":      sess.ActiveOrg,
@@ -106,6 +108,7 @@ func (s *SessionStore) Get(ctx context.Context, sessionID string) (*Session, err
 		SessionID:      sessionID,
 		UserID:         vals["user_id"],
 		Username:       vals["username"],
+		Email:          vals["email"],
 		Roles:          roles,
 		AccessibleOrgs: orgs,
 		ActiveOrg:      vals["active_org"],

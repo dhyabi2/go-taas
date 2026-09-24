@@ -299,7 +299,7 @@ type LogConfig struct {
 }
 
 // TenancyConfig holds the tenancy-module settings: the first-boot
-// default-organization seed.
+// default-organization seed and the invitation expiry window.
 type TenancyConfig struct {
 	// DefaultOrgID is the organization id seeded on first boot (when the
 	// organizations table is empty). It must match the org-id regex
@@ -307,6 +307,9 @@ type TenancyConfig struct {
 	DefaultOrgID string `mapstructure:"defaultOrgId"`
 	// DefaultOrgDisplayName is the seeded organization's display name.
 	DefaultOrgDisplayName string `mapstructure:"defaultOrgDisplayName"`
+	// InvitationTTL is the default invitation expiry window (feature
+	// #10, AD5). 0 means the 7-day default.
+	InvitationTTL time.Duration `mapstructure:"invitationTTL"`
 }
 
 // Configuration is the root of the merged configuration tree.

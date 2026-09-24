@@ -114,6 +114,9 @@ func (c *Configuration) applyDefaults() {
 	if c.Tenancy.DefaultOrgDisplayName == "" {
 		c.Tenancy.DefaultOrgDisplayName = "Default Organization"
 	}
+	if c.Tenancy.InvitationTTL == 0 {
+		c.Tenancy.InvitationTTL = 7 * 24 * time.Hour
+	}
 	if c.Metering.Settlement.Interval == 0 {
 		c.Metering.Settlement.Interval = 60 * time.Second
 	}

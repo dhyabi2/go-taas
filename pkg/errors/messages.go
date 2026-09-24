@@ -39,6 +39,14 @@ var messages = map[Code]string{
 	CodeIdentityBindingExists: "identity binding already exists",
 	CodeSessionInvalid:        "session invalid",
 	CodeSSOProviderInvalid:    "sso provider invalid",
+	CodeMemberExists:          "member already exists",
+	CodeMemberNotFound:        "member not found",
+	CodeRoleInvalid:           "invalid role",
+	CodeOwnerProtected:        "owner is protected",
+	CodeInvitationNotFound:    "invitation not found",
+	CodeInvitationExpired:     "invitation expired",
+	CodeInvitationExists:      "invitation already exists",
+	CodeForbidden:             "forbidden",
 
 	// model
 	CodeModelNotFound:        "model not found",

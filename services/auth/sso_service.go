@@ -287,8 +287,9 @@ func (s *Service) SSOCallback(ctx context.Context, req *authv1.SSOCallbackReques
 		return nil, err
 	}
 
-	// Map org and roles from the claims.
-	roles, accessibleOrgs, activeOrg, err := s.mapAttributes(ctx, prov, identity)
+	// Map org and roles from the claims (or org_members when the
+	// membership resolver is wired, feature #10).
+	roles, accessibleOrgs, activeOrg, err := s.mapAttributes(ctx, prov, identity, user)
 	if err != nil {
 		return nil, err
 	}
@@ -305,6 +306,7 @@ func (s *Service) SSOCallback(ctx context.Context, req *authv1.SSOCallbackReques
 		SessionID:      sessionID,
 		UserID:         user.ID,
 		Username:       user.Username,
+		Email:          user.Email,
 		Roles:          roles,
 		AccessibleOrgs: accessibleOrgs,
 		ActiveOrg:      activeOrg,
@@ -633,8 +635,13 @@ func (s *Service) resolveIdentity(ctx context.Context, repo *SSORepository, prov
 }
 
 // mapAttributes maps the identity claims to roles, accessible orgs, and
-// the active org.
-func (s *Service) mapAttributes(ctx context.Context, prov *SSOProvider, identity *Identity) ([]string, []string, string, error) {
+// the active org. When the membership resolver is wired (feature #10,
+// AD2/AD11), roles and accessible orgs are derived from org_members
+// (authoritative); the IdP claim is a hint only.
+func (s *Service) mapAttributes(ctx context.Context, prov *SSOProvider, identity *Identity, user *User) ([]string, []string, string, error) {
+	if s.membershipResolver != nil {
+		return s.mapMembership(ctx, prov, user)
+	}
 	mapping, err := parseAttributeMapping(prov.AttributeMapping)
 	if err != nil {
 		return nil, nil, "", err
@@ -675,6 +682,35 @@ func (s *Service) mapAttributes(ctx context.Context, prov *SSOProvider, identity
 	return roles, accessibleOrgs, activeOrg, nil
 }
 
+// mapMembership derives roles and accessible orgs from org_members
+// (feature #10, AD2/AD11). The IdP claim is a hint only; the membership
+// table is authoritative.
+func (s *Service) mapMembership(ctx context.Context, prov *SSOProvider, user *User) ([]string, []string, string, error) {
+	memberships, err := s.membershipResolver.AccessibleOrgsAndRoles(ctx, user.ID)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	roles := []string{}
+	accessibleOrgs := []string{}
+	for _, m := range memberships {
+		accessibleOrgs = append(accessibleOrgs, m.OrganizationID)
+		if !containsString(roles, m.Role) {
+			roles = append(roles, m.Role)
+		}
+	}
+	activeOrg := prov.DefaultOrg
+	if activeOrg == "" && len(accessibleOrgs) > 0 {
+		activeOrg = accessibleOrgs[0]
+	}
+	if activeOrg != "" && !containsString(accessibleOrgs, activeOrg) {
+		activeOrg = ""
+		if len(accessibleOrgs) > 0 {
+			activeOrg = accessibleOrgs[0]
+		}
+	}
+	return roles, accessibleOrgs, activeOrg, nil
+}
+
 // sessionFromContext resolves the session from the Authorization: Bearer
 // metadata. A missing/expired/revoked session returns CodeSessionInvalid.
 func (s *Service) sessionFromContext(ctx context.Context) (*Session, error) {
@@ -696,6 +732,32 @@ func (s *Service) sessionFromContext(ctx context.Context) (*Session, error) {
 		return nil, apierrors.New(apierrors.CodeSessionInvalid)
 	}
 	return s.sessionStore.Get(ctx, token)
+}
+
+// SessionUserID implements tenancy.SessionResolver (feature #10): it
+// resolves the authenticated caller's user id from the session.
+func (s *Service) SessionUserID(ctx context.Context) (string, error) {
+	sess, err := s.sessionFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	if sess.UserID == "" {
+		return "", apierrors.New(apierrors.CodeSessionInvalid)
+	}
+	return sess.UserID, nil
+}
+
+// SessionUserEmail implements tenancy.SessionResolver (feature #10): it
+// resolves the authenticated caller's email from the session.
+func (s *Service) SessionUserEmail(ctx context.Context) (string, error) {
+	sess, err := s.sessionFromContext(ctx)
+	if err != nil {
+		return "", err
+	}
+	if sess.Email == "" {
+		return "", apierrors.New(apierrors.CodeSessionInvalid)
+	}
+	return sess.Email, nil
 }
 
 // resolveOrgContext returns the org context for an org-scoped API. When

@@ -60,6 +60,14 @@ const (
 	CodeIdentityBindingExists Code = 10026 // IDENTITY_BINDING_EXISTS
 	CodeSessionInvalid        Code = 10027 // SESSION_INVALID
 	CodeSSOProviderInvalid    Code = 10028 // SSO_PROVIDER_INVALID
+	CodeMemberExists          Code = 10029 // MEMBER_EXISTS
+	CodeMemberNotFound        Code = 10030 // MEMBER_NOT_FOUND
+	CodeRoleInvalid           Code = 10031 // ROLE_INVALID
+	CodeOwnerProtected        Code = 10032 // OWNER_PROTECTED
+	CodeInvitationNotFound    Code = 10033 // INVITATION_NOT_FOUND
+	CodeInvitationExpired     Code = 10034 // INVITATION_EXPIRED
+	CodeInvitationExists      Code = 10035 // INVITATION_EXISTS
+	CodeForbidden             Code = 10036 // FORBIDDEN
 )
 
 // model module error codes.

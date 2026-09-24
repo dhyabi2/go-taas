@@ -38,6 +38,16 @@ type Service struct {
 	// repo is the injection point used by tests and FVT; production
 	// resolves it lazily from the shared components.
 	repo *Repository
+
+	// roleGuard enforces the admin/owner gate for member and invitation
+	// management (feature #10, AD7). Nil until wired: unit tests skip
+	// the gate; main.go and FVT always wire it.
+	roleGuard *RoleGuard
+
+	// sessionResolver resolves the authenticated caller for
+	// AcceptInvitation/RejectInvitation (feature #10). Implemented by
+	// the auth module; nil until wired.
+	sessionResolver SessionResolver
 }
 
 // New constructs the tenancy service. The repository is wired lazily
@@ -54,11 +64,21 @@ func NewForFVT(db *gorm.DB) *Service {
 	return &Service{repo: NewRepository(db)}
 }
 
+// SetRoleGuard injects the membership role guard (feature #10, AD7).
+// Production and FVT wire it; unit tests leave it nil so the gate
+// no-ops.
+func (s *Service) SetRoleGuard(g *RoleGuard) { s.roleGuard = g }
+
+// SetSessionResolver injects the caller-identity resolver (feature #10).
+// Production and FVT wire it; unit tests leave it nil so session
+// resolution no-ops.
+func (s *Service) SetSessionResolver(r SessionResolver) { s.sessionResolver = r }
+
 // MigrateSchemaForFVT applies the tenancy schema (organizations,
-// projects) onto a caller-provided database for full-verification
-// tests.
+// projects, org_members, invitations) onto a caller-provided database
+// for full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&Organization{}, &Project{})
+	return db.AutoMigrate(&Organization{}, &Project{}, &OrgMember{}, &Invitation{})
 }
 
 // AttachToServer implements server.Service.
@@ -83,7 +103,7 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&Organization{}, &Project{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&Organization{}, &Project{}, &OrgMember{}, &Invitation{}); err != nil {
 		return err
 	}
 	repo, err := s.repository()

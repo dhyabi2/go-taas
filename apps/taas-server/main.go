@@ -66,7 +66,8 @@ func main() {
 	// creates the organizations/projects tables and seeds the default
 	// organization) runs before the consumers' migrates — order is only
 	// tidy, not functionally required (feature #6).
-	srv.RegisterService(tenancy.New(srv.Components()))
+	tenancySvc := tenancy.New(srv.Components())
+	srv.RegisterService(tenancySvc)
 	authSvc := auth.New(srv.Components())
 	srv.RegisterService(authSvc)
 	modelSvc := model.New(srv.Components())
@@ -98,6 +99,14 @@ func main() {
 			// The per-request cost attributor reads billing's
 			// price_entries over the shared database (feature #9, AD3).
 			meteringSvc.SetCostAttributor(metering.NewCostAttributor(gormDB))
+			// The membership RoleGuard gates member/invitation management
+			// (feature #10, AD7); the SessionResolver lets the tenancy
+			// service resolve the authenticated caller (feature #10).
+			tenancySvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			tenancySvc.SetSessionResolver(authSvc)
+			// The auth session derives roles/accessible orgs from
+			// org_members (feature #10, AD2/AD11).
+			authSvc.SetMembershipResolver(tenancy.NewMembershipResolver(gormDB))
 			// The delete-model and delete-image reference guards need the
 			// infer repository (AC3, feature #3 D7).
 			modelSvc.SetDeleteGuard(infer.NewDeleteModelGuard(gormDB))

@@ -104,6 +104,82 @@ service TenancyService {
       body: "*"
     };
   }
+
+  // ListOrgMembers returns the organization's roster with roles.
+  // Requires admin/owner in the org context (feature #10).
+  rpc ListOrgMembers(ListOrgMembersRequest) returns (ListOrgMembersResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/tenancy/organizations/{organization_id}/members"};
+  }
+
+  // AddOrgMember adds a member with a role. Requires admin/owner.
+  rpc AddOrgMember(AddOrgMemberRequest) returns (AddOrgMemberResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/organizations/{organization_id}/members"
+      body: "*"
+    };
+  }
+
+  // SetOrgMemberRole changes a member's role. Requires admin/owner.
+  rpc SetOrgMemberRole(SetOrgMemberRoleRequest) returns (SetOrgMemberRoleResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/admin/tenancy/organizations/{organization_id}/members/{user_id}"
+      body: "*"
+    };
+  }
+
+  // RemoveOrgMember removes a member. Requires admin/owner; the owner
+  // is protected.
+  rpc RemoveOrgMember(RemoveOrgMemberRequest) returns (RemoveOrgMemberResponse) {
+    option (google.api.http) = {delete: "/api/v1/admin/tenancy/organizations/{organization_id}/members/{user_id}"};
+  }
+
+  // CreateInvitation invites a person by email with a role. Requires
+  // admin/owner; returns the raw token once.
+  rpc CreateInvitation(CreateInvitationRequest) returns (CreateInvitationResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/organizations/{organization_id}/invitations"
+      body: "*"
+    };
+  }
+
+  // ListInvitations returns the org's invitation pipeline. Requires
+  // admin/owner.
+  rpc ListInvitations(ListInvitationsRequest) returns (ListInvitationsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/tenancy/organizations/{organization_id}/invitations"};
+  }
+
+  // RevokeInvitation cancels a pending invitation. Requires admin/owner.
+  rpc RevokeInvitation(RevokeInvitationRequest) returns (RevokeInvitationResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/invitations/{invitation_id}:revoke"
+      body: "*"
+    };
+  }
+
+  // ResendInvitation issues a new token and refreshes expiry. Requires
+  // admin/owner; returns the new token once.
+  rpc ResendInvitation(ResendInvitationRequest) returns (ResendInvitationResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/invitations/{invitation_id}:resend"
+      body: "*"
+    };
+  }
+
+  // AcceptInvitation joins the org for the authenticated caller.
+  rpc AcceptInvitation(AcceptInvitationRequest) returns (AcceptInvitationResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/invitations/{token}:accept"
+      body: "*"
+    };
+  }
+
+  // RejectInvitation declines the org for the authenticated caller.
+  rpc RejectInvitation(RejectInvitationRequest) returns (RejectInvitationResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/tenancy/invitations/{token}:reject"
+      body: "*"
+    };
+  }
 }
 
 message CreateOrganizationRequest {
@@ -266,4 +342,135 @@ message ProjectSummary {
   string state = 5;
   int64 created_at = 6;
   int64 updated_at = 7;
+}
+
+// OrgMember describes one member of an organization's roster.
+message OrgMember {
+  string user_id = 1;
+  string display_name = 2;
+  // role is owner / admin / member / viewer.
+  string role = 3;
+  int64 joined_at = 4;
+}
+
+message ListOrgMembersRequest {
+  string organization_id = 1;
+  taas.common.v1.PageRequest page = 2;
+}
+
+message ListOrgMembersResponse {
+  taas.common.v1.Response response = 1;
+  repeated OrgMember members = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message AddOrgMemberRequest {
+  string organization_id = 1;
+  string user_id = 2;
+  // role is admin / member / viewer (owner cannot be assigned here).
+  string role = 3;
+}
+
+message AddOrgMemberResponse {
+  taas.common.v1.Response response = 1;
+  OrgMember member = 2;
+}
+
+message SetOrgMemberRoleRequest {
+  string organization_id = 1;
+  string user_id = 2;
+  string role = 3;
+}
+
+message SetOrgMemberRoleResponse {
+  taas.common.v1.Response response = 1;
+  OrgMember member = 2;
+}
+
+message RemoveOrgMemberRequest {
+  string organization_id = 1;
+  string user_id = 2;
+}
+
+message RemoveOrgMemberResponse {
+  taas.common.v1.Response response = 1;
+}
+
+// Invitation describes one invitation row of the org's pipeline.
+message Invitation {
+  string invitation_id = 1;
+  string email = 2;
+  string role = 3;
+  // status is pending / accepted / rejected / revoked / expired.
+  string status = 4;
+  int64 expires_at = 5;
+  string created_by = 6;
+  int64 created_at = 7;
+}
+
+message CreateInvitationRequest {
+  string organization_id = 1;
+  string email = 2;
+  string role = 3;
+  // expires_in seconds; 0 = default 7 days.
+  int64 expires_in = 4;
+}
+
+message CreateInvitationResponse {
+  taas.common.v1.Response response = 1;
+  Invitation invitation = 2;
+  // token is returned once at creation (never stored).
+  string token = 3;
+}
+
+message ListInvitationsRequest {
+  string organization_id = 1;
+  // status filters by invitation status; empty = all.
+  string status = 2;
+  taas.common.v1.PageRequest page = 3;
+}
+
+message ListInvitationsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Invitation invitations = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message RevokeInvitationRequest {
+  string invitation_id = 1;
+}
+
+message RevokeInvitationResponse {
+  taas.common.v1.Response response = 1;
+  Invitation invitation = 2;
+}
+
+message ResendInvitationRequest {
+  string invitation_id = 1;
+}
+
+message ResendInvitationResponse {
+  taas.common.v1.Response response = 1;
+  Invitation invitation = 2;
+  // token is the new raw token, returned once.
+  string token = 3;
+}
+
+message AcceptInvitationRequest {
+  string token = 1;
+}
+
+message AcceptInvitationResponse {
+  taas.common.v1.Response response = 1;
+  // organization_id is the org the caller joined.
+  string organization_id = 2;
+  string role = 3;
+}
+
+message RejectInvitationRequest {
+  string token = 1;
+}
+
+message RejectInvitationResponse {
+  taas.common.v1.Response response = 1;
 }

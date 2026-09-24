@@ -68,6 +68,11 @@ type Service struct {
 	// until wired: session RPCs return 10027; main.go and FVT wire it.
 	sessionStore *SessionStore
 
+	// membershipResolver derives session roles/accessible orgs from
+	// org_members (feature #10, AD2/AD11). Nil until wired: unit tests
+	// fall back to IdP claims; main.go and FVT wire it.
+	membershipResolver *tenancy.MembershipResolver
+
 	// pluginFactory builds the IdP plugin for a provider type. It is
 	// the injection point for tests to substitute a fake plugin.
 	pluginFactory func(string) (IDPPlugin, error)
@@ -241,6 +246,11 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // Production and FVT wire it; unit tests leave it nil so session RPCs
 // return 10027.
 func (s *Service) SetSessionStore(st *SessionStore) { s.sessionStore = st }
+
+// SetMembershipResolver injects the org_members membership resolver
+// (feature #10, AD2/AD11). Production and FVT wire it; unit tests leave
+// it nil so session derivation falls back to IdP claims.
+func (s *Service) SetMembershipResolver(r *tenancy.MembershipResolver) { s.membershipResolver = r }
 
 // CreateSessionForTest creates a session in the store directly. It is
 // used by FVT to seed a session without going through the SSO flow.
