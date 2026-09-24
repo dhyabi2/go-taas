@@ -1,3 +1,11 @@
+# [1.9.0](https://github.com/go-taas/go-taas/compare/v1.8.0...v1.9.0) (2026-09-24)
+
+
+### Features
+
+* **console:** add request logs and playground pages (feature-12) ([fa73c46](https://github.com/go-taas/go-taas/commit/fa73c4678645c9d8ed7dae89010d62d67bc9764d))
+* **metering,infer:** add request logs and playground proxy (feature-12) ([d08b2f8](https://github.com/go-taas/go-taas/commit/d08b2f89b003af877ff393caf450925c8760c632))
+
 # [1.8.0](https://github.com/go-taas/go-taas/compare/v1.7.0...v1.8.0) (2026-09-24)
 
 
