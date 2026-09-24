@@ -153,6 +153,9 @@ type MeteringRetentionConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// VoucherTTL is how long settled vouchers are kept before deletion.
 	VoucherTTL time.Duration `mapstructure:"voucherTTL"`
+	// RequestLogTTL is how long request logs are kept before deletion
+	// (feature #12, AD4); default 30 days.
+	RequestLogTTL time.Duration `mapstructure:"requestLogTTL"`
 	// BatchSize is the number of rows deleted per retention pass.
 	BatchSize int `mapstructure:"batchSize"`
 	// Interval is the ticker period between retention passes.
@@ -374,6 +377,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Metering.Retention.VoucherTTL < 0 {
 		return &FieldError{Field: "metering.retention.voucherTTL", Reason: "must not be negative"}
+	}
+	if c.Metering.Retention.RequestLogTTL < 0 {
+		return &FieldError{Field: "metering.retention.requestLogTTL", Reason: "must not be negative"}
 	}
 	if c.Metering.Retention.BatchSize < 0 {
 		return &FieldError{Field: "metering.retention.batchSize", Reason: "must not be negative"}

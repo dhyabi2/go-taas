@@ -49,6 +49,17 @@ service InferServiceService {
   rpc DeleteInferenceService(DeleteInferenceServiceRequest) returns (DeleteInferenceServiceResponse) {
     option (google.api.http) = {delete: "/api/v1/admin/inference-services/{service_id}"};
   }
+
+  // PlaygroundInfer sends a test inference through the service using a
+  // selected org API key (feature #12, Increment B). The call is metered
+  // and logged through the normal data-plane path.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc PlaygroundInfer(PlaygroundInferRequest) returns (PlaygroundInferResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/inference-services/{service_id}:playground"
+      body: "*"
+    };
+  }
 }
 
 message CreateInferenceServiceRequest {
@@ -116,4 +127,22 @@ message DeleteInferenceServiceRequest {
 
 message DeleteInferenceServiceResponse {
   taas.common.v1.Response response = 1;
+}
+
+message PlaygroundInferRequest {
+  string service_id = 1;
+  // api_key_id is the selected org API key identity (feature #12, AD8).
+  string api_key_id = 2;
+  string model_id = 3;
+  string prompt = 4;
+}
+
+message PlaygroundInferResponse {
+  taas.common.v1.Response response = 1;
+  string completion = 2;
+  int64 prompt_tokens = 3;
+  int64 completion_tokens = 4;
+  int64 cached_tokens = 5;
+  int64 reasoning_tokens = 6;
+  int64 latency_ms = 7;
 }

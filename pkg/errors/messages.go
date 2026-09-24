@@ -76,6 +76,7 @@ var messages = map[Code]string{
 	CodeMeteringVoucherError:    "metering voucher error",
 	CodeMeteringVoucherNotFound: "metering voucher not found",
 	CodeMeteringRangeInvalid:    "metering range invalid",
+	CodeRequestLogNotFound:      "request log not found",
 
 	// billing
 	CodePriceNotFound:       "price not found",

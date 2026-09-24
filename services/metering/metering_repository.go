@@ -465,3 +465,96 @@ func (r *Repository) CountUnsettledOlderThan(ctx context.Context, before time.Ti
 	}
 	return count, nil
 }
+
+// RequestLogFilter scopes a request-log list query (feature #12).
+type RequestLogFilter struct {
+	OrganizationID string
+	APIKeyID       string
+	ModelID        string
+	Status         string
+	Since          int64
+	Until          int64
+	Offset         int
+	Limit          int
+}
+
+// IngestRequestLog inserts a request log idempotently: INSERT with ON
+// CONFLICT DO NOTHING on the request_id unique index; a duplicate
+// delivery converges on the existing row (feature #12, AD2).
+func (r *Repository) IngestRequestLog(ctx context.Context, log *RequestLog) error {
+	if log.ID == "" {
+		log.ID = uuid.NewString()
+	}
+	result := r.DB(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(log)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+// FindRequestLogByID returns the request log with the given id; a miss
+// maps to 10405.
+func (r *Repository) FindRequestLogByID(ctx context.Context, id string) (*RequestLog, error) {
+	var row RequestLog
+	err := r.DB(ctx).First(&row, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apierrors.New(apierrors.CodeRequestLogNotFound)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// ListRequestLogs returns one page of request logs, newest first, and
+// the total count (feature #12).
+func (r *Repository) ListRequestLogs(ctx context.Context, filter RequestLogFilter) ([]*RequestLog, int64, error) {
+	query := r.DB(ctx).Model(&RequestLog{}).
+		Where("organization_id = ?", filter.OrganizationID)
+	if filter.APIKeyID != "" {
+		query = query.Where("api_key_id = ?", filter.APIKeyID)
+	}
+	if filter.ModelID != "" {
+		query = query.Where("model_id = ?", filter.ModelID)
+	}
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.Since > 0 {
+		query = query.Where("created_at >= ?", time.Unix(filter.Since, 0).UTC())
+	}
+	if filter.Until > 0 {
+		query = query.Where("created_at < ?", time.Unix(filter.Until, 0).UTC())
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []*RequestLog
+	if err := query.Order("created_at DESC").Order("id DESC").
+		Offset(filter.Offset).Limit(filter.Limit).
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+// DeleteRequestLogsBefore deletes up to batch request logs older than
+// the cutoff — the request-log retention primitive (feature #12, AD4).
+func (r *Repository) DeleteRequestLogsBefore(ctx context.Context, before time.Time, batch int) (int64, error) {
+	if batch <= 0 {
+		batch = 1
+	}
+	var ids []string
+	if err := r.DB(ctx).Model(&RequestLog{}).
+		Where("created_at < ?", before.UTC()).
+		Limit(batch).
+		Pluck("id", &ids).Error; err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := r.DB(ctx).Where("id IN ?", ids).Delete(&RequestLog{})
+	return result.RowsAffected, result.Error
+}

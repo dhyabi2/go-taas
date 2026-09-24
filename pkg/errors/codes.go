@@ -107,6 +107,7 @@ const (
 	CodeMeteringVoucherError    Code = 10402 // METERING_VOUCHER_ERROR
 	CodeMeteringVoucherNotFound Code = 10403 // METERING_VOUCHER_NOT_FOUND
 	CodeMeteringRangeInvalid    Code = 10404 // METERING_RANGE_INVALID
+	CodeRequestLogNotFound      Code = 10405 // REQUEST_LOG_NOT_FOUND
 )
 
 // billing module error codes.

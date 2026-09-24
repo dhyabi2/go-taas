@@ -129,6 +129,9 @@ func (c *Configuration) applyDefaults() {
 	if c.Metering.Retention.VoucherTTL == 0 {
 		c.Metering.Retention.VoucherTTL = 2160 * time.Hour
 	}
+	if c.Metering.Retention.RequestLogTTL == 0 {
+		c.Metering.Retention.RequestLogTTL = 720 * time.Hour
+	}
 	if c.Metering.Retention.BatchSize == 0 {
 		c.Metering.Retention.BatchSize = 1000
 	}

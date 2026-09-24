@@ -51,6 +51,19 @@ service MeteringService {
   rpc GetUsageDashboard(GetUsageDashboardRequest) returns (GetUsageDashboardResponse) {
     option (google.api.http) = {get: "/api/v1/admin/metering/usage-dashboard"};
   }
+
+  // ListRequestLogs returns per-request metadata logs, filterable by
+  // api key, model, status and time range (feature #12).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListRequestLogs(ListRequestLogsRequest) returns (ListRequestLogsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/metering/request-logs"};
+  }
+
+  // GetRequestLog returns one request log for drill-down (feature #12).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetRequestLog(GetRequestLogRequest) returns (GetRequestLogResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/metering/request-logs/{request_log_id}"};
+  }
 }
 
 message IngestMeteringEventRequest {
@@ -68,6 +81,12 @@ message IngestMeteringEventRequest {
   // accelerator_type optionally names the card type that served the
   // request; billing resolves it on its own usage lines (feature #5).
   string accelerator_type = 8;
+  // latency_ms is the request latency in milliseconds (feature #12).
+  int64 latency_ms = 9;
+  // status is success / error / streaming (feature #12).
+  RequestLogStatus status = 10;
+  // error is the failure reason; empty on success (feature #12).
+  string error = 11;
 }
 
 message TokenUsage {
@@ -258,4 +277,59 @@ message GetUsageDashboardResponse {
   taas.common.v1.Response response = 1;
   DashboardCard cards = 2;
   repeated DailyBucket daily_buckets = 3;
+}
+
+// RequestLogStatus is the outcome of an inference request (feature #12).
+enum RequestLogStatus {
+  REQUEST_LOG_STATUS_UNSPECIFIED = 0;
+  REQUEST_LOG_STATUS_SUCCESS = 1;
+  REQUEST_LOG_STATUS_ERROR = 2;
+  REQUEST_LOG_STATUS_STREAMING = 3;
+}
+
+// RequestLog is one per-request metadata log (feature #12).
+message RequestLog {
+  string request_log_id = 1;
+  string request_id = 2;
+  string organization_id = 3;
+  string api_key_id = 4;
+  string model_id = 5;
+  // service_id is empty when unknown.
+  string service_id = 6;
+  int64 prompt_tokens = 7;
+  int64 completion_tokens = 8;
+  int64 cached_tokens = 9;
+  int64 reasoning_tokens = 10;
+  int64 latency_ms = 11;
+  RequestLogStatus status = 12;
+  // error is the failure reason; empty on success.
+  string error = 13;
+  int64 created_at = 14;
+}
+
+message ListRequestLogsRequest {
+  taas.common.v1.PageRequest page = 1;
+  int64 since = 2;
+  int64 until = 3;
+  // api_key_id filters by the calling API key.
+  string api_key_id = 4;
+  // model_id filters by the served model.
+  string model_id = 5;
+  // status filters by outcome; unspecified = all.
+  RequestLogStatus status = 6;
+}
+
+message ListRequestLogsResponse {
+  taas.common.v1.Response response = 1;
+  repeated RequestLog request_logs = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message GetRequestLogRequest {
+  string request_log_id = 1;
+}
+
+message GetRequestLogResponse {
+  taas.common.v1.Response response = 1;
+  RequestLog request_log = 2;
 }

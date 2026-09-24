@@ -24,6 +24,12 @@ type meteringEvent struct {
 	ServiceID      string     `json:"service_id"`
 	Usage          tokenUsage `json:"usage"`
 	CompletedAt    int64      `json:"completed_at"`
+	// LatencyMs is the request latency in milliseconds (feature #12).
+	LatencyMs int64 `json:"latency_ms"`
+	// Status is success / error / streaming (feature #12).
+	Status string `json:"status"`
+	// Error is the failure reason; empty on success (feature #12).
+	Error string `json:"error"`
 }
 
 // tokenUsage is the per-part token breakdown carried on the event.

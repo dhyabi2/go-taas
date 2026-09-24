@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	commonv1 "github.com/go-taas/go-taas/proto/taas/common/v1"
 	meteringv1 "github.com/go-taas/go-taas/proto/taas/metering/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
@@ -89,6 +90,97 @@ func (s *Service) GetUsageDashboard(ctx context.Context, req *meteringv1.GetUsag
 		Cards:        cards,
 		DailyBuckets: daily,
 	}, nil
+}
+
+// ListRequestLogs returns per-request metadata logs, filterable by api
+// key, model, status and time range (feature #12, AC-A4).
+func (s *Service) ListRequestLogs(ctx context.Context, req *meteringv1.ListRequestLogsRequest) (*meteringv1.ListRequestLogsResponse, error) {
+	orgID, err := resolveOrganizationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	since, until, err := validateRange(req.GetSince(), req.GetUntil())
+	if err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	offset, limit := normalizePagination(req.GetPage())
+	rows, total, err := repo.ListRequestLogs(ctx, RequestLogFilter{
+		OrganizationID: orgID,
+		APIKeyID:       req.GetApiKeyId(),
+		ModelID:        req.GetModelId(),
+		Status:         requestLogStatusString(req.GetStatus()),
+		Since:          since,
+		Until:          until,
+		Offset:         offset,
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	logs := make([]*meteringv1.RequestLog, 0, len(rows))
+	for _, row := range rows {
+		logs = append(logs, summarizeRequestLog(row))
+	}
+	return &meteringv1.ListRequestLogsResponse{
+		Response:    okResponse(),
+		RequestLogs: logs,
+		PageMeta:    &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampInt32(limit)},
+	}, nil
+}
+
+// GetRequestLog returns one request log for drill-down (feature #12,
+// AC-A5); unknown ids return 10405.
+func (s *Service) GetRequestLog(ctx context.Context, req *meteringv1.GetRequestLogRequest) (*meteringv1.GetRequestLogResponse, error) {
+	orgID, err := resolveOrganizationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	row, err := repo.FindRequestLogByID(ctx, req.GetRequestLogId())
+	if err != nil {
+		return nil, err
+	}
+	return &meteringv1.GetRequestLogResponse{
+		Response:   okResponse(),
+		RequestLog: summarizeRequestLog(row),
+	}, nil
+}
+
+// summarizeRequestLog maps a request-log row to the proto message.
+func summarizeRequestLog(row *RequestLog) *meteringv1.RequestLog {
+	serviceID := ""
+	if row.ServiceID != nil {
+		serviceID = *row.ServiceID
+	}
+	return &meteringv1.RequestLog{
+		RequestLogId:     row.ID,
+		RequestId:        row.RequestID,
+		OrganizationId:   row.OrganizationID,
+		ApiKeyId:         row.APIKeyID,
+		ModelId:          row.ModelID,
+		ServiceId:        serviceID,
+		PromptTokens:     row.PromptTokens,
+		CompletionTokens: row.CompletionTokens,
+		CachedTokens:     row.CachedTokens,
+		ReasoningTokens:  row.ReasoningTokens,
+		LatencyMs:        row.LatencyMs,
+		Status:           requestLogStatusEnum(row.Status),
+		Error:            row.Error,
+		CreatedAt:        row.CreatedAt.Unix(),
+	}
 }
 
 // validateDashboardRange checks and defaults the since/until pair for

@@ -137,6 +137,9 @@ func main() {
 	if runner := metering.NewRetentionRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
+	if runner := metering.NewRequestLogRetentionRunnerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
 	if runner := billing.NewEventConsumerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}

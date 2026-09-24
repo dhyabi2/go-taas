@@ -17,6 +17,7 @@ import (
 	meteringv1 "github.com/go-taas/go-taas/proto/taas/metering/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
 	"github.com/go-taas/go-taas/services/tenancy"
@@ -106,10 +107,10 @@ func NewForFVT(db *gorm.DB, publisher mq.Client) *Service {
 }
 
 // MigrateSchemaForFVT applies the metering schema (vouchers,
-// usage_records) onto a caller-provided database for full-verification
-// tests.
+// usage_records, request_logs) onto a caller-provided database for
+// full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&Voucher{}, &UsageRecord{})
+	return db.AutoMigrate(&Voucher{}, &UsageRecord{}, &RequestLog{})
 }
 
 // AttachToServer implements server.Service.
@@ -125,15 +126,15 @@ func (s *Service) GetServiceHandlerRegisterFn() server.ServiceHandlerRegisterFn 
 	return meteringv1.RegisterMeteringServiceHandler
 }
 
-// Migrate implements server.Migrator: it creates/updates the vouchers
-// and usage_records tables via GORM AutoMigrate. There is nothing to
-// seed.
+// Migrate implements server.Migrator: it creates/updates the vouchers,
+// usage_records and request_logs tables via GORM AutoMigrate. There is
+// nothing to seed.
 func (s *Service) Migrate(ctx context.Context) error {
 	db, err := s.gormDB()
 	if err != nil {
 		return err
 	}
-	return db.WithContext(ctx).AutoMigrate(&Voucher{}, &UsageRecord{})
+	return db.WithContext(ctx).AutoMigrate(&Voucher{}, &UsageRecord{}, &RequestLog{})
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared
@@ -260,7 +261,42 @@ func (s *Service) handleEvent(ctx context.Context, ev *meteringEvent) (string, e
 	if err != nil {
 		return "", err
 	}
+	// Feature #12: write the request log best-effort and non-fatal
+	// (AD2). A failure is logged and never fails or retries the voucher.
+	s.writeRequestLog(ctx, repo, ev)
 	return stored.ID, nil
+}
+
+// writeRequestLog builds and writes a request-log row best-effort
+// (feature #12, AD2). A write failure is logged and skipped; the
+// voucher is the authoritative accounting record.
+func (s *Service) writeRequestLog(ctx context.Context, repo *Repository, ev *meteringEvent) {
+	status := "success"
+	if ev.Status != "" {
+		status = ev.Status
+	}
+	log := &RequestLog{
+		RequestID:        ev.RequestID,
+		OrganizationID:   ev.OrganizationID,
+		APIKeyID:         ev.APIKeyID,
+		ModelID:          ev.ModelID,
+		PromptTokens:     ev.Usage.PromptTokens,
+		CompletionTokens: ev.Usage.CompletionTokens,
+		CachedTokens:     ev.Usage.CachedTokens,
+		ReasoningTokens:  ev.Usage.ReasoningTokens,
+		LatencyMs:        ev.LatencyMs,
+		Status:           status,
+		Error:            ev.Error,
+		CreatedAt:        time.Unix(ev.CompletedAt, 0).UTC(),
+	}
+	if ev.ServiceID != "" {
+		sid := ev.ServiceID
+		log.ServiceID = &sid
+	}
+	if err := repo.IngestRequestLog(ctx, log); err != nil {
+		logger.S().Warnw("metering: request log write failed (best-effort, voucher already written)",
+			"request_id", ev.RequestID, "err", err)
+	}
 }
 
 // validateEvent applies the ingestion validation matrix (architecture
@@ -303,6 +339,9 @@ func (s *Service) IngestMeteringEvent(ctx context.Context, req *meteringv1.Inges
 		ModelID:        req.GetModelId(),
 		ServiceID:      req.GetServiceId(),
 		CompletedAt:    req.GetCompletedAt(),
+		LatencyMs:      req.GetLatencyMs(),
+		Status:         requestLogStatusString(req.GetStatus()),
+		Error:          req.GetError(),
 	}
 	if usage := req.GetUsage(); usage != nil {
 		ev.Usage = tokenUsage{
@@ -533,4 +572,28 @@ func summarizeVoucher(v *Voucher) *meteringv1.VoucherSummary {
 // okResponse is the success envelope.
 func okResponse() *commonv1.Response {
 	return &commonv1.Response{Code: 0, Message: "OK"}
+}
+
+// requestLogStatusString maps the proto enum to the stored string.
+func requestLogStatusString(s meteringv1.RequestLogStatus) string {
+	switch s {
+	case meteringv1.RequestLogStatus_REQUEST_LOG_STATUS_ERROR:
+		return "error"
+	case meteringv1.RequestLogStatus_REQUEST_LOG_STATUS_STREAMING:
+		return "streaming"
+	default:
+		return "success"
+	}
+}
+
+// requestLogStatusEnum maps a stored status string to the proto enum.
+func requestLogStatusEnum(s string) meteringv1.RequestLogStatus {
+	switch s {
+	case "error":
+		return meteringv1.RequestLogStatus_REQUEST_LOG_STATUS_ERROR
+	case "streaming":
+		return meteringv1.RequestLogStatus_REQUEST_LOG_STATUS_STREAMING
+	default:
+		return meteringv1.RequestLogStatus_REQUEST_LOG_STATUS_SUCCESS
+	}
 }
