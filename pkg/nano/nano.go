@@ -78,14 +78,10 @@ func parseDecimal(s string) (*big.Int, error) {
 	if s == "" {
 		return nil, errParse
 	}
-	neg := false
-	if s[0] == '-' {
-		neg = true
+	switch s[0] {
+	case '+':
 		s = s[1:]
-	} else if s[0] == '+' {
-		s = s[1:]
-	}
-	if neg {
+	case '-':
 		return nil, errParse // amount strings here are non-negative
 	}
 	intPart, fracPart := s, ""
