@@ -24,7 +24,7 @@ func newServiceTestEnv(t *testing.T) *Service {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&Voucher{}, &UsageRecord{}))
+	require.NoError(t, db.AutoMigrate(&Voucher{}, &UsageRecord{}, &RequestLog{}))
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
 		_ = sqlDB.Close()
