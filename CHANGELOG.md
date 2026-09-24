@@ -1,3 +1,19 @@
+# [1.2.0](https://github.com/go-taas/go-taas/compare/v1.1.0...v1.2.0) (2026-09-24)
+
+
+### Bug Fixes
+
+* **metering:** map malformed voucher ids to 10403 instead of internal error ([95400dc](https://github.com/go-taas/go-taas/commit/95400dcffe8b6b8b6220be4815d3474bf77d9155))
+* **web:** repair console routing and api-key list, polish compose workflow ([e6d803c](https://github.com/go-taas/go-taas/commit/e6d803c2c855707c24ab38f839bfc68d075e4ff4))
+
+
+### Features
+
+* **api,web:** split admin surface under /api/v1/admin and /admin console prefix ([da83572](https://github.com/go-taas/go-taas/commit/da83572ff244c13a2b547fd12d5e66739af105b8))
+* **billing:** implement price matrix, tiered pricing and charging engine (feature-05) ([c17da8a](https://github.com/go-taas/go-taas/commit/c17da8a3a130d5c28ad781506a4a59c946b30960))
+* **image:** add db-backed image registry and warmup pre-pull ([d7eaa31](https://github.com/go-taas/go-taas/commit/d7eaa315e2215406682320c81c836cc0dec041c9))
+* **metering:** add token vouchers, hourly settlement and usage queries ([ca469a7](https://github.com/go-taas/go-taas/commit/ca469a71555278694ee215a11a37d932f428ebbf))
+
 # [1.1.0](https://github.com/go-taas/go-taas/compare/v1.0.0...v1.1.0) (2026-09-23)
 
 
