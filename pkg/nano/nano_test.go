@@ -73,15 +73,43 @@ func TestParseXNORejectsMalformed(t *testing.T) {
 		"-0.5",
 		"1..2",
 		"1.2.3",
-		".",
-		"+",
-		"+.",
 		"0.0000000000000000000000000000001", // 31 decimals, past raw
+		".",                                 // decimal point with digits nowhere
+		"+.",                                // plus sign and decimal, digits nowhere
+		"-",                                 // lone sign
+		"+",                                 // lone sign
 	}
 	for _, s := range bad {
 		_, err := ParseXNO(s)
 		require.Error(t, err, "expected error for %q", s)
 	}
+}
+
+// TestZeroValueSafe confirms the zero-value Amount{} never panics and
+// behaves as zero across every method.
+func TestZeroValueSafe(t *testing.T) {
+	var z Amount // zero value: nil raw
+	require.True(t, z.IsZero())
+	require.Equal(t, "0", z.Format())
+	require.Equal(t, 0, z.Cmp(z))
+	require.True(t, z.Add(z).IsZero())
+	require.True(t, z.Sub(RawFromInt(1)).LessThan(RawFromInt(1)))
+	require.Equal(t, "0", z.Raw().String())
+}
+
+// TestRawImmutable confirms Raw() returns a copy: mutating it does not
+// change the Amount, and a second call returns the original value.
+func TestRawImmutable(t *testing.T) {
+	a, err := ParseXNO("1")
+	require.NoError(t, err)
+
+	got := a.Raw()
+	got.SetUint64(1) // mutate the returned copy
+	require.Equal(t, "1", a.Format(), "Amount must be unchanged")
+
+	again := a.Raw().String()
+	want := new(big.Int).Exp(big.NewInt(10), big.NewInt(30), nil).String()
+	require.Equal(t, want, again)
 }
 
 // TestAddSubCompare checks exact arithmetic and ordering at the raw
