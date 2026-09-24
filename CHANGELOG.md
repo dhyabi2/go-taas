@@ -1,3 +1,11 @@
+# [1.7.0](https://github.com/go-taas/go-taas/compare/v1.6.0...v1.7.0) (2026-09-24)
+
+
+### Features
+
+* **console:** add members and invitations pages (feature-10) ([94a5265](https://github.com/go-taas/go-taas/commit/94a52653498328e07be8d8c0764cf4571d2ef3d4))
+* **tenancy:** add org members roles and invitations RBAC (feature-10) ([3768626](https://github.com/go-taas/go-taas/commit/3768626c5a553e8c937f50243d654c371f78c62e))
+
 # [1.6.0](https://github.com/go-taas/go-taas/compare/v1.5.0...v1.6.0) (2026-09-24)
 
 
