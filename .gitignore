@@ -62,6 +62,3 @@ proto/**/*.pb.gw.go
 
 # TypeScript incremental build cache
 *.tsbuildinfo
-
-# Invent-stack ledger (local verification state)
-.ledger/
