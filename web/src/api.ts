@@ -89,6 +89,8 @@ export interface ApiKeySummary {
   expiresAt: string;
   revoked: boolean;
   revokedAt: string;
+  rateLimitRpm?: string;
+  rateLimitTpm?: string;
 }
 
 export interface ModelSummary {
@@ -422,6 +424,9 @@ export interface BillingAccount {
   quotaUsagePercent: number;
   createdAt: string;
   updatedAt: string;
+  monthlySpendLimitCents?: string;
+  spentThisCycleCents?: string;
+  spendLimitUsagePercent?: number;
 }
 
 export interface BillingTransaction {

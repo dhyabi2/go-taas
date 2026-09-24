@@ -93,6 +93,7 @@ export default function AccountsPage() {
                 <th>Account</th>
                 <th>Mode</th>
                 <th>Balance / Quota</th>
+                <th>Spend limit</th>
                 <th>Cycle start</th>
                 <th>Actions</th>
               </tr>
@@ -124,6 +125,21 @@ export default function AccountsPage() {
                           />
                         )}
                       </span>
+                    )}
+                  </td>
+                  <td data-testid={`spend-limit-cell-${a.accountId}`}>
+                    {Number(a.monthlySpendLimitCents || '0') > 0 ? (
+                      <span>
+                        {formatCents(a.spentThisCycleCents || '0')} /{' '}
+                        {formatCents(a.monthlySpendLimitCents || '0')} {a.currency}
+                        <progress
+                          value={a.spendLimitUsagePercent || 0}
+                          max={100}
+                          data-testid={`spend-limit-progress-${a.accountId}`}
+                        />
+                      </span>
+                    ) : (
+                      <span className="muted">No spend limit</span>
                     )}
                   </td>
                   <td>{formatTime(a.cycleStartedAt)}</td>
@@ -214,6 +230,7 @@ function CreateAccountDialog({
   const [initialBalance, setInitialBalance] = useState('');
   const [quota, setQuota] = useState('');
   const [policy, setPolicy] = useState('block');
+  const [spendLimit, setSpendLimit] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -230,6 +247,9 @@ function CreateAccountDialog({
       }
       if (mode === 'postpaid' && quota !== '') {
         body.monthlyQuotaCents = Math.round(parseFloat(quota) * 100);
+      }
+      if (spendLimit !== '') {
+        body.monthlySpendLimitCents = Math.round(parseFloat(spendLimit) * 100);
       }
       await api.post('/api/v1/admin/billing/accounts', orgId, body);
       onCreated();
@@ -294,6 +314,18 @@ function CreateAccountDialog({
           </label>
         </>
       )}
+      <label>
+        Monthly spend limit (0 = unlimited)
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="0.00"
+          data-testid="spend-limit-input"
+          value={spendLimit}
+          onChange={(e) => setSpendLimit(e.target.value)}
+        />
+      </label>
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
           Cancel
