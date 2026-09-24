@@ -337,11 +337,13 @@ func clampInt32(v int) int32 {
 // secret or the hash.
 func summarizeAPIKey(row *APIKey) *authv1.APIKeySummary {
 	summary := &authv1.APIKeySummary{
-		KeyId:     row.ID,
-		Name:      row.Name,
-		Prefix:    row.Prefix,
-		CreatedAt: row.CreatedAt.Unix(),
-		Revoked:   row.Revoked,
+		KeyId:          row.ID,
+		Name:           row.Name,
+		Prefix:         row.Prefix,
+		CreatedAt:      row.CreatedAt.Unix(),
+		Revoked:        row.Revoked,
+		RateLimitRpm:   row.RateLimitRPM,
+		RateLimitTpm:   row.RateLimitTPM,
 	}
 	if row.ExpiresAt != nil {
 		summary.ExpiresAt = row.ExpiresAt.Unix()
@@ -380,6 +382,11 @@ func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequ
 		expiresAt = &t
 	}
 
+	// Rate limits must be non-negative (0 = unlimited, feature #11).
+	if req.GetRateLimitRpm() < 0 || req.GetRateLimitTpm() < 0 {
+		return nil, apierrors.Newf(apierrors.CodeAPIKeyInvalid, "auth: rate limits must be non-negative")
+	}
+
 	repo, err := s.repository()
 	if err != nil {
 		return nil, err
@@ -409,6 +416,8 @@ func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequ
 		CreatedAt:      time.Now().UTC(),
 		ExpiresAt:      expiresAt,
 		Revoked:        false,
+		RateLimitRPM:   req.GetRateLimitRpm(),
+		RateLimitTPM:   req.GetRateLimitTpm(),
 	}
 	if err := repo.Create(ctx, row); err != nil {
 		return nil, err
@@ -461,6 +470,70 @@ func (s *Service) RevokeAPIKey(ctx context.Context, req *authv1.RevokeAPIKeyRequ
 	return &authv1.RevokeAPIKeyResponse{Response: okResponse()}, nil
 }
 
+// UpdateAPIKey edits a key's name, expiry and rate limits post-creation
+// (feature #11, AD4). It never returns the plaintext and never changes
+// the secret.
+func (s *Service) UpdateAPIKey(ctx context.Context, req *authv1.UpdateAPIKeyRequest) (*authv1.UpdateAPIKeyResponse, error) {
+	orgID, err := resolveOrganizationID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	if req.GetKeyId() == "" {
+		return nil, apierrors.Newf(apierrors.CodeAPIKeyInvalid, "auth: key_id is required")
+	}
+
+	// Validate the name: 1-64 characters after trimming.
+	name := strings.TrimSpace(req.GetName())
+	if name == "" || len(name) > 64 {
+		return nil, apierrors.Newf(apierrors.CodeAPIKeyInvalid, "auth: name must be 1-64 characters")
+	}
+
+	// Optional expiry must be strictly in the future; 0 clears it.
+	var expiresAt *time.Time
+	if req.GetExpiresAt() != 0 {
+		t := time.Unix(req.GetExpiresAt(), 0).UTC()
+		if !t.After(time.Now()) {
+			return nil, apierrors.Newf(apierrors.CodeAPIKeyInvalid, "auth: expires_at must be in the future")
+		}
+		expiresAt = &t
+	}
+
+	// Rate limits must be non-negative (0 = unlimited).
+	if req.GetRateLimitRpm() < 0 || req.GetRateLimitTpm() < 0 {
+		return nil, apierrors.Newf(apierrors.CodeAPIKeyInvalid, "auth: rate limits must be non-negative")
+	}
+
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	row, err := repo.UpdateByIDAndOrganization(ctx, orgID, req.GetKeyId(), name, expiresAt, req.GetRateLimitRpm(), req.GetRateLimitTpm())
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, apierrors.New(apierrors.CodeAPIKeyNotFound)
+	}
+
+	// Invalidate the positive-cache entry so the new limits propagate
+	// within the cache TTL (AD1). A failure only degrades the bound.
+	cache, err := s.verdictCacheFor()
+	if err == nil {
+		if delErr := cache.Delete(ctx, row.LookupHash); delErr != nil {
+			logger.S().Warnw("auth: delete api key cache entry failed on update",
+				"key_id", req.GetKeyId(), "err", delErr)
+		}
+	}
+
+	return &authv1.UpdateAPIKeyResponse{
+		Response: okResponse(),
+		Key:      summarizeAPIKey(row),
+	}, nil
+}
+
 // VerifyAPIKey authenticates an inference request by its API key digest.
 // It is called by the gateway on the data-plane request path.
 func (s *Service) VerifyAPIKey(ctx context.Context, req *authv1.VerifyAPIKeyRequest) (*authv1.VerifyAPIKeyResponse, error) {
@@ -490,6 +563,8 @@ func (s *Service) VerifyAPIKey(ctx context.Context, req *authv1.VerifyAPIKeyRequ
 			OrganizationId: verdict.OrganizationID,
 			KeyId:          verdict.KeyID,
 			Role:           verdict.Role,
+			RateLimitRpm:   verdict.RateLimitRPM,
+			RateLimitTpm:   verdict.RateLimitTPM,
 		}, nil
 	}
 
@@ -517,7 +592,13 @@ func (s *Service) VerifyAPIKey(ctx context.Context, req *authv1.VerifyAPIKeyRequ
 		return nil, apierrors.New(apierrors.CodeAPIKeyInvalid)
 	}
 
-	verdict = &keyVerdict{OrganizationID: row.OrganizationID, KeyID: row.ID, Role: apiKeyRole}
+	verdict = &keyVerdict{
+		OrganizationID: row.OrganizationID,
+		KeyID:          row.ID,
+		Role:           apiKeyRole,
+		RateLimitRPM:   row.RateLimitRPM,
+		RateLimitTPM:   row.RateLimitTPM,
+	}
 	if err := cache.Set(ctx, digest, verdict, s.apiKeyCacheTTL()); err != nil {
 		// A cache write failure only costs performance, not security.
 		logger.S().Warnw("auth: cache verdict write failed", "key_id", row.ID, "err", err)
@@ -530,6 +611,8 @@ func (s *Service) VerifyAPIKey(ctx context.Context, req *authv1.VerifyAPIKeyRequ
 		OrganizationId: verdict.OrganizationID,
 		KeyId:          verdict.KeyID,
 		Role:           verdict.Role,
+		RateLimitRpm:   verdict.RateLimitRPM,
+		RateLimitTpm:   verdict.RateLimitTPM,
 	}, nil
 }
 

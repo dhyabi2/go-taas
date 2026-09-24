@@ -52,6 +52,17 @@ service AuthService {
     };
   }
 
+  // UpdateAPIKey edits a key's name, expiry and rate limits
+  // post-creation. It never returns the plaintext and never changes the
+  // secret (feature #11, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc UpdateAPIKey(UpdateAPIKeyRequest) returns (UpdateAPIKeyResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/auth/api-keys/{key_id}"
+      body: "*"
+    };
+  }
+
   // VerifyAPIKey checks an API key on behalf of the data-plane gateway.
   // It is called per request by the gateway's Wasm plugin and is backed
   // by a Redis positive cache.
@@ -204,11 +215,37 @@ message APIKeySummary {
   // revoked_at is the first revocation time (unix seconds); 0 = never
   // revoked. Preserved by idempotent re-revoke for audit display.
   int64 revoked_at = 7;
+  // rate_limit_rpm is the max requests per minute; 0 = unlimited
+  // (feature #11, AD1).
+  int64 rate_limit_rpm = 8;
+  // rate_limit_tpm is the max tokens per minute; 0 = unlimited.
+  int64 rate_limit_tpm = 9;
 }
 
 message CreateAPIKeyRequest {
   string name = 1;
   int64 expires_at = 2;
+  // rate_limit_rpm is the max requests per minute; 0 = unlimited.
+  int64 rate_limit_rpm = 3;
+  // rate_limit_tpm is the max tokens per minute; 0 = unlimited.
+  int64 rate_limit_tpm = 4;
+}
+
+message UpdateAPIKeyRequest {
+  string key_id = 1;
+  string name = 2;
+  // expires_at is unix seconds; 0 = clear (never expires).
+  int64 expires_at = 3;
+  // rate_limit_rpm is the max requests per minute; 0 = unlimited.
+  int64 rate_limit_rpm = 4;
+  // rate_limit_tpm is the max tokens per minute; 0 = unlimited.
+  int64 rate_limit_tpm = 5;
+}
+
+message UpdateAPIKeyResponse {
+  taas.common.v1.Response response = 1;
+  // key never carries the plaintext.
+  APIKeySummary key = 2;
 }
 
 message CreateAPIKeyResponse {
@@ -241,6 +278,11 @@ message VerifyAPIKeyResponse {
   string organization_id = 2;
   string key_id = 3;
   string role = 4;
+  // rate_limit_rpm is the max requests per minute; 0 = unlimited
+  // (feature #11, AD1). The gateway enforces it locally.
+  int64 rate_limit_rpm = 5;
+  // rate_limit_tpm is the max tokens per minute; 0 = unlimited.
+  int64 rate_limit_tpm = 6;
 }
 
 // ---- SSO federation (feature #7) ----

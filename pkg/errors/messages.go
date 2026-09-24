@@ -47,6 +47,7 @@ var messages = map[Code]string{
 	CodeInvitationExpired:     "invitation expired",
 	CodeInvitationExists:      "invitation already exists",
 	CodeForbidden:             "forbidden",
+	CodeRateLimitExceeded:     "rate limit exceeded",
 
 	// model
 	CodeModelNotFound:        "model not found",

@@ -86,3 +86,45 @@ func (r *APIKeyRepository) RevokeByIDAndOrganization(ctx context.Context, orgID,
 	}
 	return lookupHash, nil
 }
+
+// UpdateByIDAndOrganization edits a key's name, expiry and rate limits,
+// scoped to the owning organization (feature #11, AD4). A missing key or
+// a key of another organization returns nil (the caller maps it to
+// CodeAPIKeyNotFound — no cross-org existence leak). It never touches
+// the secret columns.
+func (r *APIKeyRepository) UpdateByIDAndOrganization(ctx context.Context, orgID, keyID, name string, expiresAt *time.Time, rpm, tpm int64) (*APIKey, error) {
+	var row APIKey
+	err := r.db.WithinTx(ctx, func(ctx context.Context) error {
+		err := r.DB(ctx).
+			Where("id = ? AND organization_id = ?", keyID, orgID).
+			First(&row).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		fields := map[string]any{
+			"name":            name,
+			"rate_limit_rpm":  rpm,
+			"rate_limit_tpm":  tpm,
+		}
+		if expiresAt != nil {
+			fields["expires_at"] = *expiresAt
+		} else {
+			fields["expires_at"] = nil
+		}
+		return r.UpdateFields(ctx, row.ID, fields)
+	})
+	if err != nil {
+		return nil, err
+	}
+	if row.ID == "" {
+		return nil, nil
+	}
+	row.Name = name
+	row.RateLimitRPM = rpm
+	row.RateLimitTPM = tpm
+	row.ExpiresAt = expiresAt
+	return &row, nil
+}

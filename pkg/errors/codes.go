@@ -68,6 +68,7 @@ const (
 	CodeInvitationExpired     Code = 10034 // INVITATION_EXPIRED
 	CodeInvitationExists      Code = 10035 // INVITATION_EXISTS
 	CodeForbidden             Code = 10036 // FORBIDDEN
+	CodeRateLimitExceeded     Code = 10037 // RATE_LIMIT_EXCEEDED
 )
 
 // model module error codes.

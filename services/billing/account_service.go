@@ -67,19 +67,23 @@ func (s *Service) CreateAccount(ctx context.Context, req *billingv1.CreateAccoun
 	if mode != AccountModePrepaid && req.GetInitialBalanceCents() > 0 {
 		return nil, apierrors.New(apierrors.CodeAccountInvalid)
 	}
+	if req.GetMonthlySpendLimitCents() < 0 {
+		return nil, apierrors.New(apierrors.CodeAccountInvalid)
+	}
 	repo, err := s.accountRepo()
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()
 	account := &Account{
-		OrganizationID:    orgID,
-		Mode:              mode,
-		BalanceCents:      0,
-		MonthlyQuotaCents: req.GetMonthlyQuotaCents(),
-		OverdrawPolicy:    policy,
-		Currency:          config.GetConfig().Billing.Currency,
-		CycleStartedAt:    monthStartOf(now),
+		OrganizationID:         orgID,
+		Mode:                   mode,
+		BalanceCents:           0,
+		MonthlyQuotaCents:      req.GetMonthlyQuotaCents(),
+		OverdrawPolicy:         policy,
+		Currency:               config.GetConfig().Billing.Currency,
+		CycleStartedAt:         monthStartOf(now),
+		MonthlySpendLimitCents: req.GetMonthlySpendLimitCents(),
 	}
 	created, _, err := repo.CreateAccount(ctx, account, req.GetInitialBalanceCents())
 	if err != nil {
@@ -165,6 +169,9 @@ func (s *Service) UpdateAccount(ctx context.Context, req *billingv1.UpdateAccoun
 	if err := validateAccountFields(mode, req.GetMonthlyQuotaCents(), strings.TrimSpace(req.GetOverdrawPolicy())); err != nil {
 		return nil, err
 	}
+	if req.GetMonthlySpendLimitCents() < 0 {
+		return nil, apierrors.New(apierrors.CodeAccountInvalid)
+	}
 	repo, err := s.accountRepo()
 	if err != nil {
 		return nil, err
@@ -173,7 +180,7 @@ func (s *Service) UpdateAccount(ctx context.Context, req *billingv1.UpdateAccoun
 	if err != nil {
 		return nil, err
 	}
-	updated, err := repo.UpdateAccount(ctx, account, mode, req.GetMonthlyQuotaCents(), strings.TrimSpace(req.GetOverdrawPolicy()))
+	updated, err := repo.UpdateAccount(ctx, account, mode, req.GetMonthlyQuotaCents(), strings.TrimSpace(req.GetOverdrawPolicy()), req.GetMonthlySpendLimitCents())
 	if err != nil {
 		return nil, err
 	}
@@ -327,20 +334,26 @@ func (s *Service) CheckFunds(ctx context.Context, req *billingv1.CheckFundsReque
 	}
 	allowed, reason := fundsAllowed(account)
 	return &billingv1.CheckFundsResponse{
-		Response:           okResponse(),
-		Allowed:            allowed,
-		Reason:             reason,
-		Mode:               account.Mode,
-		BalanceCents:       account.BalanceCents,
-		MonthlyQuotaCents:  account.MonthlyQuotaCents,
-		UsedThisCycleCents: account.UsedThisCycleCents,
+		Response:                okResponse(),
+		Allowed:                 allowed,
+		Reason:                  reason,
+		Mode:                    account.Mode,
+		BalanceCents:            account.BalanceCents,
+		MonthlyQuotaCents:       account.MonthlyQuotaCents,
+		UsedThisCycleCents:      account.UsedThisCycleCents,
+		MonthlySpendLimitCents:  account.MonthlySpendLimitCents,
+		SpentThisCycleCents:     account.SpentThisCycleCents,
 	}, nil
 }
 
 // fundsAllowed evaluates the gating truth table (AC6/AC7): prepaid
 // blocked at balance <= 0; postpaid blocked at quota exceeded only
-// under the "block" policy.
+// under the "block" policy; the cross-mode spend limit blocks when
+// reached (feature #11, AD5/AD7).
 func fundsAllowed(a *Account) (bool, string) {
+	if a.MonthlySpendLimitCents > 0 && a.SpentThisCycleCents >= a.MonthlySpendLimitCents {
+		return false, "insufficient_funds"
+	}
 	if a.Mode == AccountModePrepaid {
 		if a.BalanceCents <= 0 {
 			return false, "insufficient_funds"
@@ -403,20 +416,27 @@ func summarizeAccount(a *Account) *billingv1.Account {
 			remaining = 0
 		}
 	}
+	spendUsage := int32(0)
+	if a.MonthlySpendLimitCents > 0 {
+		spendUsage = clampInt32(int(a.SpentThisCycleCents * 100 / a.MonthlySpendLimitCents))
+	}
 	return &billingv1.Account{
-		AccountId:         a.ID,
-		OrganizationId:    a.OrganizationID,
-		Mode:              a.Mode,
-		BalanceCents:      a.BalanceCents,
-		MonthlyQuotaCents: a.MonthlyQuotaCents,
-		UsedThisCycleCents: a.UsedThisCycleCents,
-		CycleStartedAt:    a.CycleStartedAt,
-		OverdrawPolicy:    a.OverdrawPolicy,
-		Currency:          a.Currency,
-		RemainingCents:    remaining,
-		QuotaUsagePercent: usage,
-		CreatedAt:         a.CreatedAt.Unix(),
-		UpdatedAt:         a.UpdatedAt.Unix(),
+		AccountId:                a.ID,
+		OrganizationId:           a.OrganizationID,
+		Mode:                     a.Mode,
+		BalanceCents:             a.BalanceCents,
+		MonthlyQuotaCents:        a.MonthlyQuotaCents,
+		UsedThisCycleCents:       a.UsedThisCycleCents,
+		CycleStartedAt:           a.CycleStartedAt,
+		OverdrawPolicy:           a.OverdrawPolicy,
+		Currency:                 a.Currency,
+		RemainingCents:           remaining,
+		QuotaUsagePercent:        usage,
+		CreatedAt:                a.CreatedAt.Unix(),
+		UpdatedAt:                a.UpdatedAt.Unix(),
+		MonthlySpendLimitCents:   a.MonthlySpendLimitCents,
+		SpentThisCycleCents:      a.SpentThisCycleCents,
+		SpendLimitUsagePercent:   spendUsage,
 	}
 }
 

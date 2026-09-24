@@ -35,6 +35,11 @@ type APIKey struct {
 	// RevokedAt is the first revocation time, preserved by idempotent
 	// re-revoke.
 	RevokedAt *time.Time
+	// RateLimitRPM is the max requests per minute; 0 = unlimited
+	// (feature #11, AD1).
+	RateLimitRPM int64 `gorm:"not null;default:0"`
+	// RateLimitTPM is the max tokens per minute; 0 = unlimited.
+	RateLimitTPM int64 `gorm:"not null;default:0"`
 }
 
 // TableName returns the table name of APIKey.

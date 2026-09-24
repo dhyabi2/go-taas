@@ -36,6 +36,14 @@ type Account struct {
 	Currency string `gorm:"size:8;not null"`
 	// Version is the optimistic-lock counter (AD11).
 	Version int64 `gorm:"not null;default:0"`
+	// MonthlySpendLimitCents is the cross-mode monthly spend cap;
+	// 0 = unlimited (feature #11, AD5). Distinct from the postpaid
+	// MonthlyQuotaCents.
+	MonthlySpendLimitCents int64 `gorm:"not null;default:0"`
+	// SpentThisCycleCents is the total spend within the current UTC
+	// cycle, both modes (AD6). Write-only by settlement; read-only on
+	// the wire.
+	SpentThisCycleCents int64 `gorm:"not null;default:0"`
 	// CreatedAt is the row write time (UTC).
 	CreatedAt time.Time
 	// UpdatedAt is bumped on every write.

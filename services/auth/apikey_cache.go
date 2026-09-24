@@ -17,6 +17,11 @@ type keyVerdict struct {
 	OrganizationID string `json:"organization_id"`
 	KeyID          string `json:"key_id"`
 	Role           string `json:"role"`
+	// RateLimitRPM/TPM are the key's rate limits (feature #11, AD1);
+	// 0 = unlimited. Carried so the gateway gets them from the cache
+	// without a DB hit per request.
+	RateLimitRPM int64 `json:"rate_limit_rpm"`
+	RateLimitTPM int64 `json:"rate_limit_tpm"`
 }
 
 // cacheKeyPrefix namespaces the API-key verdict entries in Redis.

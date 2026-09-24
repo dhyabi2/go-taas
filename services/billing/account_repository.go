@@ -124,15 +124,16 @@ func (r *AccountRepository) CreateAccount(ctx context.Context, account *Account,
 
 // UpdateAccount replaces the mode, quota and overdraw policy fields
 // (AD12), version-guarded.
-func (r *AccountRepository) UpdateAccount(ctx context.Context, account *Account, mode string, quotaCents int64, policy string) (*Account, error) {
+func (r *AccountRepository) UpdateAccount(ctx context.Context, account *Account, mode string, quotaCents int64, policy string, spendLimitCents int64) (*Account, error) {
 	result := r.DB(ctx).Model(&Account{}).
 		Where("id = ? AND version = ?", account.ID, account.Version).
 		Updates(map[string]interface{}{
-			"mode":                 mode,
-			"monthly_quota_cents":  quotaCents,
-			"overdraw_policy":      policy,
-			"version":              account.Version + 1,
-			"updated_at":           time.Now().UTC(),
+			"mode":                      mode,
+			"monthly_quota_cents":       quotaCents,
+			"overdraw_policy":           policy,
+			"monthly_spend_limit_cents": spendLimitCents,
+			"version":                   account.Version + 1,
+			"updated_at":                time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return nil, apierrors.Wrap(apierrors.CodeInternal, result.Error, "billing: account update failed")
@@ -253,9 +254,11 @@ func (r *AccountRepository) ApplyDeduction(ctx context.Context, spec DeductionSp
 		return err
 	}
 	// Prepaid deducts from balance; postpaid leaves the balance
-	// untouched and only accrues cycle usage (AC5).
+	// untouched and only accrues cycle usage (AC5). Both modes accrue
+	// the cross-mode spend counter (feature #11, AD6).
 	newBalance := account.BalanceCents
 	newUsed := account.UsedThisCycleCents
+	newSpent := account.SpentThisCycleCents + spec.AmountCents
 	if account.Mode == AccountModePostpaid {
 		newUsed += spec.AmountCents
 	} else {
@@ -277,10 +280,11 @@ func (r *AccountRepository) ApplyDeduction(ctx context.Context, spec DeductionSp
 	result := tx.Model(&Account{}).
 		Where("id = ? AND version = ?", account.ID, account.Version).
 		Updates(map[string]interface{}{
-			"balance_cents":         newBalance,
-			"used_this_cycle_cents": newUsed,
-			"version":               account.Version + 1,
-			"updated_at":            time.Now().UTC(),
+			"balance_cents":          newBalance,
+			"used_this_cycle_cents":  newUsed,
+			"spent_this_cycle_cents": newSpent,
+			"version":                account.Version + 1,
+			"updated_at":             time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return result.Error
@@ -339,16 +343,19 @@ func (r *AccountRepository) ListTransactions(ctx context.Context, filter Transac
 	return rows, total, nil
 }
 
-// ResetCycle zeroes the postpaid usage of accounts whose cycle predates
-// monthStart — the AD6 guarded UPDATE, idempotent by condition.
+// ResetCycle zeroes the cycle usage and spend of accounts whose cycle
+// predates monthStart — the AD6 guarded UPDATE, idempotent by condition.
+// Mode-agnostic: spent_this_cycle_cents resets for both modes (feature
+// #11, AD6); used_this_cycle_cents is only ever non-zero for postpaid.
 func (r *AccountRepository) ResetCycle(ctx context.Context, monthStart int64) (int64, error) {
 	result := r.DB(ctx).Model(&Account{}).
-		Where("mode = ? AND cycle_started_at < ?", AccountModePostpaid, monthStart).
+		Where("cycle_started_at < ?", monthStart).
 		Updates(map[string]interface{}{
-			"used_this_cycle_cents": 0,
-			"cycle_started_at":      monthStart,
-			"version":               gorm.Expr("version + 1"),
-			"updated_at":            time.Now().UTC(),
+			"used_this_cycle_cents":  0,
+			"spent_this_cycle_cents": 0,
+			"cycle_started_at":       monthStart,
+			"version":                gorm.Expr("version + 1"),
+			"updated_at":             time.Now().UTC(),
 		})
 	if result.Error != nil {
 		return 0, apierrors.Wrap(apierrors.CodeInternal, result.Error, "billing: cycle reset failed")

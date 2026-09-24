@@ -277,6 +277,9 @@ message CreateAccountRequest {
   // initial_balance_cents is the optional opening balance credited as
   // a recharge transaction (prepaid only).
   int64 initial_balance_cents = 4;
+  // monthly_spend_limit_cents is the cross-mode monthly spend cap;
+  // 0 = unlimited (feature #11, AD5).
+  int64 monthly_spend_limit_cents = 5;
 }
 
 message CreateAccountResponse {
@@ -311,6 +314,9 @@ message UpdateAccountRequest {
   int64 monthly_quota_cents = 3;
   // overdraw_policy is "block" or "warn".
   string overdraw_policy = 4;
+  // monthly_spend_limit_cents is the cross-mode monthly spend cap;
+  // 0 = unlimited (feature #11, AD5).
+  int64 monthly_spend_limit_cents = 5;
 }
 
 message UpdateAccountResponse {
@@ -391,6 +397,14 @@ message Account {
   int32 quota_usage_percent = 11;
   int64 created_at = 12;
   int64 updated_at = 13;
+  // monthly_spend_limit_cents is the cross-mode monthly spend cap;
+  // 0 = unlimited (feature #11, AD5).
+  int64 monthly_spend_limit_cents = 14;
+  // spent_this_cycle_cents is the total spend within the current UTC
+  // cycle, both modes; read-only on the wire (AD6).
+  int64 spent_this_cycle_cents = 15;
+  // spend_limit_usage_percent is spent / limit; 0 when unlimited.
+  int32 spend_limit_usage_percent = 16;
 }
 
 // Transaction is one append-only ledger row (AD7).
@@ -424,4 +438,9 @@ message CheckFundsResponse {
   int64 balance_cents = 5;
   int64 monthly_quota_cents = 6;
   int64 used_this_cycle_cents = 7;
+  // monthly_spend_limit_cents is the cross-mode monthly spend cap;
+  // 0 = unlimited (feature #11, AD5).
+  int64 monthly_spend_limit_cents = 8;
+  // spent_this_cycle_cents is the total spend within the current cycle.
+  int64 spent_this_cycle_cents = 9;
 }
