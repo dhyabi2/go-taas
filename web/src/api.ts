@@ -266,6 +266,49 @@ export interface ProjectSummary {
   updatedAt: string;
 }
 
+// ---- org members & invitations (feature #10) ----
+
+export interface OrgMember {
+  userId: string;
+  displayName: string;
+  role: string; // owner | admin | member | viewer
+  joinedAt: string;
+}
+
+export interface Invitation {
+  invitationId: string;
+  email: string;
+  role: string;
+  status: string; // pending | accepted | rejected | revoked | expired
+  expiresAt: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ListOrgMembersResponse {
+  response: { code: number; message: string };
+  members: OrgMember[];
+  pageMeta?: PageMeta;
+}
+
+export interface ListInvitationsResponse {
+  response: { code: number; message: string };
+  invitations: Invitation[];
+  pageMeta?: PageMeta;
+}
+
+export interface CreateInvitationResponse {
+  response: { code: number; message: string };
+  invitation: Invitation;
+  token: string;
+}
+
+export interface ResendInvitationResponse {
+  response: { code: number; message: string };
+  invitation: Invitation;
+  token: string;
+}
+
 // ---- sso federation (feature #7) ----
 
 export interface SSOProvider {

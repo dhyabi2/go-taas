@@ -5,6 +5,8 @@ import { api, getSessionToken, setSessionToken } from './api';
 import LoginPage from './pages/LoginPage';
 import OrganizationsPage from './pages/OrganizationsPage';
 import ProjectsPage from './pages/ProjectsPage';
+import MembersPage from './pages/MembersPage';
+import InvitationsPage from './pages/InvitationsPage';
 import SSOProvidersPage from './pages/SSOProvidersPage';
 import IdentityBindingsPage from './pages/IdentityBindingsPage';
 import ApiKeysPage from './pages/ApiKeysPage';
@@ -31,6 +33,8 @@ export default function App() {
             <Route path="/admin" element={<NavigateToModels />} />
             <Route path="/admin/organizations" element={<OrganizationsPage />} />
             <Route path="/admin/projects" element={<ProjectsPage />} />
+            <Route path="/admin/members" element={<MembersPage />} />
+            <Route path="/admin/invitations" element={<InvitationsPage />} />
             <Route path="/admin/sso" element={<SSOProvidersPage />} />
             <Route path="/admin/identity-bindings" element={<IdentityBindingsPage />} />
             <Route path="/admin/api-keys" element={<ApiKeysPage />} />
@@ -87,6 +91,8 @@ function Layout({ children }: { children: React.ReactNode }) {
 const NAV_ITEMS = [
   { path: '/admin/organizations', label: 'Organizations' },
   { path: '/admin/projects', label: 'Projects' },
+  { path: '/admin/members', label: 'Members' },
+  { path: '/admin/invitations', label: 'Invitations' },
   { path: '/admin/sso', label: 'SSO Providers' },
   { path: '/admin/identity-bindings', label: 'Identity Bindings' },
   { path: '/admin/models', label: 'Models' },
