@@ -1,3 +1,13 @@
+# [1.4.0](https://github.com/go-taas/go-taas/compare/v1.3.0...v1.4.0) (2026-09-24)
+
+
+### Features
+
+* **auth:** implement SSO federation with OIDC, SAML and LDAP providers (feature-07) ([7222f16](https://github.com/go-taas/go-taas/commit/7222f161a96a23e97cfd3ecf2cdf33579459da1e))
+* **console:** add organizations and projects pages with org switcher (feature-06) ([a286f85](https://github.com/go-taas/go-taas/commit/a286f85233ff1bea8b054bbf77675ff16299155c))
+* **console:** add SSO login, providers and identity bindings pages (feature-07) ([4a5f0a2](https://github.com/go-taas/go-taas/commit/4a5f0a22fe98df3e5bbd4053d0f772f3f8a78348))
+* **tenancy:** implement organization and project multi-tenancy (feature-06) ([0d3df75](https://github.com/go-taas/go-taas/commit/0d3df7591a868dc3feec9fd0f8730ad39597d8a6))
+
 # [1.3.0](https://github.com/go-taas/go-taas/compare/v1.2.0...v1.3.0) (2026-09-24)
 
 
