@@ -1,3 +1,11 @@
+# [1.5.0](https://github.com/go-taas/go-taas/compare/v1.4.0...v1.5.0) (2026-09-24)
+
+
+### Features
+
+* **billing:** implement balance and quota account modes with ledger (feature-08) ([f4e0e95](https://github.com/go-taas/go-taas/commit/f4e0e956c3f8a33e7fd9f26262ecab834d78fa3a))
+* **console:** add billing accounts page with recharge and quota dialogs (feature-08) ([e50716f](https://github.com/go-taas/go-taas/commit/e50716f7a206d9d7d082b38f8dd0b3b516ea08d5))
+
 # [1.4.0](https://github.com/go-taas/go-taas/compare/v1.3.0...v1.4.0) (2026-09-24)
 
 
