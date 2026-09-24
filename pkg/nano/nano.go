@@ -6,7 +6,7 @@
 // collect — a cached read, a few hundred token completion — is
 // represented exactly instead of rounding to the cent or to a minimum
 // invoice. This package supplies lossless parse/format at the raw unit
-// with no floating point, so a $0.0005 charge settles as exactly
+// with no floating point, so a charge of 0.0005 XNO settles as exactly
 // 5e26 raw.
 package nano
 
@@ -45,9 +45,14 @@ type Amount struct {
 // zero is the shared zero amount.
 var zero = Amount{raw: big.NewInt(0)}
 
-// Raw returns the primitive value as a *big.Int in raw units. The
-// returned value must not be mutated.
-func (a Amount) Raw() *big.Int { return a.raw }
+// Raw returns a copy of the primitive value as a *big.Int in raw units.
+// The caller may freely mutate the returned value.
+func (a Amount) Raw() *big.Int {
+	if a.raw == nil {
+		return new(big.Int)
+	}
+	return new(big.Int).Set(a.raw)
+}
 
 // IsZero reports whether the amount is exactly zero raw.
 func (a Amount) IsZero() bool { return a.raw.Sign() == 0 }
@@ -81,8 +86,16 @@ func parseDecimal(s string) (*big.Int, error) {
 	switch s[0] {
 	case '+':
 		s = s[1:]
+		if s == "" || s[0] == '.' {
+			return nil, errParse // just "+" or "+." is malformed
+		}
 	case '-':
 		return nil, errParse // amount strings here are non-negative
+	}
+	if s == "" || s[0] == '.' {
+		// A bare "." or a string that became empty after trimming the
+		// leading plus sign.
+		return nil, errParse
 	}
 	intPart, fracPart := s, ""
 	if dot := strings.IndexByte(s, '.'); dot >= 0 {

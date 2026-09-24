@@ -73,6 +73,9 @@ func TestParseXNORejectsMalformed(t *testing.T) {
 		"-0.5",
 		"1..2",
 		"1.2.3",
+		".",
+		"+",
+		"+.",
 		"0.0000000000000000000000000000001", // 31 decimals, past raw
 	}
 	for _, s := range bad {
