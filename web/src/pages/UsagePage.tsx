@@ -1,11 +1,22 @@
 // Usage page: per-API-key token consumption with time-range presets,
-// by-model and voucher drill-downs.
-// Implements docs/design/metering.md FR6, AC12, AC13.
+// by-model and voucher drill-downs, plus the usage dashboard (cards,
+// chart, metric toggle, group-by, CSV export, balance widget).
+// Implements docs/design/metering.md FR6 and docs/design/usage-dashboard.md.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, formatTime, type PageMeta, type UsageSummaryRow, type VoucherSummary } from '../api';
+import {
+  api,
+  formatTime,
+  type DailyBucket,
+  type PageMeta,
+  type UsageDashboardResponse,
+  type UsageSummaryRow,
+  type VoucherSummary,
+} from '../api';
 import { useOrg } from '../org';
 import { Dialog, ErrorBanner, Pagination, StateBadge, usePolling } from '../components';
+import UsageChart, { type ChartMetric } from '../components/UsageChart';
+import BalanceWidget from '../components/BalanceWidget';
 
 interface SummaryResponse {
   response: { code: number; message: string };
@@ -26,6 +37,12 @@ const RANGE_PRESETS = [
   { id: 'custom', label: 'Custom range', hours: 0 },
 ];
 
+// formatCents renders integer minor units as a currency string.
+function formatCents(cents: string): string {
+  const n = parseInt(cents || '0', 10);
+  return (n / 100).toFixed(2);
+}
+
 // rangeFor resolves the since/until unix seconds for the selected preset.
 function rangeFor(preset: string, customSince: string, customUntil: string): { since: number; until: number } {
   const now = Math.floor(Date.now() / 1000);
@@ -40,6 +57,36 @@ function rangeFor(preset: string, customSince: string, customUntil: string): { s
   return { since: now - hours * 3600, until: now };
 }
 
+// exportCSV downloads the current dashboard table view as a CSV file
+// (feature #9, AD10).
+function exportCSV(buckets: DailyBucket[]) {
+  const rows: string[][] = [['Date', 'Group', 'Cost', 'Tokens', 'Requests']];
+  for (const bucket of buckets) {
+    const date = new Date(parseInt(bucket.date, 10) * 1000).toISOString().slice(0, 10);
+    for (const g of bucket.groups || []) {
+      const tokens =
+        parseInt(g.promptTokens || '0', 10) +
+        parseInt(g.completionTokens || '0', 10) +
+        parseInt(g.cachedTokens || '0', 10);
+      rows.push([
+        date,
+        g.groupKey,
+        formatCents(g.costCents),
+        String(tokens),
+        g.requestCount,
+      ]);
+    }
+  }
+  const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `usage-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function UsagePage() {
   const { orgId } = useOrg();
   const [preset, setPreset] = useState('24h');
@@ -50,6 +97,11 @@ export default function UsagePage() {
   const [error, setError] = useState('');
   const [byModelKey, setByModelKey] = useState<string | null>(null);
   const [voucherKey, setVoucherKey] = useState<string | null>(null);
+
+  // Dashboard state (feature #9).
+  const [dashboard, setDashboard] = useState<UsageDashboardResponse | null>(null);
+  const [metric, setMetric] = useState<ChartMetric>('cost');
+  const [groupBy, setGroupBy] = useState('api_key');
 
   const range = useMemo(
     () => rangeFor(preset, customSince, customUntil),
@@ -75,13 +127,45 @@ export default function UsagePage() {
     }
   }, [orgId, range.since, range.until]);
 
+  // Load the dashboard cards + daily buckets (feature #9, AC1).
+  const loadDashboard = useCallback(async () => {
+    const params = new URLSearchParams({
+      since: String(range.since),
+      until: String(range.until),
+      group_by: groupBy,
+    });
+    try {
+      const data = await api.get<UsageDashboardResponse>(
+        `/api/v1/admin/metering/usage-dashboard?${params.toString()}`,
+        orgId,
+      );
+      setDashboard(data);
+    } catch (e) {
+      // The dashboard is additive; a failure should not blank the page.
+      setError(e instanceof Error ? e.message : 'failed to load dashboard');
+    }
+  }, [orgId, range.since, range.until, groupBy]);
+
   useEffect(() => {
     setLoading(true);
     void load();
   }, [load]);
 
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
   // FR6.4: refresh while the page is visible.
-  usePolling(() => void load(), 60_000, true);
+  usePolling(() => {
+    void load();
+    void loadDashboard();
+  }, 60_000, true);
+
+  const cards = dashboard?.cards;
+  const buckets = dashboard?.dailyBuckets || [];
+  const dataThrough = cards ? parseInt(cards.dataThrough || '0', 10) : 0;
+  const pending = dataThrough > 0 && range.until > dataThrough + 3600;
+  const unpriced = cards ? parseInt(cards.unpricedRequestCount || '0', 10) > 0 : false;
 
   return (
     <div>
@@ -89,10 +173,11 @@ export default function UsagePage() {
         <div>
           <h1>Usage</h1>
           <div className="subtitle">
-            Token consumption per API key. Usage appears within the hour; the
-            current hour is pending.
+            Token consumption and cost per API key. Usage appears within the
+            hour; the current hour is pending.
           </div>
         </div>
+        <BalanceWidget />
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -124,6 +209,107 @@ export default function UsagePage() {
             />
           </>
         )}
+        <span className="toolbar-spacer" />
+        <label className="muted" htmlFor="usage-groupby">
+          Group by
+        </label>
+        <select
+          id="usage-groupby"
+          data-testid="usage-groupby-select"
+          value={groupBy}
+          onChange={(e) => setGroupBy(e.target.value)}
+        >
+          <option value="api_key">API key</option>
+          <option value="model">Model</option>
+          <option value="accelerator_type">Accelerator</option>
+        </select>
+        <button
+          className="secondary"
+          data-testid="usage-export-csv"
+          onClick={() => exportCSV(buckets)}
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {/* Dashboard cards (feature #9, AC1) */}
+      <div className="dashboard-cards" data-testid="usage-dashboard-cards">
+        <div className="dashboard-card">
+          <div className="label">Total cost</div>
+          <div className="value">
+            {cards ? `${formatCents(cards.totalCostCents)} ${cards.currency || 'USD'}` : '—'}
+          </div>
+          {unpriced && (
+            <div className="sub">
+              <span className="unpriced-badge" data-testid="usage-unpriced-badge">
+                Unpriced
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="dashboard-card">
+          <div className="label">Tokens</div>
+          <div className="value">
+            {cards
+              ? (
+                  parseInt(cards.promptTokens || '0', 10) +
+                  parseInt(cards.completionTokens || '0', 10) +
+                  parseInt(cards.cachedTokens || '0', 10)
+                ).toLocaleString()
+              : '—'}
+          </div>
+          <div className="sub">
+            {cards
+              ? `${parseInt(cards.promptTokens || '0', 10).toLocaleString()} in / ${parseInt(
+                  cards.completionTokens || '0',
+                  10,
+                ).toLocaleString()} out`
+              : ''}
+          </div>
+        </div>
+        <div className="dashboard-card">
+          <div className="label">Requests</div>
+          <div className="value">
+            {cards ? parseInt(cards.requestCount || '0', 10).toLocaleString() : '—'}
+          </div>
+        </div>
+        <div className="dashboard-card">
+          <div className="label">Avg cost / request</div>
+          <div className="value">
+            {cards && parseInt(cards.requestCount || '0', 10) > 0
+              ? formatCents(
+                  String(
+                    Math.round(
+                      parseInt(cards.totalCostCents || '0', 10) /
+                        parseInt(cards.requestCount || '0', 10),
+                    ),
+                  ),
+                )
+              : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* Metric toggle + chart (feature #9, AC3) */}
+      <div className="panel">
+        <div className="toolbar" style={{ marginBottom: 10 }} data-testid="usage-metric-toggle">
+          {(['cost', 'tokens', 'requests'] as ChartMetric[]).map((m) => (
+            <button
+              key={m}
+              className={metric === m ? '' : 'secondary'}
+              data-testid={`usage-metric-${m}`}
+              onClick={() => setMetric(m)}
+            >
+              {m === 'cost' ? 'Cost' : m === 'tokens' ? 'Tokens' : 'Requests'}
+            </button>
+          ))}
+          {pending && (
+            <span className="pending-badge" data-testid="usage-pending-badge">
+              Pending
+            </span>
+          )}
+        </div>
+        <UsageChart buckets={buckets} metric={metric} />
       </div>
 
       <div className="panel">
@@ -329,6 +515,7 @@ function VouchersDialog({
                 <th>Request</th>
                 <th>Model</th>
                 <th>In / Out / Cached</th>
+                <th>Est. cost</th>
                 <th>Settled</th>
               </tr>
             </thead>
@@ -342,6 +529,16 @@ function VouchersDialog({
                     {v.usage
                       ? `${v.usage.promptTokens} / ${v.usage.completionTokens} / ${v.usage.cachedTokens}`
                       : '—'}
+                  </td>
+                  <td data-testid={`voucher-cost-${v.voucherId}`}>
+                    {v.priced === false ? (
+                      <>
+                        <span className="muted">—</span>
+                        <span className="unpriced-badge">Unpriced</span>
+                      </>
+                    ) : (
+                      formatCents(v.estimatedCostCents || '0')
+                    )}
                   </td>
                   <td>
                     <StateBadge state={v.settled ? 'settled' : 'pending'} />

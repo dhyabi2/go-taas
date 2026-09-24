@@ -165,6 +165,8 @@ export interface VoucherSummary {
   apiKeyId: string;
   serviceId: string;
   settled: boolean;
+  estimatedCostCents?: string;
+  priced?: boolean;
 }
 
 export interface UsageSummaryRow {
@@ -190,6 +192,54 @@ export interface UsageRecordSummary {
   reasoningTokens: string;
   requestCount: string;
   settledAt: string;
+}
+
+// ---- usage dashboard (feature #9) ----
+
+export interface DashboardCard {
+  totalCostCents: string;
+  currency: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  requestCount: string;
+  unpricedRequestCount: string;
+  dataThrough: string;
+}
+
+export interface DashboardGroup {
+  groupKey: string;
+  costCents: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  requestCount: string;
+  priced: boolean;
+}
+
+export interface DailyBucket {
+  date: string;
+  groups: DashboardGroup[];
+}
+
+export interface UsageDashboardResponse {
+  response: { code: number; message: string };
+  cards?: DashboardCard;
+  dailyBuckets?: DailyBucket[];
+}
+
+// ---- billing balance (feature #8, reused by the widget) ----
+
+export interface BalanceResponse {
+  response: { code: number; message: string };
+  mode: string; // prepaid | postpaid
+  balance: number;
+  currency: string;
+  balanceCents: string;
+  monthlyQuotaCents: string;
+  usedThisCycleCents: string;
 }
 
 // ---- tenancy ----
