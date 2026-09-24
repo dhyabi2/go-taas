@@ -22,7 +22,10 @@ IMAGE_TAG  ?= dev
 DOCKERFILE ?= build/docker/Dockerfile
 
 # Binaries published as images; each maps to a Dockerfile build target.
-IMAGE_TARGETS ?= taas-server controller
+# "console" is the standalone nginx image of the admin console (the same
+# Vite bundle embedded into taas-server) for independent frontend
+# deployments.
+IMAGE_TARGETS ?= taas-server controller console
 
 # Network build-args for image builds. Override on the command line for
 # restricted networks, e.g.:

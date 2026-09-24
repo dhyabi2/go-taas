@@ -9,8 +9,12 @@
 #      commit (marked [skip ci]), creates the vX.Y.Z tag and a GitHub
 #      Release. Without release-worthy commits it is a no-op and the
 #      previous tag is reused for the images below.
-#   2. build-and-push: publishes multi-arch images tagged with the
-#      resolved version, the short SHA, and "latest".
+#   2. build-and-push: publishes multi-arch images (taas-server,
+#      controller, console) tagged with the resolved version, the short
+#      SHA, and "latest". The console image is the standalone nginx
+#      build of the admin console (same Vite bundle that is embedded
+#      into taas-server) for deployments that scale the frontend
+#      independently of the control plane.
 #   3. upload-release-assets: attaches static binaries to the GitHub
 #      Release created in step 1 (only when a new release happened).
 #
@@ -134,6 +138,7 @@ jobs:
         include:
           - target: taas-server
           - target: controller
+          - target: console
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

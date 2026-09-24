@@ -109,3 +109,29 @@ COPY configs /etc/taas/configs
 WORKDIR /etc/taas
 USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/controller"]
+
+# ---- console ----------------------------------------------------------
+# Standalone admin-console image: the same Vite bundle that is embedded
+# into taas-server, served by nginx with /api/ reverse-proxied to the
+# gateway. Use it when the console should scale or be released
+# independently of the control plane.
+#   docker build --target console -t <registry>/console:tag .
+# The gateway address is set at runtime via TASS_PROXY_PASS (default
+# http://taas-server:9091); see build/docker/console.nginx.conf.
+FROM nginx:1.29-alpine AS console
+ARG VERSION
+ARG COMMIT
+ARG BUILD_TIME
+LABEL org.opencontainers.image.title="console" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      org.opencontainers.image.created="${BUILD_TIME}"
+COPY build/docker/console.nginx.conf /etc/nginx/templates/default.conf.template
+COPY --from=console-builder /web/dist/ /usr/share/nginx/html/
+# 8080 is unprivileged; nginx:alpine supports running as root only for
+# the master process, which drops to the nginx user for workers.
+EXPOSE 8080
+ENV TASS_PROXY_PASS=http://taas-server:9091
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
+CMD ["nginx", "-g", "daemon off;"]
