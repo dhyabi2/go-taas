@@ -438,3 +438,107 @@ func TestSummarizeAccount(t *testing.T) {
 	assert.Equal(t, int64(0), s.GetRemainingCents())
 	assert.Equal(t, int32(0), s.GetQuotaUsagePercent())
 }
+// AC-B1: CreateAccount persists the spend limit; a negative limit is
+// rejected (10509).
+func TestCreateAccountSpendLimit(t *testing.T) {
+	svc := newBillingTestService(t)
+
+	resp, err := svc.CreateAccount(withOrg("org-1"), &billingv1.CreateAccountRequest{
+		Mode:                   AccountModePrepaid,
+		OverdrawPolicy:         OverdrawBlock,
+		InitialBalanceCents:    5000,
+		MonthlySpendLimitCents: 10000,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(10000), resp.GetAccount().GetMonthlySpendLimitCents())
+
+	// Negative limit rejected.
+	_, err = svc.CreateAccount(withOrg("org-2"), &billingv1.CreateAccountRequest{
+		Mode:                   AccountModePrepaid,
+		OverdrawPolicy:         OverdrawBlock,
+		MonthlySpendLimitCents: -1,
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeAccountInvalid, ae.Code)
+}
+
+// AC-B2: fundsAllowed enforces the spend limit for both modes.
+func TestCheckFundsSpendLimit(t *testing.T) {
+	svc := newBillingTestService(t)
+
+	// Prepaid with balance but spend limit reached: blocked.
+	prepaidID := createTestAccount(t, svc, "org-pre", AccountModePrepaid, 10000, 0)
+	repo := svc.repo
+	require.NoError(t, repo.db.DB(context.Background()).
+		Exec("UPDATE accounts SET monthly_spend_limit_cents = 5000, spent_this_cycle_cents = 5000 WHERE id = ?", prepaidID).Error)
+	blocked, err := svc.CheckFunds(context.Background(), &billingv1.CheckFundsRequest{OrganizationId: "org-pre"})
+	require.NoError(t, err)
+	assert.False(t, blocked.GetAllowed())
+	assert.Equal(t, "insufficient_funds", blocked.GetReason())
+
+	// Postpaid under spend limit: allowed.
+	postpaidID := createTestAccount(t, svc, "org-post", AccountModePostpaid, 0, 100000)
+	require.NoError(t, repo.db.DB(context.Background()).
+		Exec("UPDATE accounts SET monthly_spend_limit_cents = 5000, spent_this_cycle_cents = 1000 WHERE id = ?", postpaidID).Error)
+	allowed, err := svc.CheckFunds(context.Background(), &billingv1.CheckFundsRequest{OrganizationId: "org-post"})
+	require.NoError(t, err)
+	assert.True(t, allowed.GetAllowed())
+
+	// Spend limit 0 = unlimited.
+	unlimitedID := createTestAccount(t, svc, "org-unl", AccountModePrepaid, 10000, 0)
+	require.NoError(t, repo.db.DB(context.Background()).
+		Exec("UPDATE accounts SET spent_this_cycle_cents = 999999 WHERE id = ?", unlimitedID).Error)
+	unlimited, err := svc.CheckFunds(context.Background(), &billingv1.CheckFundsRequest{OrganizationId: "org-unl"})
+	require.NoError(t, err)
+	assert.True(t, unlimited.GetAllowed())
+}
+
+// AC-B3: ApplyDeduction increments spent_this_cycle_cents for both
+// modes and never double-increments on redelivery.
+func TestApplyDeductionSpendIncrement(t *testing.T) {
+	svc := newBillingTestService(t)
+	accRepo := svc.repo.Accounts()
+	ctx := context.Background()
+
+	// Prepaid account.
+	prepaidID := createTestAccount(t, svc, "org-pre", AccountModePrepaid, 10000, 0)
+	prepaid, err := accRepo.FindByID(ctx, prepaidID)
+	require.NoError(t, err)
+	require.NoError(t, accRepo.ApplyDeduction(ctx, DeductionSpec{
+		AccountID: prepaid.ID, ChargeID: "chg-1", AmountCents: 100,
+	}))
+	after, err := accRepo.FindByID(ctx, prepaidID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), after.SpentThisCycleCents)
+	assert.Equal(t, int64(9900), after.BalanceCents)
+
+	// Redelivery converges (no double increment).
+	require.NoError(t, accRepo.ApplyDeduction(ctx, DeductionSpec{
+		AccountID: prepaid.ID, ChargeID: "chg-1", AmountCents: 100,
+	}))
+	after, err = accRepo.FindByID(ctx, prepaidID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), after.SpentThisCycleCents)
+}
+
+// AC-B4: ResetCycle zeroes spent_this_cycle_cents for both modes.
+func TestResetCycleSpendReset(t *testing.T) {
+	svc := newBillingTestService(t)
+	accRepo := svc.repo.Accounts()
+	ctx := context.Background()
+
+	prepaidID := createTestAccount(t, svc, "org-pre", AccountModePrepaid, 10000, 0)
+	require.NoError(t, accRepo.DB(ctx).
+		Exec("UPDATE accounts SET spent_this_cycle_cents = 500, cycle_started_at = 0 WHERE id = ?", prepaidID).Error)
+
+	rows, err := accRepo.ResetCycle(ctx, 1000000)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), rows)
+
+	after, err := accRepo.FindByID(ctx, prepaidID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), after.SpentThisCycleCents)
+	assert.Equal(t, int64(1000000), after.CycleStartedAt)
+}

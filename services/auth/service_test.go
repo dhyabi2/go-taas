@@ -354,3 +354,93 @@ func TestMigrate(t *testing.T) {
 	assert.True(t, db.Migrator().HasTable(&APIKey{}))
 	_ = env
 }
+// AC-A1: CreateAPIKey persists rate limits; ListAPIKeys returns them.
+func TestCreateAPIKeyWithRateLimits(t *testing.T) {
+	env := newTestService(t)
+	ctx := orgCtx("org-a")
+
+	resp, err := env.svc.CreateAPIKey(ctx, &authv1.CreateAPIKeyRequest{
+		Name: "limited", RateLimitRpm: 100, RateLimitTpm: 50000,
+	})
+	require.NoError(t, err)
+
+	row, err := env.repo.FindByLookupHash(ctx, KeyDigest(resp.GetApiKey()))
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), row.RateLimitRPM)
+	assert.Equal(t, int64(50000), row.RateLimitTPM)
+
+	// List returns them.
+	listResp, err := env.svc.ListAPIKeys(ctx, &authv1.ListAPIKeysRequest{})
+	require.NoError(t, err)
+	require.Len(t, listResp.GetKeys(), 1)
+	assert.Equal(t, int64(100), listResp.GetKeys()[0].GetRateLimitRpm())
+	assert.Equal(t, int64(50000), listResp.GetKeys()[0].GetRateLimitTpm())
+}
+
+// AC-A1: negative rate limits are rejected (10008).
+func TestCreateAPIKeyNegativeRateLimit(t *testing.T) {
+	env := newTestService(t)
+	ctx := orgCtx("org-a")
+
+	_, err := env.svc.CreateAPIKey(ctx, &authv1.CreateAPIKeyRequest{Name: "k", RateLimitRpm: -1})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeAPIKeyInvalid, ae.Code)
+}
+
+// AC-A2: UpdateAPIKey edits name/expiry/RPM/TPM; another org's key -> 10007.
+func TestUpdateAPIKey(t *testing.T) {
+	env := newTestService(t)
+	ctx := orgCtx("org-a")
+
+	created, err := env.svc.CreateAPIKey(ctx, &authv1.CreateAPIKeyRequest{Name: "k"})
+	require.NoError(t, err)
+
+	resp, err := env.svc.UpdateAPIKey(ctx, &authv1.UpdateAPIKeyRequest{
+		KeyId: created.GetKeyId(), Name: "renamed", RateLimitRpm: 50, RateLimitTpm: 1000,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "renamed", resp.GetKey().GetName())
+	assert.Equal(t, int64(50), resp.GetKey().GetRateLimitRpm())
+	assert.Equal(t, int64(1000), resp.GetKey().GetRateLimitTpm())
+
+	// Another org's key -> 10007.
+	_, err = env.svc.UpdateAPIKey(ctx, &authv1.UpdateAPIKeyRequest{
+		KeyId: created.GetKeyId(), Name: "x",
+	})
+	require.NoError(t, err) // same org, fine
+
+	otherCtx := orgCtx("org-b")
+	_, err = env.svc.UpdateAPIKey(otherCtx, &authv1.UpdateAPIKeyRequest{
+		KeyId: created.GetKeyId(), Name: "x",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeAPIKeyNotFound, ae.Code)
+}
+
+// AC-A3: VerifyAPIKey returns the rate limits on both cache paths.
+func TestVerifyAPIKeyRateLimits(t *testing.T) {
+	env := newTestService(t)
+	ctx := orgCtx("org-a")
+
+	created, err := env.svc.CreateAPIKey(ctx, &authv1.CreateAPIKeyRequest{
+		Name: "limited", RateLimitRpm: 100, RateLimitTpm: 50000,
+	})
+	require.NoError(t, err)
+	digest := KeyDigest(created.GetApiKey())
+
+	// Cache miss path.
+	resp, err := env.svc.VerifyAPIKey(context.Background(), &authv1.VerifyAPIKeyRequest{KeyDigest: digest})
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), resp.GetRateLimitRpm())
+	assert.Equal(t, int64(50000), resp.GetRateLimitTpm())
+
+	// Cache hit path.
+	resp, err = env.svc.VerifyAPIKey(context.Background(), &authv1.VerifyAPIKeyRequest{KeyDigest: digest})
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), resp.GetRateLimitRpm())
+	assert.Equal(t, int64(50000), resp.GetRateLimitTpm())
+}
