@@ -6,8 +6,9 @@
 // collect — a cached read, a few hundred token completion — is
 // represented exactly instead of rounding to the cent or to a minimum
 // invoice. This package supplies lossless parse/format at the raw unit
-// with no floating point, so a charge of 0.0005 XNO settles as exactly
-// 5e26 raw.
+// with no floating point. The value of a charge is expressed in XNO
+// itself (e.g. 0.0005 XNO); converting that to a fiat amount is the
+// caller's pricing concern and is never done here.
 package nano
 
 import (
@@ -46,7 +47,7 @@ type Amount struct {
 var zero = Amount{raw: big.NewInt(0)}
 
 // Raw returns a copy of the primitive value as a *big.Int in raw units.
-// The caller may freely mutate the returned value.
+// The caller may freely mutate the returned value; the Amount is unchanged.
 func (a Amount) Raw() *big.Int {
 	if a.raw == nil {
 		return new(big.Int)
@@ -54,8 +55,14 @@ func (a Amount) Raw() *big.Int {
 	return new(big.Int).Set(a.raw)
 }
 
-// IsZero reports whether the amount is exactly zero raw.
-func (a Amount) IsZero() bool { return a.raw.Sign() == 0 }
+// IsZero reports whether the amount is exactly zero raw. The zero-value
+// Amount{} (nil raw) is treated as zero.
+func (a Amount) IsZero() bool {
+	if a.raw == nil {
+		return true
+	}
+	return a.raw.Sign() == 0
+}
 
 // NewRaw constructs an Amount from an integer number of raw units.
 func NewRaw(raw *big.Int) Amount {
@@ -86,19 +93,15 @@ func parseDecimal(s string) (*big.Int, error) {
 	switch s[0] {
 	case '+':
 		s = s[1:]
-		if s == "" || s[0] == '.' {
-			return nil, errParse // just "+" or "+." is malformed
-		}
 	case '-':
 		return nil, errParse // amount strings here are non-negative
 	}
-	if s == "" || s[0] == '.' {
-		// A bare "." or a string that became empty after trimming the
-		// leading plus sign.
-		return nil, errParse
+	if s == "" {
+		return nil, errParse // a lone sign is not a number
 	}
+	dot := strings.IndexByte(s, '.')
 	intPart, fracPart := s, ""
-	if dot := strings.IndexByte(s, '.'); dot >= 0 {
+	if dot >= 0 {
 		intPart = s[:dot]
 		fracPart = s[dot+1:]
 	}
@@ -108,6 +111,13 @@ func parseDecimal(s string) (*big.Int, error) {
 	if intPart == "" {
 		intPart = "0"
 	}
+
+	// A bare "." (or ".", "+." after sign strip) with digits nowhere is
+	// malformed, not silently zero: "0." is fine but "." is not.
+	if strings.Trim(s, ".") == "" {
+		return nil, errParse
+	}
+
 	for _, c := range intPart {
 		if c < '0' || c > '9' {
 			return nil, errParse
@@ -163,9 +173,14 @@ func ParseXNOOrZero(s string) Amount {
 }
 
 // Format renders the amount as a trimmed human decimal string, dropping
-// trailing zeros and the decimal point when the fraction is zero.
+// trailing zeros and the decimal point when the fraction is zero. The
+// zero-value Amount{} renders as "0".
 func (a Amount) Format() string {
-	q, r := new(big.Int).QuoRem(a.raw, rawPerXNO, new(big.Int))
+	raw := a.raw
+	if raw == nil {
+		raw = big.NewInt(0)
+	}
+	q, r := new(big.Int).QuoRem(raw, rawPerXNO, new(big.Int))
 	intPart := q.String()
 	if r.Sign() == 0 {
 		return intPart
@@ -180,17 +195,26 @@ func (a Amount) Format() string {
 
 // Add returns the exact sum of a and b (raw units).
 func (a Amount) Add(b Amount) Amount {
-	return NewRaw(new(big.Int).Add(a.raw, b.raw))
+	return NewRaw(new(big.Int).Add(rawOf(a), rawOf(b)))
 }
 
 // Sub returns the exact difference a - b (raw units); a negative raw
 // result is represented as negative.
 func (a Amount) Sub(b Amount) Amount {
-	return Amount{raw: new(big.Int).Sub(a.raw, b.raw)}
+	return Amount{raw: new(big.Int).Sub(rawOf(a), rawOf(b))}
 }
 
 // LessThan reports whether a is strictly less than b.
-func (a Amount) LessThan(b Amount) bool { return a.raw.Cmp(b.raw) < 0 }
+func (a Amount) LessThan(b Amount) bool { return rawOf(a).Cmp(rawOf(b)) < 0 }
 
-// Cmp compares a and b: -1, 0, or 1.
-func (a Amount) Cmp(b Amount) int { return a.raw.Cmp(b.raw) }
+// Cmp compares a and b: -1, 0, or 1. The zero-value Amount{} sorts equal
+// to zero.
+func (a Amount) Cmp(b Amount) int { return rawOf(a).Cmp(rawOf(b)) }
+
+// rawOf returns a's raw value as a safe *big.Int (never nil).
+func rawOf(a Amount) *big.Int {
+	if a.raw == nil {
+		return new(big.Int)
+	}
+	return a.raw
+}
