@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/go-taas/go-taas/compare/v1.2.0...v1.3.0) (2026-09-24)
+
+
+### Features
+
+* **site:** add bilingual static intro site for GitHub Pages ([cea7734](https://github.com/go-taas/go-taas/commit/cea773457b603b9123a7fe60fe12e8f1b38c8fb8))
+
 # [1.2.0](https://github.com/go-taas/go-taas/compare/v1.1.0...v1.2.0) (2026-09-24)
 
 
