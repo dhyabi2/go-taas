@@ -174,15 +174,21 @@ func ParseXNOOrZero(s string) Amount {
 
 // Format renders the amount as a trimmed human decimal string, dropping
 // trailing zeros and the decimal point when the fraction is zero. The
-// zero-value Amount{} renders as "0".
+// zero-value Amount{} renders as "0". A negative amount renders with a
+// leading '-'.
 func (a Amount) Format() string {
 	raw := a.raw
 	if raw == nil {
 		raw = big.NewInt(0)
 	}
-	q, r := new(big.Int).QuoRem(raw, rawPerXNO, new(big.Int))
+	neg := raw.Sign() < 0
+	abs := new(big.Int).Abs(raw)
+	q, r := new(big.Int).QuoRem(abs, rawPerXNO, new(big.Int))
 	intPart := q.String()
 	if r.Sign() == 0 {
+		if neg {
+			return "-" + intPart
+		}
 		return intPart
 	}
 	frac := r.String()
@@ -190,6 +196,9 @@ func (a Amount) Format() string {
 		frac = "0" + frac
 	}
 	frac = strings.TrimRight(frac, "0")
+	if neg {
+		return "-" + intPart + "." + frac
+	}
 	return intPart + "." + frac
 }
 

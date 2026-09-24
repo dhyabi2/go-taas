@@ -134,3 +134,23 @@ func TestIsZero(t *testing.T) {
 	require.True(t, ParseXNOOrZero("not-a-number").IsZero())
 	require.False(t, RawFromInt(1).IsZero())
 }
+
+// TestNegativeSubFormat pins that Sub may yield a negative amount and
+// that Format renders it as a clean negative decimal (not the invalid
+// "0.-..." output). ParseXNO deliberately rejects negatives (settlement
+// input is non-negative), so we assert the formatted string directly.
+func TestNegativeSubFormat(t *testing.T) {
+	a, _ := ParseXNO("0")
+	b, _ := ParseXNO("1")
+	neg := a.Sub(b) // -1 XNO
+	require.Equal(t, "-1", neg.Format())
+
+	// -0.0005 XNO
+	x, _ := ParseXNO("0")
+	y, _ := ParseXNO("0.0005")
+	fracNeg := x.Sub(y)
+	require.Equal(t, "-0.0005", fracNeg.Format())
+
+	// Bare zero stays "0", never "-0".
+	require.Equal(t, "0", a.Sub(a).Format())
+}
