@@ -81,6 +81,13 @@ type Service struct {
 	// the user-realm reads (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// paymentRepo and invoiceRepo are the feature-14 repositories,
+	// wired lazily from the shared database.
+	paymentRepo *PaymentRepository
+	invoiceRepo *InvoiceRepository
+	// accounts is the feature-#8 account repository, wired lazily.
+	accounts *AccountRepository
 }
 
 // New constructs the billing service. The repository is wired lazily
@@ -137,7 +144,7 @@ func NewForFVT(db *gorm.DB, publisher mq.Client) *Service {
 // usage_lines, charge_records, accounts, transactions) onto a
 // caller-provided database for full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{})
+	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{})
 }
 
 // AttachToServer implements server.Service.
@@ -161,7 +168,11 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{})
+	if err := db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}); err != nil {
+		return err
+	}
+	// Seed the mock payment channel (feature-14 AD1).
+	return NewPaymentRepository(db).SeedMockChannel(ctx)
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared

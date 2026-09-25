@@ -44,6 +44,16 @@ type Account struct {
 	// cycle, both modes (AD6). Write-only by settlement; read-only on
 	// the wire.
 	SpentThisCycleCents int64 `gorm:"not null;default:0"`
+	// AutoRechargeEnabled toggles the feature-14 auto-recharge rule.
+	AutoRechargeEnabled bool `gorm:"not null;default:false"`
+	// AutoRechargeThresholdCents is the balance floor that triggers a
+	// top-up.
+	AutoRechargeThresholdCents int64 `gorm:"not null;default:0"`
+	// AutoRechargeTopupCents is the amount of each automatic top-up.
+	AutoRechargeTopupCents int64 `gorm:"not null;default:0"`
+	// AutoRechargeDailyCapCents bounds the total auto-recharge per UTC
+	// day; 0 = unlimited.
+	AutoRechargeDailyCapCents int64 `gorm:"not null;default:0"`
 	// CreatedAt is the row write time (UTC).
 	CreatedAt time.Time
 	// UpdatedAt is bumped on every write.

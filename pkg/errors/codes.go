@@ -123,4 +123,8 @@ const (
 	CodeBillingRangeInvalid Code = 10508 // BILLING_RANGE_INVALID
 	CodeAccountInvalid      Code = 10509 // ACCOUNT_INVALID
 	CodeTransactionInvalid  Code = 10510 // TRANSACTION_INVALID
+	CodePaymentChannelInvalid Code = 10511 // PAYMENT_CHANNEL_INVALID
+	CodePaymentIntentInvalid  Code = 10512 // PAYMENT_INTENT_INVALID
+	CodeInvoiceNotFound       Code = 10513 // INVOICE_NOT_FOUND
+	CodeAutoRechargeInvalid   Code = 10514 // AUTO_RECHARGE_INVALID
 )

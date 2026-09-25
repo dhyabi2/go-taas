@@ -32,6 +32,8 @@ import UsagePage from './pages/UsagePage';
 import PricingPage from './pages/PricingPage';
 import BillsPage from './pages/BillsPage';
 import AccountsPage from './pages/AccountsPage';
+import BillingPaymentsPage from './pages/BillingPaymentsPage';
+import BillingInvoicesPage from './pages/BillingInvoicesPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -106,6 +108,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/pricing" element={<PricingPage />} />
               <Route path="/admin/billing" element={<BillsPage />} />
               <Route path="/admin/billing/accounts" element={<AccountsPage />} />
+              <Route path="/admin/billing/payments" element={<BillingPaymentsPage />} />
+              <Route path="/admin/billing/invoices" element={<BillingInvoicesPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

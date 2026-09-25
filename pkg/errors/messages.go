@@ -92,6 +92,10 @@ var messages = map[Code]string{
 	CodeBillingRangeInvalid: "billing range invalid",
 	CodeAccountInvalid:      "account invalid",
 	CodeTransactionInvalid:  "transaction invalid",
+	CodePaymentChannelInvalid: "payment channel invalid",
+	CodePaymentIntentInvalid:  "payment intent invalid",
+	CodeInvoiceNotFound:       "invoice not found",
+	CodeAutoRechargeInvalid:   "auto recharge invalid",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a

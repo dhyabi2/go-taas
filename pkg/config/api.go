@@ -190,6 +190,17 @@ type BillingConfig struct {
 	// CycleReset configures the postpaid monthly cycle-reset runner
 	// (feature #8, AD6).
 	CycleReset BillingCycleResetConfig `mapstructure:"cycleReset"`
+	// AutoRecharge configures the feature-14 auto-recharge runner.
+	AutoRecharge BillingAutoRechargeConfig `mapstructure:"autoRecharge"`
+}
+
+// BillingAutoRechargeConfig holds the auto-recharge runner settings
+// (feature-14 AD4).
+type BillingAutoRechargeConfig struct {
+	// Enabled turns the auto-recharge runner on or off.
+	Enabled bool `mapstructure:"enabled"`
+	// Interval is the ticker period between auto-recharge passes.
+	Interval time.Duration `mapstructure:"interval"`
 }
 
 // BillingCycleResetConfig holds the postpaid cycle-reset runner

@@ -171,6 +171,11 @@ func main() {
 	if runner := billing.NewCycleResetRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
+	// Feature-14 auto-recharge runner: tops up prepaid accounts whose
+	// balance falls below their threshold (bounded by the daily cap).
+	if cfg.Billing.AutoRecharge.Enabled {
+		srv.AddRunner(billing.NewAutoRechargeRunner(billingSvc, cfg.Billing.AutoRecharge.Interval))
+	}
 
 	srv.Serve()
 }

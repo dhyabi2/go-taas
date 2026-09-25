@@ -368,3 +368,17 @@ func (r *AccountRepository) ResetCycle(ctx context.Context, monthStart int64) (i
 func (r *AccountRepository) CheckFundsSnapshot(ctx context.Context, orgID string) (*Account, error) {
 	return r.FindByOrg(ctx, orgID)
 }
+
+// AutoRechargeCandidates returns prepaid accounts with auto-recharge
+// enabled and balance below the threshold (feature-14 AD4).
+func (r *AccountRepository) AutoRechargeCandidates(ctx context.Context) ([]*Account, error) {
+	var rows []*Account
+	err := r.DB(ctx).
+		Where("mode = ? AND auto_recharge_enabled = ? AND balance_cents < auto_recharge_threshold_cents",
+			AccountModePrepaid, true).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}

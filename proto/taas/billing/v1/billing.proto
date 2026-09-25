@@ -133,6 +133,92 @@ service BillingService {
   // CheckFunds is the internal gateway gating check: may the
   // organization's requests proceed (AD4). No HTTP binding.
   rpc CheckFunds(CheckFundsRequest) returns (CheckFundsResponse);
+
+  // ---- Payments, invoices & auto-recharge (feature-14) ----
+
+  // CreatePaymentChannel registers a payment channel.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc CreatePaymentChannel(CreatePaymentChannelRequest) returns (CreatePaymentChannelResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/payment-channels"
+      body: "*"
+    };
+  }
+
+  // ListPaymentChannels returns the payment channel registry.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListPaymentChannels(ListPaymentChannelsRequest) returns (ListPaymentChannelsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/billing/payment-channels"};
+  }
+
+  // EnablePaymentChannel activates a channel.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc EnablePaymentChannel(EnablePaymentChannelRequest) returns (EnablePaymentChannelResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/payment-channels/{channel_id}:enable"
+      body: "*"
+    };
+  }
+
+  // DisablePaymentChannel pauses a channel.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc DisablePaymentChannel(DisablePaymentChannelRequest) returns (DisablePaymentChannelResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/payment-channels/{channel_id}:disable"
+      body: "*"
+    };
+  }
+
+  // CreatePaymentIntent creates a payment intent for a prepaid account.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc CreatePaymentIntent(CreatePaymentIntentRequest) returns (CreatePaymentIntentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/payment-intents"
+      body: "*"
+    };
+  }
+
+  // PayPaymentIntent completes a payment intent via the mock channel.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc PayPaymentIntent(PayPaymentIntentRequest) returns (PayPaymentIntentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/payment-intents/{intent_id}:pay"
+      body: "*"
+    };
+  }
+
+  // ListPaymentIntents returns payment intents, newest first.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListPaymentIntents(ListPaymentIntentsRequest) returns (ListPaymentIntentsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/billing/payment-intents"};
+  }
+
+  // GenerateInvoice creates an invoice from a settled bill (idempotent).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GenerateInvoice(GenerateInvoiceRequest) returns (GenerateInvoiceResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/billing/invoices"
+      body: "*"
+    };
+  }
+
+  // ListInvoices returns invoices, newest first.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/billing/invoices"};
+  }
+
+  // GetInvoice returns one invoice.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetInvoice(GetInvoiceRequest) returns (GetInvoiceResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/billing/invoices/{invoice_id}"};
+  }
+
+  // DownloadInvoice returns a presentable rendering of an invoice.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc DownloadInvoice(DownloadInvoiceRequest) returns (DownloadInvoiceResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/billing/invoices/{invoice_id}:download"};
+  }
 }
 
 message SetPriceRequest {
@@ -467,4 +553,137 @@ message CheckFundsResponse {
   int64 monthly_spend_limit_cents = 8;
   // spent_this_cycle_cents is the total spend within the current cycle.
   int64 spent_this_cycle_cents = 9;
+}
+
+// ---- Payments, invoices & auto-recharge (feature-14) ----
+
+message PaymentChannel {
+  string channel_id = 1;
+  string type = 2;
+  string display_name = 3;
+  bool enabled = 4;
+  int64 created_at = 5;
+}
+
+message CreatePaymentChannelRequest {
+  string channel_id = 1;
+  string type = 2;
+  string display_name = 3;
+}
+message CreatePaymentChannelResponse {
+  taas.common.v1.Response response = 1;
+  PaymentChannel channel = 2;
+}
+message ListPaymentChannelsRequest {
+  taas.common.v1.PageRequest page = 1;
+}
+message ListPaymentChannelsResponse {
+  taas.common.v1.Response response = 1;
+  repeated PaymentChannel channels = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+message EnablePaymentChannelRequest {
+  string channel_id = 1;
+}
+message EnablePaymentChannelResponse {
+  taas.common.v1.Response response = 1;
+  PaymentChannel channel = 2;
+}
+message DisablePaymentChannelRequest {
+  string channel_id = 1;
+}
+message DisablePaymentChannelResponse {
+  taas.common.v1.Response response = 1;
+  PaymentChannel channel = 2;
+}
+
+message PaymentIntent {
+  string intent_id = 1;
+  string account_id = 2;
+  int64 amount_cents = 3;
+  string channel = 4;
+  string status = 5; // pending | paid | failed | expired
+  string idempotency_key = 6;
+  string reference = 7;
+  int64 created_at = 8;
+  int64 paid_at = 9;
+  // pay_url is the channel redirect/QR URL (mock: a console pay URL).
+  string pay_url = 10;
+}
+
+message CreatePaymentIntentRequest {
+  string account_id = 1;
+  int64 amount_cents = 2;
+  string channel = 3;
+  string idempotency_key = 4;
+  string reference = 5;
+}
+message CreatePaymentIntentResponse {
+  taas.common.v1.Response response = 1;
+  PaymentIntent intent = 2;
+}
+message PayPaymentIntentRequest {
+  string intent_id = 1;
+}
+message PayPaymentIntentResponse {
+  taas.common.v1.Response response = 1;
+  PaymentIntent intent = 2;
+}
+message ListPaymentIntentsRequest {
+  taas.common.v1.PageRequest page = 1;
+  string account_id = 2;
+  string status = 3;
+}
+message ListPaymentIntentsResponse {
+  taas.common.v1.Response response = 1;
+  repeated PaymentIntent intents = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message Invoice {
+  string invoice_id = 1;
+  string bill_id = 2;
+  string organization_id = 3;
+  int64 period_start = 4;
+  int64 period_end = 5;
+  int64 total_cents = 6;
+  string currency = 7;
+  string status = 8; // issued | paid
+  int64 issued_at = 9;
+  int64 paid_at = 10;
+}
+
+message GenerateInvoiceRequest {
+  string organization_id = 1;
+  // period_start is the UTC month start (unix seconds) of the bill.
+  int64 period_start = 2;
+}
+message GenerateInvoiceResponse {
+  taas.common.v1.Response response = 1;
+  Invoice invoice = 2;
+}
+message ListInvoicesRequest {
+  taas.common.v1.PageRequest page = 1;
+  string organization_id = 2;
+}
+message ListInvoicesResponse {
+  taas.common.v1.Response response = 1;
+  repeated Invoice invoices = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+message GetInvoiceRequest {
+  string invoice_id = 1;
+}
+message GetInvoiceResponse {
+  taas.common.v1.Response response = 1;
+  Invoice invoice = 2;
+}
+message DownloadInvoiceRequest {
+  string invoice_id = 1;
+}
+message DownloadInvoiceResponse {
+  taas.common.v1.Response response = 1;
+  // content is a presentable JSON/HTML rendering of the invoice.
+  string content = 2;
+  string content_type = 3;
 }

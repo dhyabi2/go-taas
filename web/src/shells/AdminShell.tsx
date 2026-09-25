@@ -23,6 +23,8 @@ export const ADMIN_NAV_ITEMS = [
   { path: '/admin/pricing', label: 'Pricing', testid: 'nav-pricing' },
   { path: '/admin/billing', label: 'Bills', testid: 'nav-bills' },
   { path: '/admin/billing/accounts', label: 'Accounts', testid: 'nav-accounts' },
+  { path: '/admin/billing/payments', label: 'Payments', testid: 'nav-payments' },
+  { path: '/admin/billing/invoices', label: 'Invoices', testid: 'nav-invoices' },
 ];
 
 function isActive(path: string, current: string): boolean {

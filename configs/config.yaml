@@ -92,6 +92,11 @@ billing:
     interval: 60s
     gracePeriod: 5m
     workers: 2
+  # autoRecharge configures the feature-14 auto-recharge runner: it tops
+  # up prepaid accounts whose balance falls below their threshold.
+  autoRecharge:
+    enabled: true
+    interval: 1m
 
 infer:
   # endpointBaseURL composes the endpoint URL reported for running
