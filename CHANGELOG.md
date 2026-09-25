@@ -1,3 +1,32 @@
+# [1.5.0](https://github.com/dhyabi2/go-taas/compare/v1.4.0...v1.5.0) (2026-09-25)
+
+
+### Bug Fixes
+
+* **console:** make the surface router reactive to route changes ([9e4d230](https://github.com/dhyabi2/go-taas/commit/9e4d230699220f1579fe7d187210c9fbb3ee172d))
+* **nano:** correct Raw() copy, zero-value safety, parser malformed-input rejection, and doc wording ([e7445bd](https://github.com/dhyabi2/go-taas/commit/e7445bda4f59d36df3f7ba6ad5f1606d02e0cbd7))
+* **nano:** replace if/else chain with tagged switch to satisfy golangci-lint QF1003 ([b7c01a7](https://github.com/dhyabi2/go-taas/commit/b7c01a79c9159ea557f6333ad5a43f5aeff27bcf))
+* **nano:** return Raw() copy, reject malformed inputs like '.' or '+', fix doc phrasing ([be169e9](https://github.com/dhyabi2/go-taas/commit/be169e9614f25b009d931d7197715858f8aaa87e))
+* **nano:** sign-normalize Format for negative amounts so Sub results render as valid decimals ([34a1469](https://github.com/dhyabi2/go-taas/commit/34a14697098a7c27c78e58b2c66de031fa0bf7c6))
+
+
+### Features
+
+* **auth,billing:** add per-key rate limits and org spend limits (feature-11) ([4c83708](https://github.com/dhyabi2/go-taas/commit/4c83708de4639bd480de779dc79b6e10aa3b8291))
+* **billing:** add payments, invoices and auto-recharge ([bbf49a2](https://github.com/dhyabi2/go-taas/commit/bbf49a2d8fb64c39042139dadd49247a6276e281))
+* **billing:** implement balance and quota account modes with ledger (feature-08) ([f4e0e95](https://github.com/dhyabi2/go-taas/commit/f4e0e956c3f8a33e7fd9f26262ecab834d78fa3a))
+* **console:** add billing accounts page with recharge and quota dialogs (feature-08) ([e50716f](https://github.com/dhyabi2/go-taas/commit/e50716f7a206d9d7d082b38f8dd0b3b516ea08d5))
+* **console:** add members and invitations pages (feature-10) ([94a5265](https://github.com/dhyabi2/go-taas/commit/94a52653498328e07be8d8c0764cf4571d2ef3d4))
+* **console:** add rate limit and spend limit fields (feature-11) ([2846bea](https://github.com/dhyabi2/go-taas/commit/2846beaac6532e5946c73c31ece018037de1cb46))
+* **console:** add request logs and playground pages (feature-12) ([fa73c46](https://github.com/dhyabi2/go-taas/commit/fa73c4678645c9d8ed7dae89010d62d67bc9764d))
+* **console:** add usage dashboard with chart, metric toggle, CSV export and balance widget (feature-09) ([4cb4a42](https://github.com/dhyabi2/go-taas/commit/4cb4a42d0061cfa2d8cbbc8c42b082e29af7ed0b))
+* **console:** split the end-user console from the admin console ([4f8118f](https://github.com/dhyabi2/go-taas/commit/4f8118f3ce2179e6bdb12d212e5a0f261f5b14d5))
+* **metering,infer:** add request logs and playground proxy (feature-12) ([d08b2f8](https://github.com/dhyabi2/go-taas/commit/d08b2f89b003af877ff393caf450925c8760c632))
+* **metering:** add usage dashboard and per-request cost attribution (feature-09) ([9c93881](https://github.com/dhyabi2/go-taas/commit/9c93881c26bb0b68cb78f4c2e6c1d4814220d301))
+* **model:** add per-tenant model authorization ([ff35760](https://github.com/dhyabi2/go-taas/commit/ff3576022f8049ad0e23cf53677c62c60ab1382e))
+* **nano:** exact 30-decimal XNO amount primitives for sub-cent settlement ([5cf5f11](https://github.com/dhyabi2/go-taas/commit/5cf5f119ad89b1c4ef6164431c6af1e9ef8c7991))
+* **tenancy:** add org members roles and invitations RBAC (feature-10) ([3768626](https://github.com/dhyabi2/go-taas/commit/3768626c5a553e8c937f50243d654c371f78c62e))
+
 ## [1.12.1](https://github.com/go-taas/go-taas/compare/v1.12.0...v1.12.1) (2026-09-25)
 
 
