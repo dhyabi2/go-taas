@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/go-taas/go-taas/compare/v1.11.0...v1.12.0) (2026-09-25)
+
+
+### Features
+
+* **console:** split the end-user console from the admin console ([4f8118f](https://github.com/go-taas/go-taas/commit/4f8118f3ce2179e6bdb12d212e5a0f261f5b14d5))
+
 # [1.11.0](https://github.com/go-taas/go-taas/compare/v1.10.0...v1.11.0) (2026-09-25)
 
 
