@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/go-taas/go-taas/compare/v1.12.1...v1.13.0) (2026-09-25)
+
+
+### Features
+
+* **billing:** add payments, invoices and auto-recharge ([bbf49a2](https://github.com/go-taas/go-taas/commit/bbf49a2d8fb64c39042139dadd49247a6276e281))
+
 ## [1.12.1](https://github.com/go-taas/go-taas/compare/v1.12.0...v1.12.1) (2026-09-25)
 
 
