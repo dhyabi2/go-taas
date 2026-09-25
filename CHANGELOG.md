@@ -1,3 +1,18 @@
+# [1.10.0](https://github.com/go-taas/go-taas/compare/v1.9.0...v1.10.0) (2026-09-25)
+
+
+### Bug Fixes
+
+* **nano:** correct Raw() copy, zero-value safety, parser malformed-input rejection, and doc wording ([e7445bd](https://github.com/go-taas/go-taas/commit/e7445bda4f59d36df3f7ba6ad5f1606d02e0cbd7))
+* **nano:** replace if/else chain with tagged switch to satisfy golangci-lint QF1003 ([b7c01a7](https://github.com/go-taas/go-taas/commit/b7c01a79c9159ea557f6333ad5a43f5aeff27bcf))
+* **nano:** return Raw() copy, reject malformed inputs like '.' or '+', fix doc phrasing ([be169e9](https://github.com/go-taas/go-taas/commit/be169e9614f25b009d931d7197715858f8aaa87e))
+* **nano:** sign-normalize Format for negative amounts so Sub results render as valid decimals ([34a1469](https://github.com/go-taas/go-taas/commit/34a14697098a7c27c78e58b2c66de031fa0bf7c6))
+
+
+### Features
+
+* **nano:** exact 30-decimal XNO amount primitives for sub-cent settlement ([5cf5f11](https://github.com/go-taas/go-taas/commit/5cf5f119ad89b1c4ef6164431c6af1e9ef8c7991))
+
 # [1.9.0](https://github.com/go-taas/go-taas/compare/v1.8.0...v1.9.0) (2026-09-24)
 
 
