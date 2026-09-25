@@ -354,6 +354,7 @@ func TestMigrate(t *testing.T) {
 	assert.True(t, db.Migrator().HasTable(&APIKey{}))
 	_ = env
 }
+
 // AC-A1: CreateAPIKey persists rate limits; ListAPIKeys returns them.
 func TestCreateAPIKeyWithRateLimits(t *testing.T) {
 	env := newTestService(t)

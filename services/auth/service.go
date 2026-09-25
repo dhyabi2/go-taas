@@ -337,13 +337,13 @@ func clampInt32(v int) int32 {
 // secret or the hash.
 func summarizeAPIKey(row *APIKey) *authv1.APIKeySummary {
 	summary := &authv1.APIKeySummary{
-		KeyId:          row.ID,
-		Name:           row.Name,
-		Prefix:         row.Prefix,
-		CreatedAt:      row.CreatedAt.Unix(),
-		Revoked:        row.Revoked,
-		RateLimitRpm:   row.RateLimitRPM,
-		RateLimitTpm:   row.RateLimitTPM,
+		KeyId:        row.ID,
+		Name:         row.Name,
+		Prefix:       row.Prefix,
+		CreatedAt:    row.CreatedAt.Unix(),
+		Revoked:      row.Revoked,
+		RateLimitRpm: row.RateLimitRPM,
+		RateLimitTpm: row.RateLimitTPM,
 	}
 	if row.ExpiresAt != nil {
 		summary.ExpiresAt = row.ExpiresAt.Unix()

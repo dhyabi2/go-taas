@@ -105,9 +105,9 @@ func (r *APIKeyRepository) UpdateByIDAndOrganization(ctx context.Context, orgID,
 			return err
 		}
 		fields := map[string]any{
-			"name":            name,
-			"rate_limit_rpm":  rpm,
-			"rate_limit_tpm":  tpm,
+			"name":           name,
+			"rate_limit_rpm": rpm,
+			"rate_limit_tpm": tpm,
 		}
 		if expiresAt != nil {
 			fields["expires_at"] = *expiresAt

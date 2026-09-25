@@ -334,15 +334,15 @@ func (s *Service) CheckFunds(ctx context.Context, req *billingv1.CheckFundsReque
 	}
 	allowed, reason := fundsAllowed(account)
 	return &billingv1.CheckFundsResponse{
-		Response:                okResponse(),
-		Allowed:                 allowed,
-		Reason:                  reason,
-		Mode:                    account.Mode,
-		BalanceCents:            account.BalanceCents,
-		MonthlyQuotaCents:       account.MonthlyQuotaCents,
-		UsedThisCycleCents:      account.UsedThisCycleCents,
-		MonthlySpendLimitCents:  account.MonthlySpendLimitCents,
-		SpentThisCycleCents:     account.SpentThisCycleCents,
+		Response:               okResponse(),
+		Allowed:                allowed,
+		Reason:                 reason,
+		Mode:                   account.Mode,
+		BalanceCents:           account.BalanceCents,
+		MonthlyQuotaCents:      account.MonthlyQuotaCents,
+		UsedThisCycleCents:     account.UsedThisCycleCents,
+		MonthlySpendLimitCents: account.MonthlySpendLimitCents,
+		SpentThisCycleCents:    account.SpentThisCycleCents,
 	}, nil
 }
 
@@ -421,22 +421,22 @@ func summarizeAccount(a *Account) *billingv1.Account {
 		spendUsage = clampInt32(int(a.SpentThisCycleCents * 100 / a.MonthlySpendLimitCents))
 	}
 	return &billingv1.Account{
-		AccountId:                a.ID,
-		OrganizationId:           a.OrganizationID,
-		Mode:                     a.Mode,
-		BalanceCents:             a.BalanceCents,
-		MonthlyQuotaCents:        a.MonthlyQuotaCents,
-		UsedThisCycleCents:       a.UsedThisCycleCents,
-		CycleStartedAt:           a.CycleStartedAt,
-		OverdrawPolicy:           a.OverdrawPolicy,
-		Currency:                 a.Currency,
-		RemainingCents:           remaining,
-		QuotaUsagePercent:        usage,
-		CreatedAt:                a.CreatedAt.Unix(),
-		UpdatedAt:                a.UpdatedAt.Unix(),
-		MonthlySpendLimitCents:   a.MonthlySpendLimitCents,
-		SpentThisCycleCents:      a.SpentThisCycleCents,
-		SpendLimitUsagePercent:   spendUsage,
+		AccountId:              a.ID,
+		OrganizationId:         a.OrganizationID,
+		Mode:                   a.Mode,
+		BalanceCents:           a.BalanceCents,
+		MonthlyQuotaCents:      a.MonthlyQuotaCents,
+		UsedThisCycleCents:     a.UsedThisCycleCents,
+		CycleStartedAt:         a.CycleStartedAt,
+		OverdrawPolicy:         a.OverdrawPolicy,
+		Currency:               a.Currency,
+		RemainingCents:         remaining,
+		QuotaUsagePercent:      usage,
+		CreatedAt:              a.CreatedAt.Unix(),
+		UpdatedAt:              a.UpdatedAt.Unix(),
+		MonthlySpendLimitCents: a.MonthlySpendLimitCents,
+		SpentThisCycleCents:    a.SpentThisCycleCents,
+		SpendLimitUsagePercent: spendUsage,
 	}
 }
 

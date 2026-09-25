@@ -438,6 +438,7 @@ func TestSummarizeAccount(t *testing.T) {
 	assert.Equal(t, int64(0), s.GetRemainingCents())
 	assert.Equal(t, int32(0), s.GetQuotaUsagePercent())
 }
+
 // AC-B1: CreateAccount persists the spend limit; a negative limit is
 // rejected (10509).
 func TestCreateAccountSpendLimit(t *testing.T) {

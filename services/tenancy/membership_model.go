@@ -41,7 +41,7 @@ type OrgMember struct {
 	// Role is owner / admin / member / viewer (AD1).
 	Role string `gorm:"size:16;not null"`
 	// JoinedAt is when the membership was created (add or accept).
-	JoinedAt time.Time `gorm:"not null"`
+	JoinedAt  time.Time `gorm:"not null"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
