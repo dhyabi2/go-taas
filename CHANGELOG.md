@@ -1,3 +1,10 @@
+## [1.12.1](https://github.com/go-taas/go-taas/compare/v1.12.0...v1.12.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **console:** make the surface router reactive to route changes ([9e4d230](https://github.com/go-taas/go-taas/commit/9e4d230699220f1579fe7d187210c9fbb3ee172d))
+
 # [1.12.0](https://github.com/go-taas/go-taas/compare/v1.11.0...v1.12.0) (2026-09-25)
 
 
