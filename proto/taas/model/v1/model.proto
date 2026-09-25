@@ -65,6 +65,15 @@ service ModelService {
   rpc ListModelAuthorizations(ListModelAuthorizationsRequest) returns (ListModelAuthorizationsResponse) {
     option (google.api.http) = {get: "/api/v1/admin/models/{model_id}/authorizations"};
   }
+
+  // ListAvailableModels returns the masked user-realm catalog: the
+  // models the caller's organization may use, under feature-13's
+  // default-allow rule (feature-17 AD8/AD11). The projection carries no
+  // weight_path, version list or grant rows.
+  // User-surface API: served under /api/v1.
+  rpc ListAvailableModels(ListAvailableModelsRequest) returns (ListAvailableModelsResponse) {
+    option (google.api.http) = {get: "/api/v1/models"};
+  }
 }
 
 message RegisterModelRequest {
@@ -156,5 +165,21 @@ message ListModelAuthorizationsRequest {
 message ListModelAuthorizationsResponse {
   taas.common.v1.Response response = 1;
   repeated ModelAuthorization authorizations = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+// Masked user-realm catalog (feature-17 AD8): the tenant sees only the
+// fields needed to pick a model.
+message ListAvailableModelsRequest {
+  taas.common.v1.PageRequest page = 1;
+}
+message AvailableModel {
+  string model_id = 1;
+  string name = 2;
+  string latest_version = 3;
+}
+message ListAvailableModelsResponse {
+  taas.common.v1.Response response = 1;
+  repeated AvailableModel models = 2;
   taas.common.v1.PageMeta page_meta = 3;
 }

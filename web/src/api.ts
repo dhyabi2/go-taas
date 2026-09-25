@@ -1,6 +1,15 @@
 // Typed client for the control-plane REST gateway. All int64 fields arrive
 // as JSON strings (grpc-gateway convention), so numeric-looking strings are
 // parsed where the UI needs numbers.
+//
+// Console surface separation (feature-17): the client is realm-scoped. A
+// realm is either "user" (end-user console, API prefix /api/v1/*) or
+// "admin" (admin console, API prefix /api/v1/admin/*). Each realm keeps its
+// own session token and organization keys, and the client refuses a path
+// whose prefix does not belong to its realm (a runtime mirror of the
+// gateway realm guard).
+
+export type Realm = 'user' | 'admin';
 
 export interface ResponseEnvelope {
   code: number;
@@ -15,31 +24,88 @@ export class ApiError extends Error {
   }
 }
 
-// Session token storage (feature #7). The console stores the SSO session
-// token and sends it as Authorization: Bearer; when no session exists it
-// falls back to the transitional X-Organization-Id header.
-const SESSION_KEY = 'go-taas.session-token';
+// ---- realm-scoped storage keys (feature-17 AD5) ----
 
-export function getSessionToken(): string {
-  return localStorage.getItem(SESSION_KEY) || '';
+export function tokenKey(realm: Realm): string {
+  return `go-taas.${realm}.session-token`;
 }
 
-export function setSessionToken(token: string): void {
+export function orgKey(realm: Realm): string {
+  return `go-taas.${realm}.org-id`;
+}
+
+// Legacy keys from before the surface split (feature-17 AD9). They are
+// adopted into the booting realm's keys and then deleted.
+const LEGACY_TOKEN_KEY = 'go-taas.session-token';
+const LEGACY_ORG_KEY = 'go-taas.org-id';
+
+export function getSessionToken(realm: Realm): string {
+  return localStorage.getItem(tokenKey(realm)) || '';
+}
+
+export function setSessionToken(realm: Realm, token: string): void {
   if (token) {
-    localStorage.setItem(SESSION_KEY, token);
+    localStorage.setItem(tokenKey(realm), token);
   } else {
-    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(tokenKey(realm));
   }
 }
 
-async function request<T>(
+export function getOrgId(realm: Realm): string {
+  return localStorage.getItem(orgKey(realm)) || '';
+}
+
+export function setOrgId(realm: Realm, id: string): void {
+  if (id) {
+    localStorage.setItem(orgKey(realm), id);
+  } else {
+    localStorage.removeItem(orgKey(realm));
+  }
+}
+
+// adoptLegacyStorage migrates the pre-split keys into the given realm's
+// keys (only when the realm key is absent) and then deletes the legacy
+// keys. Idempotent; called once per surface boot (feature-17 AD9).
+export function adoptLegacyStorage(realm: Realm): void {
+  const map: [string, string][] = [
+    [LEGACY_TOKEN_KEY, tokenKey(realm)],
+    [LEGACY_ORG_KEY, orgKey(realm)],
+  ];
+  for (const [legacy, target] of map) {
+    const value = localStorage.getItem(legacy);
+    if (value && !localStorage.getItem(target)) {
+      localStorage.setItem(target, value);
+    }
+    localStorage.removeItem(legacy);
+  }
+}
+
+// apiPrefix returns the API prefix of a realm.
+export function apiPrefix(realm: Realm): string {
+  return realm === 'admin' ? '/api/v1/admin' : '/api/v1';
+}
+
+// pathBelongsToRealm reports whether a path's prefix matches the realm.
+function pathBelongsToRealm(realm: Realm, path: string): boolean {
+  if (realm === 'admin') {
+    return path === '/api/v1/admin' || path.startsWith('/api/v1/admin/');
+  }
+  // User realm: any /api/v1/* path that is not the admin prefix.
+  return path.startsWith('/api/v1/') && !path.startsWith('/api/v1/admin');
+}
+
+function createRequest<T>(
+  realm: Realm,
   method: string,
   path: string,
   orgId: string,
   body?: unknown,
 ): Promise<T> {
+  if (!pathBelongsToRealm(realm, path)) {
+    throw new ApiError(10038, `path ${path} does not belong to the ${realm} surface`);
+  }
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const sessionToken = getSessionToken();
+  const sessionToken = getSessionToken(realm);
   if (sessionToken) {
     // Session present: the session's active org is authoritative (D6).
     headers['Authorization'] = `Bearer ${sessionToken}`;
@@ -47,31 +113,38 @@ async function request<T>(
     // No session: transitional header for CLI/transitional access.
     headers['X-Organization-Id'] = orgId;
   }
-  const res = await fetch(path, {
+  return fetch(path, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
+  }).then(async (res) => {
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    // Business errors come back as {code, message} with HTTP 500; transport
+    // errors use other statuses. Branch on the body code, not the HTTP status.
+    const envelope = (data.response ?? data) as ResponseEnvelope | undefined;
+    if (envelope && typeof envelope.code === 'number' && envelope.code !== 0) {
+      throw new ApiError(envelope.code, envelope.message || 'request failed');
+    }
+    return data as T;
   });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  // Business errors come back as {code, message} with HTTP 500; transport
-  // errors use other statuses. Branch on the body code, not the HTTP status.
-  const envelope = (data.response ?? data) as ResponseEnvelope | undefined;
-  if (envelope && typeof envelope.code === 'number' && envelope.code !== 0) {
-    throw new ApiError(envelope.code, envelope.message || 'request failed');
-  }
-  return data as T;
 }
 
-export const api = {
-  get: <T>(path: string, orgId: string) => request<T>('GET', path, orgId),
-  post: <T>(path: string, orgId: string, body?: unknown) =>
-    request<T>('POST', path, orgId, body),
-  put: <T>(path: string, orgId: string, body?: unknown) =>
-    request<T>('PUT', path, orgId, body),
-  del: <T>(path: string, orgId: string) => request<T>('DELETE', path, orgId),
-  patch: <T>(path: string, orgId: string, body?: unknown) =>
-    request<T>('PATCH', path, orgId, body),
-};
+export function createApi(realm: Realm) {
+  return {
+    get: <T>(path: string, orgId: string) => createRequest<T>(realm, 'GET', path, orgId),
+    post: <T>(path: string, orgId: string, body?: unknown) =>
+      createRequest<T>(realm, 'POST', path, orgId, body),
+    put: <T>(path: string, orgId: string, body?: unknown) =>
+      createRequest<T>(realm, 'PUT', path, orgId, body),
+    del: <T>(path: string, orgId: string) => createRequest<T>(realm, 'DELETE', path, orgId),
+    patch: <T>(path: string, orgId: string, body?: unknown) =>
+      createRequest<T>(realm, 'PATCH', path, orgId, body),
+  };
+}
+
+// Backward-compatible default client for the admin surface (the existing
+// admin pages call /api/v1/admin/*). New code should use createApi(realm).
+export const api = createApi('admin');
 
 // ---- shared API shapes ----
 
@@ -102,6 +175,14 @@ export interface ModelSummary {
   // restricted is true iff the model has at least one authorization grant
   // (feature #13): it is then usable only by the granted organizations.
   restricted?: boolean;
+}
+
+// AvailableModel is the masked user-realm catalog projection (feature-17
+// AD8): no weight_path, version list or grant rows.
+export interface AvailableModel {
+  modelId: string;
+  name: string;
+  latestVersion: string;
 }
 
 export interface InferenceServiceSummary {

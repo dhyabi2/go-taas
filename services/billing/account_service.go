@@ -371,7 +371,7 @@ func fundsAllowed(a *Account) (bool, string) {
 // GetBalance returns the org's account snapshot; the legacy double
 // field stays one release for console compatibility (Section 5).
 func (s *Service) GetBalance(ctx context.Context, _ *billingv1.GetBalanceRequest) (*billingv1.GetBalanceResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

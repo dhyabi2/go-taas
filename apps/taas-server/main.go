@@ -108,6 +108,13 @@ func main() {
 			// (AD6).
 			authSvc.SetModelAuthorizer(model.NewRepository(gormDB))
 			modelSvc.SetSessionResolver(authSvc)
+			// Console surface separation (feature-17 AD6): the session's
+			// active org wins over X-Organization-Id on the user-realm
+			// reads of model/infer/metering/billing.
+			modelSvc.SetSessionOrgResolver(authSvc)
+			inferSvc.SetSessionOrgResolver(authSvc)
+			meteringSvc.SetSessionOrgResolver(authSvc)
+			billingSvc.SetSessionOrgResolver(authSvc)
 			// The per-request cost attributor reads billing's
 			// price_entries over the shared database (feature #9, AD3).
 			meteringSvc.SetCostAttributor(metering.NewCostAttributor(gormDB))

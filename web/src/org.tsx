@@ -1,13 +1,12 @@
-// Transitional organization context: the platform has no login yet (SSO is
-// feature #7), so the console keeps the organization id in localStorage and
-// sends it as X-Organization-Id on every request, exactly like the API
-// design specifies for the transitional period. When an SSO session is
-// present, the org context comes from the session's active org.
+// Realm-scoped organization context (feature-17). Each surface keeps its
+// own organization key and resolves the org from its own session (or the
+// transitional header). The user-realm selector is disabled in
+// transitional mode (no operator API call).
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { api, getSessionToken, type OrganizationSummary, type SessionInfo } from './api';
+import { getOrgId, getSessionToken, setOrgId, type OrganizationSummary, type SessionInfo } from './api';
+import { useApi, useRealm } from './surface';
 
-const STORAGE_KEY = 'go-taas.org-id';
 const DEFAULT_ORG = 'org-default';
 
 const OrgContext = createContext<{
@@ -16,21 +15,20 @@ const OrgContext = createContext<{
 }>({ orgId: DEFAULT_ORG, setOrgId: () => {} });
 
 export function OrgProvider({ children }: { children: ReactNode }) {
-  const [orgId, setOrgIdState] = useState(
-    () => localStorage.getItem(STORAGE_KEY) || DEFAULT_ORG,
-  );
+  const realm = useRealm();
+  const [orgId, setOrgIdState] = useState(() => getOrgId(realm) || DEFAULT_ORG);
 
   useEffect(() => {
     document.documentElement.dataset.org = orgId;
   }, [orgId]);
 
-  const setOrgId = (id: string) => {
-    localStorage.setItem(STORAGE_KEY, id);
+  const setOrg = (id: string) => {
+    setOrgId(realm, id);
     setOrgIdState(id);
   };
 
   return (
-    <OrgContext.Provider value={{ orgId, setOrgId }}>{children}</OrgContext.Provider>
+    <OrgContext.Provider value={{ orgId, setOrgId: setOrg }}>{children}</OrgContext.Provider>
   );
 }
 
@@ -39,10 +37,12 @@ export function useOrg() {
 }
 
 // OrgSwitcher is the organization selector rendered in the sidebar. When
-// an SSO session is present it lists the session's accessible orgs and
-// switching calls UpdateSessionOrg (feature #7, FR5.5). When no session
-// exists it falls back to the tenancy API list (transitional mode).
+// a session is present it lists the session's accessible orgs and
+// switching calls UpdateSessionOrg; when no session exists it falls back
+// to the tenancy API list (transitional mode).
 export function OrgSwitcher() {
+  const realm = useRealm();
+  const api = useApi();
   const { orgId, setOrgId } = useOrg();
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
   const [notice, setNotice] = useState('');
@@ -53,9 +53,8 @@ export function OrgSwitcher() {
     let cancelled = false;
     const load = async () => {
       try {
-        // If a session exists, resolve the org context from it.
-        if (getSessionToken()) {
-          const sess = await api.get<SessionInfo>('/api/v1/auth/session', '');
+        if (getSessionToken(realm)) {
+          const sess = await api.get<SessionInfo>(`/api/v1${realm === 'admin' ? '/admin' : ''}/auth/session`, '');
           if (cancelled) return;
           setSession(sess);
           const list = (sess.accessibleOrgs || []).map((id) => ({
@@ -71,21 +70,24 @@ export function OrgSwitcher() {
           }
           return;
         }
-        // No session: transitional tenancy API list.
-        const data = await api.get<{
-          organizations: OrganizationSummary[];
-        }>('/api/v1/admin/tenancy/organizations?page.limit=100', orgId);
-        if (cancelled) return;
-        const list = data.organizations || [];
-        setOrgs(list);
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (list.length > 0) {
-          const match = list.find((o) => o.organizationId === stored);
-          if (!match) {
-            setOrgId(list[0].organizationId);
-            setNotice(
-              `Previous organization "${stored || DEFAULT_ORG}" no longer exists; switched to the first available one.`,
-            );
+        // No session: transitional tenancy API list (admin surface only).
+        if (realm === 'admin') {
+          const data = await api.get<{ organizations: OrganizationSummary[] }>(
+            '/api/v1/admin/tenancy/organizations?page.limit=100',
+            orgId,
+          );
+          if (cancelled) return;
+          const list = data.organizations || [];
+          setOrgs(list);
+          const stored = getOrgId(realm);
+          if (list.length > 0) {
+            const match = list.find((o) => o.organizationId === stored);
+            if (!match) {
+              setOrgId(list[0].organizationId);
+              setNotice(
+                `Previous organization "${stored || DEFAULT_ORG}" no longer exists; switched to the first available one.`,
+              );
+            }
           }
         }
       } catch {
@@ -106,7 +108,7 @@ export function OrgSwitcher() {
     setOrgId(id);
     if (session) {
       try {
-        await api.post('/api/v1/auth/session/org', '', { organizationId: id });
+        await api.post(`/api/v1${realm === 'admin' ? '/admin' : ''}/auth/session/org`, '', { organizationId: id });
       } catch {
         // The switch failed server-side; the local org id is still set.
       }
@@ -124,10 +126,6 @@ export function OrgSwitcher() {
     );
   }
 
-  if (orgs.length === 0) {
-    return <OrgSwitcherFallback orgId={orgId} setOrgId={setOrgId} />;
-  }
-
   return (
     <div className="org-switcher">
       <label htmlFor="org-switcher-select">Organization</label>
@@ -137,49 +135,21 @@ export function OrgSwitcher() {
         value={orgId}
         onChange={(e) => void switchOrg(e.target.value)}
       >
-        {orgs.map((org) => (
-          <option
-            key={org.organizationId}
-            value={org.organizationId}
-            data-testid={`org-switcher-option-${org.organizationId}`}
-          >
-            {org.organizationId}
-            {org.state !== 'active' ? ' (disabled)' : ''}
-          </option>
-        ))}
+        {orgs.length === 0 ? (
+          <option value={orgId}>{orgId}</option>
+        ) : (
+          orgs.map((o) => (
+            <option key={o.organizationId} value={o.organizationId}>
+              {o.displayName || o.organizationId}
+            </option>
+          ))
+        )}
       </select>
       {notice && (
-        <div className="muted" data-testid="org-switcher-notice">
+        <div className="org-switcher-notice" data-testid="org-switcher-notice">
           {notice}
         </div>
       )}
-    </div>
-  );
-}
-
-// OrgSwitcherFallback keeps the pre-tenancy free-text behavior for
-// deployments where the tenancy API is not reachable.
-function OrgSwitcherFallback({
-  orgId,
-  setOrgId,
-}: {
-  orgId: string;
-  setOrgId: (id: string) => void;
-}) {
-  const [value, setValue] = useState(orgId);
-  return (
-    <div className="org-switcher">
-      <label htmlFor="org-id-input">Organization (transitional)</label>
-      <input
-        id="org-id-input"
-        data-testid="org-id-input"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={() => setOrgId(value.trim() || DEFAULT_ORG)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') setOrgId(value.trim() || DEFAULT_ORG);
-        }}
-      />
     </div>
   );
 }

@@ -48,6 +48,7 @@ var messages = map[Code]string{
 	CodeInvitationExists:      "invitation already exists",
 	CodeForbidden:             "forbidden",
 	CodeRateLimitExceeded:     "rate limit exceeded",
+	CodeRealmMismatch:         "session belongs to the other console",
 
 	// model
 	CodeModelNotFound:        "model not found",

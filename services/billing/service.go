@@ -48,6 +48,16 @@ const (
 // X-Organization-Id HTTP header (the auth module's pattern).
 const organizationMetadataKey = "x-organization-id"
 
+// SessionOrgResolver resolves the session's active organization
+// (feature-17 AD6). It is implemented by the auth module and injected at
+// wiring time. Nil until wired: the transitional X-Organization-Id
+// header is used.
+type SessionOrgResolver interface {
+	// SessionActiveOrg returns the session's active organization, or
+	// ("", nil) when no session is present (transitional access).
+	SessionActiveOrg(ctx context.Context) (string, error)
+}
+
 // Service implements the billing gRPC service.
 type Service struct {
 	billingv1.UnimplementedBillingServiceServer
@@ -66,6 +76,11 @@ type Service struct {
 	// the organizations table (feature #6). Nil until wired: unit tests
 	// skip validation; main.go and FVT always wire it.
 	orgGuard *tenancy.OrgGuard
+
+	// sessionOrgResolver resolves the session's active organization for
+	// the user-realm reads (feature-17 AD6). Nil until wired: the
+	// transitional X-Organization-Id header is used.
+	sessionOrgResolver SessionOrgResolver
 }
 
 // New constructs the billing service. The repository is wired lazily
@@ -79,6 +94,25 @@ func New(components server.Components) *Service {
 // pattern). Production and FVT wire it; unit tests leave it nil so
 // checkOrg no-ops.
 func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
+
+// SetSessionOrgResolver injects the session-organization resolver used
+// by the user-realm reads (feature-17 AD6). Production and FVT wire the
+// auth service; unit tests may inject a fake.
+func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// resolveOrg returns the organization context for a user-realm read
+// (feature-17 AD6): the session's active org when a session is present,
+// otherwise the transitional X-Organization-Id header.
+func (s *Service) resolveOrg(ctx context.Context) (string, error) {
+	if s.sessionOrgResolver != nil {
+		if org, err := s.sessionOrgResolver.SessionActiveOrg(ctx); err != nil {
+			return "", err
+		} else if org != "" {
+			return org, nil
+		}
+	}
+	return resolveOrganizationID(ctx)
+}
 
 // checkOrg validates the org context: existence on reads, active
 // state on gated writes. No-op when the guard is not wired.
@@ -394,7 +428,7 @@ func summarizePrice(p *PriceEntry) *billingv1.PriceEntry {
 // ListCharges returns charge records filtered by api key, model and
 // time range, paginated newest-first (FR5.1, AC12).
 func (s *Service) ListCharges(ctx context.Context, req *billingv1.ListChargesRequest) (*billingv1.ListChargesResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +498,7 @@ func summarizeCharge(c *ChargeRecord) *billingv1.ChargeRecordSummary {
 // ListBills returns monthly bill summaries computed on read (D9, FR5.2,
 // AC12/AC16).
 func (s *Service) ListBills(ctx context.Context, req *billingv1.ListBillsRequest) (*billingv1.ListBillsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

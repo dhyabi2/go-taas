@@ -36,6 +36,10 @@ type Session struct {
 	ActiveOrg      string   `json:"active_org"`
 	ExpiresAt      int64    `json:"expires_at"` // unix seconds
 	CreatedAt      int64    `json:"created_at"`
+	// Realm is the session's audience marker (user or admin), minted
+	// from the login binding (feature-17 AD2). Empty for a session
+	// minted before the split, which the realm guard answers 10027.
+	Realm string `json:"realm"`
 }
 
 // SessionStore is the Redis-backed session store.
@@ -72,6 +76,7 @@ func (s *SessionStore) Create(ctx context.Context, sess *Session, accessToken st
 		"active_org":      sess.ActiveOrg,
 		"expires_at":      sess.ExpiresAt,
 		"created_at":      sess.CreatedAt,
+		"realm":           sess.Realm,
 	}).Err(); err != nil {
 		return err
 	}
@@ -114,6 +119,7 @@ func (s *SessionStore) Get(ctx context.Context, sessionID string) (*Session, err
 		ActiveOrg:      vals["active_org"],
 		ExpiresAt:      expiresAt,
 		CreatedAt:      parseInt64(vals["created_at"]),
+		Realm:          vals["realm"],
 	}, nil
 }
 

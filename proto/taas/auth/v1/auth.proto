@@ -27,39 +27,68 @@ service AuthService {
   }
 
   // ListAPIKeys returns the API keys of the caller's organization.
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/auth/api-keys"};
+    option (google.api.http) = {
+      get: "/api/v1/auth/api-keys"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        get: "/api/v1/admin/auth/api-keys"
+      }
+    };
   }
 
   // CreateAPIKey issues a new API key. The plaintext key is returned
   // exactly once; only its salted hash is stored.
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc CreateAPIKey(CreateAPIKeyRequest) returns (CreateAPIKeyResponse) {
     option (google.api.http) = {
-      post: "/api/v1/admin/auth/api-keys"
+      post: "/api/v1/auth/api-keys"
       body: "*"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        post: "/api/v1/admin/auth/api-keys"
+        body: "*"
+      }
     };
   }
 
   // RevokeAPIKey revokes an API key. Revocation takes effect after the
   // gateway-side cache TTL expires.
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc RevokeAPIKey(RevokeAPIKeyRequest) returns (RevokeAPIKeyResponse) {
     option (google.api.http) = {
-      post: "/api/v1/admin/auth/api-keys/{key_id}:revoke"
+      post: "/api/v1/auth/api-keys/{key_id}:revoke"
       body: "*"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        post: "/api/v1/admin/auth/api-keys/{key_id}:revoke"
+        body: "*"
+      }
     };
   }
 
   // UpdateAPIKey edits a key's name, expiry and rate limits
   // post-creation. It never returns the plaintext and never changes the
   // secret (feature #11, AD4).
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc UpdateAPIKey(UpdateAPIKeyRequest) returns (UpdateAPIKeyResponse) {
     option (google.api.http) = {
-      put: "/api/v1/admin/auth/api-keys/{key_id}"
+      put: "/api/v1/auth/api-keys/{key_id}"
       body: "*"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        put: "/api/v1/admin/auth/api-keys/{key_id}"
+        body: "*"
+      }
     };
   }
 
@@ -123,29 +152,61 @@ service AuthService {
     option (google.api.http) = {get: "/api/v1/auth/sso/{provider_id}/authorize"};
   }
 
-  // SSOCallback completes an SSO login (user surface).
+  // SSOCallback completes an SSO login (user surface). Mints a
+  // user-realm session (feature-17 AD2).
   rpc SSOCallback(SSOCallbackRequest) returns (SSOCallbackResponse) {
     option (google.api.http) = {get: "/api/v1/auth/sso/{provider_id}/callback"};
   }
 
-  // GetSession returns the current session (user surface).
-  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
-    option (google.api.http) = {get: "/api/v1/auth/session"};
+  // AdminSSOAuthorize initiates an SSO login for a provider on the
+  // admin surface (feature-17).
+  rpc AdminSSOAuthorize(SSOAuthorizeRequest) returns (SSOAuthorizeResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/auth/sso/{provider_id}/authorize"};
   }
 
-  // UpdateSessionOrg switches the session's active org (user surface).
+  // AdminSSOCallback completes an SSO login on the admin surface
+  // (feature-17). Mints an admin-realm session (AD2).
+  rpc AdminSSOCallback(SSOCallbackRequest) returns (SSOCallbackResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/auth/sso/{provider_id}/callback"};
+  }
+
+  // ListPublicSSOProviders returns the enabled providers projected to
+  // the anonymous login surface (feature-17 AD11). No session required.
+  rpc ListPublicSSOProviders(ListPublicSSOProvidersRequest) returns (ListPublicSSOProvidersResponse) {
+    option (google.api.http) = {get: "/api/v1/auth/sso/providers"};
+  }
+
+  // GetSession returns the current session of the realm the request
+  // arrived on (user realm on this binding, admin realm on the
+  // additional binding, enforced by the gateway realm guard).
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/auth/session"
+      additional_bindings { get: "/api/v1/admin/auth/session" }
+    };
+  }
+
+  // UpdateSessionOrg switches the session's active org.
   rpc UpdateSessionOrg(UpdateSessionOrgRequest) returns (UpdateSessionOrgResponse) {
     option (google.api.http) = {
       post: "/api/v1/auth/session/org"
       body: "*"
+      additional_bindings {
+        post: "/api/v1/admin/auth/session/org"
+        body: "*"
+      }
     };
   }
 
-  // Logout revokes the current session (user surface).
+  // Logout revokes the current session.
   rpc Logout(LogoutRequest) returns (LogoutResponse) {
     option (google.api.http) = {
       post: "/api/v1/auth/logout"
       body: "*"
+      additional_bindings {
+        post: "/api/v1/admin/auth/logout"
+        body: "*"
+      }
     };
   }
 
@@ -400,6 +461,9 @@ message GetSessionResponse {
   repeated string accessible_orgs = 5;
   string active_org = 6;
   int64 expires_at = 7;
+  // realm is the session's realm (user or admin), minted from the login
+  // binding (feature-17 AD2).
+  string realm = 8;
 }
 message UpdateSessionOrgRequest {
   string organization_id = 1;
@@ -411,6 +475,22 @@ message UpdateSessionOrgResponse {
 message LogoutRequest {}
 message LogoutResponse {
   taas.common.v1.Response response = 1;
+}
+
+// Public SSO provider projection (feature-17 AD11): the anonymous login
+// surface sees only the fields needed to render a sign-in button.
+message ListPublicSSOProvidersRequest {
+  taas.common.v1.PageRequest page = 1;
+}
+message PublicSSOProvider {
+  string provider_id = 1;
+  string type = 2; // oidc | saml | ldap
+  string display_name = 3;
+}
+message ListPublicSSOProvidersResponse {
+  taas.common.v1.Response response = 1;
+  repeated PublicSSOProvider providers = 2;
+  taas.common.v1.PageMeta page_meta = 3;
 }
 
 // Identity bindings (admin surface).

@@ -23,6 +23,15 @@ export function navigate(path: string) {
   emit();
 }
 
+// replace navigates without adding a history entry (feature-17 AD7): used
+// for the moved-admin-route redirects so a bookmark does not create a
+// back-button loop.
+export function replace(path: string) {
+  if (window.location.pathname === path) return;
+  window.history.replaceState({}, '', path);
+  emit();
+}
+
 export function useRoute(): string {
   const [path, setPath] = useState(window.location.pathname);
   useEffect(() => {

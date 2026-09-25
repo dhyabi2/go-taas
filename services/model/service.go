@@ -49,6 +49,16 @@ type SessionResolver interface {
 	SessionUserID(ctx context.Context) (string, error)
 }
 
+// SessionOrgResolver resolves the session's active organization
+// (feature-17 AD6). It is implemented by the auth module and injected at
+// wiring time. Nil until wired: the transitional X-Organization-Id
+// header is used.
+type SessionOrgResolver interface {
+	// SessionActiveOrg returns the session's active organization, or
+	// ("", nil) when no session is present (transitional access).
+	SessionActiveOrg(ctx context.Context) (string, error)
+}
+
 // Service implements the model registry gRPC service.
 type Service struct {
 	modelv1.UnimplementedModelServiceServer
@@ -70,6 +80,11 @@ type Service struct {
 	// granted_by audit column (feature-13, AD8). Nil until wired: the
 	// transitional caller organization is recorded instead.
 	sessionResolver SessionResolver
+
+	// sessionOrgResolver resolves the session's active organization for
+	// the user-realm catalog (feature-17 AD6). Nil until wired: the
+	// transitional X-Organization-Id header is used.
+	sessionOrgResolver SessionOrgResolver
 }
 
 // DeleteGuard blocks the deletion of a model. It returns a non-nil
@@ -106,6 +121,11 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // the granted_by audit column (feature-13, AD8). Production and FVT wire
 // the auth service; unit tests may inject a fake.
 func (s *Service) SetSessionResolver(r SessionResolver) { s.sessionResolver = r }
+
+// SetSessionOrgResolver injects the session-organization resolver used
+// by the user-realm catalog (feature-17 AD6). Production and FVT wire
+// the auth service; unit tests may inject a fake.
+func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
 
 // checkOrg validates that the organization exists (10005 when unknown).
 // No-op when the guard is not wired.
@@ -324,6 +344,73 @@ func (s *Service) ListModels(ctx context.Context, req *modelv1.ListModelsRequest
 		models = append(models, summary)
 	}
 	return &modelv1.ListModelsResponse{
+		Response: okResponse(),
+		Models:   models,
+		PageMeta: &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampToInt32(limit)},
+	}, nil
+}
+
+// resolveOrg returns the organization context for the user-realm
+// catalog (feature-17 AD6): the session's active org when a session is
+// present, otherwise the transitional X-Organization-Id header. 10001
+// when neither is available.
+func (s *Service) resolveOrg(ctx context.Context) (string, error) {
+	if s.sessionOrgResolver != nil {
+		if org, err := s.sessionOrgResolver.SessionActiveOrg(ctx); err != nil {
+			return "", err
+		} else if org != "" {
+			return org, nil
+		}
+	}
+	return resolveOrganizationID(ctx)
+}
+
+// resolveOrganizationID reads the transitional caller organization from
+// the x-organization-id gRPC metadata (set by the gateway from the
+// X-Organization-Id HTTP header). Missing or empty values are
+// unauthorized.
+func resolveOrganizationID(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", apierrors.New(apierrors.CodeUnauthorized)
+	}
+	values := md.Get(organizationMetadataKey)
+	if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
+		return "", apierrors.New(apierrors.CodeUnauthorized)
+	}
+	return strings.TrimSpace(values[0]), nil
+}
+
+// ListAvailableModels returns the masked user-realm catalog (feature-17
+// AD8/AD11): the models the caller's organization may use, under
+// feature-13's default-allow rule. The projection carries no weight_path,
+// version list or grant rows.
+func (s *Service) ListAvailableModels(ctx context.Context, req *modelv1.ListAvailableModelsRequest) (*modelv1.ListAvailableModelsResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	offset, limit := normalizePagination(req.GetPage())
+	rows, total, err := repo.ListModelsForOrganization(ctx, orgID, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	models := make([]*modelv1.AvailableModel, 0, len(rows))
+	for _, row := range rows {
+		summary := &modelv1.AvailableModel{
+			ModelId: row.ID,
+			Name:    row.Name,
+		}
+		if latest, latestErr := repo.LatestVersion(ctx, row.ID); latestErr == nil && latest != nil {
+			summary.LatestVersion = latest.Version
+		}
+		models = append(models, summary)
+	}
+	return &modelv1.ListAvailableModelsResponse{
 		Response: okResponse(),
 		Models:   models,
 		PageMeta: &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampToInt32(limit)},

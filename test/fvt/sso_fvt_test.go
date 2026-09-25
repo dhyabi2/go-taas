@@ -290,6 +290,7 @@ func TestFVTSSOSessionAndBindings(t *testing.T) {
 		ActiveOrg:      "org-fvt",
 		ExpiresAt:      time.Now().Add(time.Hour).Unix(),
 		CreatedAt:      time.Now().Unix(),
+		Realm:          auth.RealmUser,
 	}
 	require.NoError(t, env.svc.CreateSessionForTest(context.Background(), sess, "token"))
 

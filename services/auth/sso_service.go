@@ -228,8 +228,28 @@ func (s *Service) DeleteSSOProvider(ctx context.Context, req *authv1.DeleteSSOPr
 
 // ---- SSO login flow (user surface) ----
 
-// SSOAuthorize initiates an SSO login for a provider.
+// RealmUser and RealmAdmin are the two session realms minted from the
+// login binding (feature-17 AD2).
+const (
+	RealmUser  = "user"
+	RealmAdmin = "admin"
+)
+
+// SSOAuthorize initiates an SSO login for a provider on the user
+// surface.
 func (s *Service) SSOAuthorize(ctx context.Context, req *authv1.SSOAuthorizeRequest) (*authv1.SSOAuthorizeResponse, error) {
+	return s.doSSOAuthorize(ctx, req)
+}
+
+// AdminSSOAuthorize initiates an SSO login for a provider on the admin
+// surface (feature-17).
+func (s *Service) AdminSSOAuthorize(ctx context.Context, req *authv1.SSOAuthorizeRequest) (*authv1.SSOAuthorizeResponse, error) {
+	return s.doSSOAuthorize(ctx, req)
+}
+
+// doSSOAuthorize is the shared SSO authorize body, reached by both the
+// user and admin bindings.
+func (s *Service) doSSOAuthorize(ctx context.Context, req *authv1.SSOAuthorizeRequest) (*authv1.SSOAuthorizeResponse, error) {
 	repo, err := s.ssoRepository()
 	if err != nil {
 		return nil, err
@@ -259,8 +279,20 @@ func (s *Service) SSOAuthorize(ctx context.Context, req *authv1.SSOAuthorizeRequ
 	}, nil
 }
 
-// SSOCallback completes an SSO login and issues a session.
+// SSOCallback completes an SSO login and issues a user-realm session.
 func (s *Service) SSOCallback(ctx context.Context, req *authv1.SSOCallbackRequest) (*authv1.SSOCallbackResponse, error) {
+	return s.doSSOCallback(ctx, req, RealmUser)
+}
+
+// AdminSSOCallback completes an SSO login and issues an admin-realm
+// session (feature-17 AD2).
+func (s *Service) AdminSSOCallback(ctx context.Context, req *authv1.SSOCallbackRequest) (*authv1.SSOCallbackResponse, error) {
+	return s.doSSOCallback(ctx, req, RealmAdmin)
+}
+
+// doSSOCallback is the shared SSO callback body. The realm is derived
+// from the binding, never from a request field (feature-17 AD2).
+func (s *Service) doSSOCallback(ctx context.Context, req *authv1.SSOCallbackRequest, realm string) (*authv1.SSOCallbackResponse, error) {
 	repo, err := s.ssoRepository()
 	if err != nil {
 		return nil, err
@@ -312,6 +344,7 @@ func (s *Service) SSOCallback(ctx context.Context, req *authv1.SSOCallbackReques
 		ActiveOrg:      activeOrg,
 		ExpiresAt:      expiresAt,
 		CreatedAt:      now.Unix(),
+		Realm:          realm,
 	}
 	if err := s.sessionStore.Create(ctx, sess, accessToken); err != nil {
 		return nil, err
@@ -321,6 +354,35 @@ func (s *Service) SSOCallback(ctx context.Context, req *authv1.SSOCallbackReques
 		SessionToken: sessionID,
 		AccessToken:  accessToken,
 		ExpiresAt:    expiresAt,
+	}, nil
+}
+
+// ListPublicSSOProviders returns the enabled providers projected to the
+// anonymous login surface (feature-17 AD11): only provider_id, type and
+// display_name are exposed.
+func (s *Service) ListPublicSSOProviders(ctx context.Context, req *authv1.ListPublicSSOProvidersRequest) (*authv1.ListPublicSSOProvidersResponse, error) {
+	repo, err := s.ssoRepository()
+	if err != nil {
+		return nil, err
+	}
+	enabled := true
+	offset, limit := normalizePagination(req.GetPage())
+	rows, total, err := repo.ListProviders(ctx, ProviderFilter{Enabled: &enabled}, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	providers := make([]*authv1.PublicSSOProvider, 0, len(rows))
+	for _, row := range rows {
+		providers = append(providers, &authv1.PublicSSOProvider{
+			ProviderId:  row.ID,
+			Type:        row.Type,
+			DisplayName: row.DisplayName,
+		})
+	}
+	return &authv1.ListPublicSSOProvidersResponse{
+		Response:  okResponse(),
+		Providers: providers,
+		PageMeta:  &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampInt32(limit)},
 	}, nil
 }
 
@@ -340,6 +402,7 @@ func (s *Service) GetSession(ctx context.Context, _ *authv1.GetSessionRequest) (
 		AccessibleOrgs: sess.AccessibleOrgs,
 		ActiveOrg:      sess.ActiveOrg,
 		ExpiresAt:      sess.ExpiresAt,
+		Realm:          sess.Realm,
 	}, nil
 }
 
@@ -772,6 +835,40 @@ func (s *Service) resolveOrgContext(ctx context.Context) (string, error) {
 		return sess.ActiveOrg, nil
 	}
 	return resolveOrganizationID(ctx)
+}
+
+// SessionRealm resolves a session token to its realm (feature-17 AD2).
+// It implements the gateway's SessionRealmResolver seam. A missing,
+// expired, realm-less or unknown-realm session answers CodeSessionInvalid
+// (AD3).
+func (s *Service) SessionRealm(ctx context.Context, token string) (string, error) {
+	if s.sessionStore == nil {
+		return "", apierrors.New(apierrors.CodeSessionInvalid)
+	}
+	sess, err := s.sessionStore.Get(ctx, token)
+	if err != nil {
+		return "", err
+	}
+	if sess.Realm != RealmUser && sess.Realm != RealmAdmin {
+		return "", apierrors.New(apierrors.CodeSessionInvalid)
+	}
+	return sess.Realm, nil
+}
+
+// SessionActiveOrg resolves the session's active organization, or
+// ("", nil) when no session is present (transitional access). It
+// implements the seam consumed by model/infer/metering/billing so a
+// session-bearing call ignores X-Organization-Id (feature-17 AD6).
+func (s *Service) SessionActiveOrg(ctx context.Context) (string, error) {
+	sess, err := s.sessionFromContext(ctx)
+	if err != nil {
+		// No session (or a session the store cannot read): transitional.
+		return "", nil
+	}
+	if sess.ActiveOrg == "" {
+		return "", apierrors.New(apierrors.CodeOrganizationNotFound)
+	}
+	return sess.ActiveOrg, nil
 }
 
 // summarizeProvider maps a provider row to the proto summary with

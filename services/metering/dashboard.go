@@ -17,7 +17,7 @@ const dashboardMaxRangeSeconds = 92 * 24 * 3600
 // by a dimension, joining metering usage with billing charge records for
 // a unified usage x cost view (feature #9, AC1-AC8).
 func (s *Service) GetUsageDashboard(ctx context.Context, req *meteringv1.GetUsageDashboardRequest) (*meteringv1.GetUsageDashboardResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (s *Service) GetUsageDashboard(ctx context.Context, req *meteringv1.GetUsag
 // ListRequestLogs returns per-request metadata logs, filterable by api
 // key, model, status and time range (feature #12, AC-A4).
 func (s *Service) ListRequestLogs(ctx context.Context, req *meteringv1.ListRequestLogsRequest) (*meteringv1.ListRequestLogsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

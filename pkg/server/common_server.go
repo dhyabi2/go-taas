@@ -60,6 +60,12 @@ type commonServer struct {
 	services []Service
 	runners  []Runner
 
+	// realmResolver is the session-owning service's SessionRealm
+	// implementation, collected during Init (feature-17). Nil when no
+	// service implements RealmResolver: the realm guard then passes
+	// requests through, preserving pre-split behaviour.
+	realmResolver SessionRealmResolver
+
 	components *components
 }
 
@@ -146,6 +152,16 @@ func (s *commonServer) Init() {
 	for _, svc := range s.services {
 		svc.AttachToServer(s.grpcServer)
 		logger.S().Infow("service attached", "service", svc.ServiceName())
+	}
+
+	// Collect the realm resolver (feature-17): the session-owning
+	// service implements RealmResolver; the gateway guard uses it to
+	// reject a session presented on the wrong surface's prefix.
+	for _, svc := range s.services {
+		if rr, ok := svc.(RealmResolver); ok {
+			s.realmResolver = rr
+			break
+		}
 	}
 
 	// Build the gateway.
@@ -235,7 +251,7 @@ func (s *commonServer) Serve() {
 		group.Go(func() error {
 			server := &http.Server{
 				Addr:              fmt.Sprintf("%s:%d", s.opts.BindingHostOrDefault(), s.opts.GatewayPort),
-				Handler:           withConsole(s.gatewayMux),
+				Handler:           RealmGuard(withConsole(s.gatewayMux), s.realmResolver),
 				ReadHeaderTimeout: 10 * time.Second,
 			}
 			logger.S().Infow("gateway listening", "addr", server.Addr)

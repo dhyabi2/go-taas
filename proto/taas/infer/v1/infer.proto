@@ -60,6 +60,19 @@ service InferServiceService {
       body: "*"
     };
   }
+
+  // PlaygroundModel sends a test inference for a model on the user
+  // surface (feature-17 AD8): it resolves a ready inference service for
+  // the model and forwards over the normal metered path. The tenant
+  // contract mirrors the OpenAI-compatible endpoint and never names an
+  // inference service.
+  // User-surface API: served under /api/v1.
+  rpc PlaygroundModel(PlaygroundModelRequest) returns (PlaygroundModelResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/models/{model_id}:playground"
+      body: "*"
+    };
+  }
 }
 
 message CreateInferenceServiceRequest {
@@ -145,4 +158,22 @@ message PlaygroundInferResponse {
   int64 cached_tokens = 5;
   int64 reasoning_tokens = 6;
   int64 latency_ms = 7;
+}
+
+// Model-based tenant playground (feature-17 AD8).
+message PlaygroundModelRequest {
+  string model_id = 1; // path
+  // api_key_id is the selected org API key identity.
+  string api_key_id = 2;
+  string prompt = 3;
+  double temperature = 4;
+  int32 max_tokens = 5;
+}
+message PlaygroundModelResponse {
+  taas.common.v1.Response response = 1;
+  string request_id = 2;
+  string completion = 3;
+  int64 prompt_tokens = 4;
+  int64 completion_tokens = 5;
+  int64 latency_ms = 6;
 }

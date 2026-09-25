@@ -48,6 +48,16 @@ const (
 // X-Organization-Id HTTP header (the auth module's pattern).
 const organizationMetadataKey = "x-organization-id"
 
+// SessionOrgResolver resolves the session's active organization
+// (feature-17 AD6). It is implemented by the auth module and injected at
+// wiring time. Nil until wired: the transitional X-Organization-Id
+// header is used.
+type SessionOrgResolver interface {
+	// SessionActiveOrg returns the session's active organization, or
+	// ("", nil) when no session is present (transitional access).
+	SessionActiveOrg(ctx context.Context) (string, error)
+}
+
 // Service implements the metering gRPC service.
 type Service struct {
 	meteringv1.UnimplementedMeteringServiceServer
@@ -68,6 +78,11 @@ type Service struct {
 	// the organizations table (feature #6). Nil until wired: unit tests
 	// skip validation; main.go and FVT always wire it.
 	orgGuard *tenancy.OrgGuard
+
+	// sessionOrgResolver resolves the session's active organization for
+	// the user-realm reads (feature-17 AD6). Nil until wired: the
+	// transitional X-Organization-Id header is used.
+	sessionOrgResolver SessionOrgResolver
 }
 
 // New constructs the metering service. The repository is wired lazily
@@ -81,6 +96,25 @@ func New(components server.Components) *Service {
 // pattern). Production and FVT wire it; unit tests leave it nil so
 // checkOrg no-ops.
 func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
+
+// SetSessionOrgResolver injects the session-organization resolver used
+// by the user-realm reads (feature-17 AD6). Production and FVT wire the
+// auth service; unit tests may inject a fake.
+func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// resolveOrg returns the organization context for a user-realm read
+// (feature-17 AD6): the session's active org when a session is present,
+// otherwise the transitional X-Organization-Id header.
+func (s *Service) resolveOrg(ctx context.Context) (string, error) {
+	if s.sessionOrgResolver != nil {
+		if org, err := s.sessionOrgResolver.SessionActiveOrg(ctx); err != nil {
+			return "", err
+		} else if org != "" {
+			return org, nil
+		}
+	}
+	return resolveOrganizationID(ctx)
+}
 
 // SetCostAttributor injects the per-request cost attributor (feature
 // #9). Production and FVT wire it; unit tests leave it nil so voucher
@@ -364,7 +398,7 @@ func (s *Service) IngestMeteringEvent(ctx context.Context, req *meteringv1.Inges
 // ListVouchers returns vouchers filtered by api key, model and time
 // range, paginated newest-first (FR4.2).
 func (s *Service) ListVouchers(ctx context.Context, req *meteringv1.ListVouchersRequest) (*meteringv1.ListVouchersResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -450,7 +484,7 @@ func (s *Service) GetVoucher(ctx context.Context, req *meteringv1.GetVoucherRequ
 // GetUsageSummary returns per-key (default) or per-model aggregates
 // with the settled/pending hour split (FR4.1).
 func (s *Service) GetUsageSummary(ctx context.Context, req *meteringv1.GetUsageSummaryRequest) (*meteringv1.GetUsageSummaryResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +529,7 @@ func (s *Service) GetUsageSummary(ctx context.Context, req *meteringv1.GetUsageS
 // ListUsageRecords returns settled usage records filtered by api key
 // and range, paginated newest-period-first (FR4.4).
 func (s *Service) ListUsageRecords(ctx context.Context, req *meteringv1.ListUsageRecordsRequest) (*meteringv1.ListUsageRecordsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

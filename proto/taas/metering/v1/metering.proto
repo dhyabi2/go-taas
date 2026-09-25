@@ -18,9 +18,17 @@ service MeteringService {
 
   // ListVouchers returns metering vouchers for auditing, filtered by
   // API key, model and time range.
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc ListVouchers(ListVouchersRequest) returns (ListVouchersResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/metering/vouchers"};
+    option (google.api.http) = {
+      get: "/api/v1/metering/vouchers"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        get: "/api/v1/admin/metering/vouchers"
+      }
+    };
   }
 
   // GetVoucher returns one metering voucher for audit drill-down.
@@ -32,9 +40,17 @@ service MeteringService {
   // GetUsageSummary returns per-key (default) or per-model usage
   // aggregates for the organization and time range, split into settled
   // and pending hours.
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc GetUsageSummary(GetUsageSummaryRequest) returns (GetUsageSummaryResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/metering/usage-summary"};
+    option (google.api.http) = {
+      get: "/api/v1/metering/usage-summary"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        get: "/api/v1/admin/metering/usage-summary"
+      }
+    };
   }
 
   // ListUsageRecords returns settled usage records (the billing
@@ -47,16 +63,32 @@ service MeteringService {
   // GetUsageDashboard returns summary cards and daily time buckets
   // grouped by a dimension, joining metering usage with billing charge
   // records for a unified usage x cost view (feature #9).
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc GetUsageDashboard(GetUsageDashboardRequest) returns (GetUsageDashboardResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/metering/usage-dashboard"};
+    option (google.api.http) = {
+      get: "/api/v1/metering/usage-dashboard"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        get: "/api/v1/admin/metering/usage-dashboard"
+      }
+    };
   }
 
   // ListRequestLogs returns per-request metadata logs, filterable by
   // api key, model, status and time range (feature #12).
-  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1; the session's active org
+  // wins and X-Organization-Id is ignored (feature-17 AD6).
   rpc ListRequestLogs(ListRequestLogsRequest) returns (ListRequestLogsResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/metering/request-logs"};
+    option (google.api.http) = {
+      get: "/api/v1/metering/request-logs"
+      additional_bindings {
+        // Deprecated (console-surface-separation): kept functional for
+        // the transitional migration window.
+        get: "/api/v1/admin/metering/request-logs"
+      }
+    };
   }
 
   // GetRequestLog returns one request log for drill-down (feature #12).

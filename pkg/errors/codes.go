@@ -69,6 +69,7 @@ const (
 	CodeInvitationExists      Code = 10035 // INVITATION_EXISTS
 	CodeForbidden             Code = 10036 // FORBIDDEN
 	CodeRateLimitExceeded     Code = 10037 // RATE_LIMIT_EXCEEDED
+	CodeRealmMismatch         Code = 10038 // REALM_MISMATCH
 )
 
 // model module error codes.

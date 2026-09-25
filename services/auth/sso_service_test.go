@@ -522,3 +522,150 @@ func (f *fakeComponents) MQ() server.MQComponent { return nil }
 type fakeDBComponent struct{ db *gorm.DB }
 
 func (f *fakeDBComponent) GormDB() any { return f.db }
+
+func TestServiceSessionRealm(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	// A realm-less session answers 10027 (feature-17 AD3).
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-realmless", UserID: "u1", ActiveOrg: "org-a",
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	_, err := svc.SessionRealm(ctx, "sess-realmless")
+	assert.EqualValues(t, apierrors.CodeSessionInvalid, apierrors.CodeOf(err))
+
+	// A user-realm session resolves to user.
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-user", UserID: "u1", ActiveOrg: "org-a", Realm: RealmUser,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	realm, err := svc.SessionRealm(ctx, "sess-user")
+	require.NoError(t, err)
+	assert.Equal(t, RealmUser, realm)
+
+	// An admin-realm session resolves to admin.
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-admin", UserID: "u1", ActiveOrg: "org-a", Realm: RealmAdmin,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	realm, err = svc.SessionRealm(ctx, "sess-admin")
+	require.NoError(t, err)
+	assert.Equal(t, RealmAdmin, realm)
+
+	// An unknown realm answers 10027.
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-other", UserID: "u1", ActiveOrg: "org-a", Realm: "other",
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	_, err = svc.SessionRealm(ctx, "sess-other")
+	assert.EqualValues(t, apierrors.CodeSessionInvalid, apierrors.CodeOf(err))
+
+	// A missing session answers 10027.
+	_, err = svc.SessionRealm(ctx, "missing")
+	assert.EqualValues(t, apierrors.CodeSessionInvalid, apierrors.CodeOf(err))
+}
+
+func TestServiceSessionActiveOrg(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	// No session → transitional ("", nil).
+	org, err := svc.SessionActiveOrg(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "", org)
+
+	// A session with an active org resolves it.
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-org", UserID: "u1", ActiveOrg: "org-a", Realm: RealmUser,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("authorization", "Bearer sess-org"))
+	org, err = svc.SessionActiveOrg(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "org-a", org)
+
+	// A session without an active org answers 10005.
+	require.NoError(t, svc.sessionStore.Create(ctx, &Session{
+		SessionID: "sess-noorg", UserID: "u1", Realm: RealmUser,
+		ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}, "tok"))
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("authorization", "Bearer sess-noorg"))
+	_, err = svc.SessionActiveOrg(ctx)
+	assert.EqualValues(t, apierrors.CodeOrganizationNotFound, apierrors.CodeOf(err))
+}
+
+func TestServiceListPublicSSOProviders(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Okta", Enabled: true,
+		Issuer: "https://idp.example.com", ClientID: "c1", ClientSecret: "secret",
+	}))
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: "ldap1", Type: ProviderTypeLDAP, DisplayName: "Corp LDAP", Enabled: true,
+		Host: "ldap.example.com",
+	}))
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: "off", Type: ProviderTypeOIDC, DisplayName: "Disabled", Enabled: false,
+	}))
+
+	resp, err := svc.ListPublicSSOProviders(ctx, &authv1.ListPublicSSOProvidersRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.GetProviders(), 2)
+	// Only enabled providers are returned, and only the three public
+	// fields are exposed (feature-17 AD11).
+	for _, p := range resp.GetProviders() {
+		assert.NotEmpty(t, p.GetProviderId())
+		assert.NotEmpty(t, p.GetType())
+		assert.NotEmpty(t, p.GetDisplayName())
+	}
+	ids := map[string]bool{}
+	for _, p := range resp.GetProviders() {
+		ids[p.GetProviderId()] = true
+	}
+	assert.True(t, ids["okta"])
+	assert.True(t, ids["ldap1"])
+	assert.False(t, ids["off"])
+}
+
+func TestServiceAdminSSOCallbackMintsAdminRealm(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Okta", Enabled: true,
+		Issuer: "https://idp.example.com", ClientID: "c1", ClientSecret: "secret",
+		RedirectURI: "https://console.example.com/callback",
+	}))
+	state := newState()
+	signedState := state + "." + signState(state)
+	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", []string{"org-a"})
+	_, err := svc.ssoRepo.UpdateProvider(ctx, "okta", &SSOProvider{
+		Issuer: srv.URL, ClientID: "c1", ClientSecret: "secret",
+		RedirectURI:        "https://console.example.com/callback",
+		DefaultOrg:         "org-a",
+		AllowAutoProvision: true,
+		AttributeMapping:   `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
+	})
+	require.NoError(t, err)
+
+	// AdminSSOCallback mints an admin-realm session (feature-17 AD2).
+	resp, err := svc.AdminSSOCallback(ctx, &authv1.SSOCallbackRequest{
+		ProviderId: "okta", Code: "code-1", State: signedState,
+	})
+	require.NoError(t, err)
+	sess, err := svc.sessionStore.Get(ctx, resp.GetSessionToken())
+	require.NoError(t, err)
+	assert.Equal(t, RealmAdmin, sess.Realm)
+
+	// SSOCallback mints a user-realm session.
+	resp2, err := svc.SSOCallback(ctx, &authv1.SSOCallbackRequest{
+		ProviderId: "okta", Code: "code-2", State: signedState,
+	})
+	require.NoError(t, err)
+	sess2, err := svc.sessionStore.Get(ctx, resp2.GetSessionToken())
+	require.NoError(t, err)
+	assert.Equal(t, RealmUser, sess2.Realm)
+}
