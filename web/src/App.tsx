@@ -3,7 +3,7 @@
 // redirects first (AD7), then picks the user or admin surface by path.
 
 import { useEffect } from 'react';
-import { Router, Routes, Route, replace } from './router';
+import { Router, Routes, Route, replace, useRoute } from './router';
 import { OrgProvider } from './org';
 import { SurfaceProvider } from './surface';
 import { isAdminPath, MOVED_ADMIN_ROUTES, realmHome } from './surface-routes';
@@ -43,7 +43,7 @@ export default function App() {
 }
 
 function SurfaceRouter() {
-  const path = window.location.pathname;
+  const path = useRoute();
   const moved = MOVED_ADMIN_ROUTES[path];
   if (moved) return <Redirect to={moved} />;
   if (path === '/') return <Redirect to={realmHome('user')} />;
