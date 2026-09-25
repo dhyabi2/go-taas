@@ -11,6 +11,8 @@ against the local docker compose stack.
 | Model catalog & one-click deployment | feature-02 `model-catalog-deployment` | `tests/modelCatalogDeployment.js` |
 | Engine image management | feature-03 `image-management` | `tests/imageManagement.js` |
 | Token metering & usage | feature-04 `metering` | `tests/usageMetering.js` |
+| Per-tenant model authorization | feature-13 `model-authorization` | `tests/modelAuthorization.js` |
+| Console surface separation | feature-17 `console-surface-separation` | `tests/consoleSurfaces.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md` and
