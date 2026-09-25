@@ -192,6 +192,11 @@ type BillingConfig struct {
 	CycleReset BillingCycleResetConfig `mapstructure:"cycleReset"`
 	// AutoRecharge configures the feature-14 auto-recharge runner.
 	AutoRecharge BillingAutoRechargeConfig `mapstructure:"autoRecharge"`
+	// Feeless configures the feeless settlement leg consumer (feature #7).
+	// It settles charged amounts on a feeless rail using exact XNO
+	// primitives (pkg/nano, 30 native decimals) so sub-cent charges are
+	// representable exactly instead of being rounded to the cent.
+	Feeless BillingFeelessConfig `mapstructure:"feeless"`
 }
 
 // BillingAutoRechargeConfig holds the auto-recharge runner settings
@@ -201,6 +206,19 @@ type BillingAutoRechargeConfig struct {
 	Enabled bool `mapstructure:"enabled"`
 	// Interval is the ticker period between auto-recharge passes.
 	Interval time.Duration `mapstructure:"interval"`
+}
+
+// BillingFeelessConfig holds the feeless settlement leg consumer settings
+// (feature #7). It mirrors BillingConsumerConfig: an enabled kill switch and
+// a worker count for concurrent settlement handlers. The consumer settles
+// charged amounts on a feeless rail using exact XNO primitives (pkg/nano,
+// 30 native decimals) so sub-cent charges are representable exactly.
+type BillingFeelessConfig struct {
+	// Enabled turns the feeless settlement consumer Runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// Workers is the number of concurrent feeless settlement handlers.
+	Workers int `mapstructure:"workers"`
 }
 
 // BillingCycleResetConfig holds the postpaid cycle-reset runner
@@ -443,6 +461,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Billing.CycleReset.Interval < 0 {
 		return &FieldError{Field: "billing.cycleReset.interval", Reason: "must be non-negative"}
+	}
+	if c.Billing.Feeless.Workers < 0 {
+		return &FieldError{Field: "billing.feeless.workers", Reason: "must be non-negative"}
 	}
 	return nil
 }

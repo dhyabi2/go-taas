@@ -165,6 +165,9 @@ func main() {
 	if runner := billing.NewSettlementsConsumerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
+	if runner := billing.NewFeelessSettlementsConsumerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
 	if runner := billing.NewReconciliationRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
