@@ -13,6 +13,7 @@ against the local docker compose stack.
 | Token metering & usage | feature-04 `metering` | `tests/usageMetering.js` |
 | Per-tenant model authorization | feature-13 `model-authorization` | `tests/modelAuthorization.js` |
 | Console surface separation | feature-17 `console-surface-separation` | `tests/consoleSurfaces.js` |
+| Payments, invoices & auto-recharge | feature-14 `payments-invoices-auto-recharge` | `tests/paymentsInvoices.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md` and
