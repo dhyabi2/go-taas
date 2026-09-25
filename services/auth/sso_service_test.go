@@ -217,8 +217,8 @@ func TestServiceSSOCallbackJIT(t *testing.T) {
 	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
 		ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Okta", Enabled: true,
 		Issuer: "https://idp.example.com", ClientID: "c1", ClientSecret: "secret",
-		RedirectURI: "https://console.example.com/callback",
-		DefaultOrg:  "org-a",
+		RedirectURI:      "https://console.example.com/callback",
+		DefaultOrg:       "org-a",
 		AttributeMapping: `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
 	}))
 
@@ -230,10 +230,10 @@ func TestServiceSSOCallbackJIT(t *testing.T) {
 	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", []string{"org-a"})
 	_, err := svc.ssoRepo.UpdateProvider(ctx, "okta", &SSOProvider{
 		Issuer: srv.URL, ClientID: "c1", ClientSecret: "secret",
-		RedirectURI: "https://console.example.com/callback",
-		DefaultOrg:  "org-a",
+		RedirectURI:        "https://console.example.com/callback",
+		DefaultOrg:         "org-a",
 		AllowAutoProvision: true,
-		AttributeMapping: `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
+		AttributeMapping:   `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
 	})
 	require.NoError(t, err)
 
@@ -271,7 +271,7 @@ func TestServiceSSOCallbackNoAccount(t *testing.T) {
 	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
 		ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Okta", Enabled: true,
 		Issuer: "https://idp.example.com", ClientID: "c1", ClientSecret: "secret",
-		RedirectURI: "https://console.example.com/callback",
+		RedirectURI:        "https://console.example.com/callback",
 		AllowAutoProvision: false, // JIT disabled
 	}))
 
@@ -280,7 +280,7 @@ func TestServiceSSOCallbackNoAccount(t *testing.T) {
 	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", nil)
 	_, err := svc.ssoRepo.UpdateProvider(ctx, "okta", &SSOProvider{
 		Issuer: srv.URL, ClientID: "c1", ClientSecret: "secret",
-		RedirectURI: "https://console.example.com/callback",
+		RedirectURI:        "https://console.example.com/callback",
 		AllowAutoProvision: false,
 	})
 	require.NoError(t, err)
@@ -506,14 +506,18 @@ func TestServiceSSORepositoryLazyWiring(t *testing.T) {
 	assert.EqualValues(t, apierrors.CodeInternal, apierrors.CodeOf(err))
 }
 
-// fakeComponents is a minimal server.Components exposing a GORM handle.
+// fakeComponents is a minimal server.Components exposing a GORM handle and,
+// optionally, a Redis component.
 type fakeComponents struct {
-	db *gorm.DB
+	db    *gorm.DB
+	redis server.RedisComponent
 }
 
 func (f *fakeComponents) DB() server.DBComponent { return &fakeDBComponent{db: f.db} }
-func (f *fakeComponents) Redis() server.RedisComponent { return nil }
-func (f *fakeComponents) MQ() server.MQComponent        { return nil }
+
+func (f *fakeComponents) Redis() server.RedisComponent { return f.redis }
+
+func (f *fakeComponents) MQ() server.MQComponent { return nil }
 
 type fakeDBComponent struct{ db *gorm.DB }
 

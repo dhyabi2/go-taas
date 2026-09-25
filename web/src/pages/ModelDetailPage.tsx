@@ -1,5 +1,7 @@
 // Model detail page: metadata + full version list with per-version deploy.
-// Implements docs/design/model-catalog-deployment.md FR2.3, AC2.
+// Implements docs/design/model-catalog-deployment.md FR2.3, AC2, and
+// docs/design/model-authorization.md FR1, FR2, FR5.1 (AC12, AC13): the
+// "Authorized organizations" panel and the "Restricted" badge.
 
 import { useCallback, useEffect, useState } from 'react';
 import { navigate } from '../router';
@@ -8,6 +10,7 @@ import { useOrg } from '../org';
 import { usePolling } from '../components';
 import { BackLink, ErrorBanner } from '../components';
 import DeployDialog from '../components/DeployDialog';
+import ModelAuthorizationsPanel from '../components/ModelAuthorizationsPanel';
 
 interface ModelResponse {
   response: { code: number; message: string };
@@ -24,7 +27,6 @@ export default function ModelDetailPage() {
   const [deployVersion, setDeployVersion] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
     setError('');
     try {
       const data = await api.get<ModelResponse>(`/api/v1/admin/models/${id}`, orgId);
@@ -59,7 +61,18 @@ export default function ModelDetailPage() {
       <BackLink to="/models" label="Back to Models" />
       <div className="page-header">
         <div>
-          <h1 data-testid="model-detail-name">{model.model.name}</h1>
+          <h1 data-testid="model-detail-name">
+            {model.model.name}
+            {model.model.restricted && (
+              <span
+                className="badge restricted"
+                data-testid="model-restricted-badge"
+                title="Only the organizations authorized below may deploy or call this model."
+              >
+                Restricted
+              </span>
+            )}
+          </h1>
           <div className="subtitle mono">{model.model.modelId}</div>
         </div>
       </div>
@@ -135,6 +148,12 @@ export default function ModelDetailPage() {
           }}
         />
       )}
+
+      <ModelAuthorizationsPanel
+        orgId={orgId}
+        modelId={model.model.modelId}
+        onChanged={() => void load()}
+      />
     </div>
   );
 }

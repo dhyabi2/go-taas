@@ -96,6 +96,18 @@ func main() {
 			inferSvc.SetOrgGuard(orgGuard)
 			meteringSvc.SetOrgGuard(orgGuard)
 			billingSvc.SetOrgGuard(orgGuard)
+			// The model service validates the organization a grant names
+			// (feature #13, AC1).
+			modelSvc.SetOrgGuard(orgGuard)
+			// Per-tenant model authorization (feature #13): the model
+			// repository is the single default-allow check shared by the
+			// control plane (infer) and the data plane (auth, AD5), and the
+			// auth service resolves the granting caller for granted_by
+			// (AD8). The data-plane verdict cache is a Redis one, wired
+			// lazily from the Redis component with model.auth.cacheTTL
+			// (AD6).
+			authSvc.SetModelAuthorizer(model.NewRepository(gormDB))
+			modelSvc.SetSessionResolver(authSvc)
 			// The per-request cost attributor reads billing's
 			// price_entries over the shared database (feature #9, AD3).
 			meteringSvc.SetCostAttributor(metering.NewCostAttributor(gormDB))

@@ -54,7 +54,9 @@ var messages = map[Code]string{
 	CodeModelExists:          "model already exists",
 	CodeModelVersionNotFound: "model version not found",
 	CodeModelPathInvalid:     "model weight path invalid",
-	CodeModelUnauthorized:    "model not authorized for tenant",
+	// CodeModelUnauthorized is returned by both enforcement points of
+	// per-tenant model authorization (deploy and call).
+	CodeModelUnauthorized: "model not authorized",
 
 	// image
 	CodeImageNotFound:      "image not found",

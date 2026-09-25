@@ -99,6 +99,9 @@ export interface ModelSummary {
   latestVersion: string;
   weightPath: string;
   createdAt: string;
+  // restricted is true iff the model has at least one authorization grant
+  // (feature #13): it is then usable only by the granted organizations.
+  restricted?: boolean;
 }
 
 export interface InferenceServiceSummary {
@@ -230,6 +233,20 @@ export interface UsageDashboardResponse {
   response: { code: number; message: string };
   cards?: DashboardCard;
   dailyBuckets?: DailyBucket[];
+}
+
+// ---- per-tenant model authorization (feature #13) ----
+
+export interface ModelAuthorization {
+  organizationId: string;
+  grantedBy: string;
+  createdAt: string;
+}
+
+export interface ListModelAuthorizationsResponse {
+  response: ResponseEnvelope;
+  authorizations?: ModelAuthorization[];
+  pageMeta?: PageMeta;
 }
 
 // ---- request logs (feature #12) ----

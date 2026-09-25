@@ -228,6 +228,16 @@ func (s *Service) CreateInferenceService(ctx context.Context, req *inferv1.Creat
 	if err != nil {
 		return nil, err
 	}
+	// Feature-13 control-plane gate (AC5): a restricted model may only be
+	// deployed by a granted organization. The check runs before any
+	// desired-state write, so a blocked deploy publishes nothing.
+	authorized, err := modelRepo.IsModelAuthorized(ctx, req.GetModelId(), orgID)
+	if err != nil {
+		return nil, err
+	}
+	if !authorized {
+		return nil, apierrors.New(apierrors.CodeModelUnauthorized)
+	}
 	img, err := image.Lookup(req.GetImageId())
 	if err != nil {
 		return nil, err

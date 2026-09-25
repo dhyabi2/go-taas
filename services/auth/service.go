@@ -73,6 +73,17 @@ type Service struct {
 	// fall back to IdP claims; main.go and FVT wire it.
 	membershipResolver *tenancy.MembershipResolver
 
+	// modelAuthorizer resolves whether an organization may use a model
+	// (feature-13, AD5): the data-plane half of the per-tenant model
+	// authorization gate. Nil until wired: the model field of
+	// VerifyAPIKey stays accepted-but-ignored.
+	modelAuthorizer ModelAuthorizer
+
+	// modelAuthCache caches the per-(org, model) authorization verdict
+	// (feature-13, AD6). Wired lazily from the Redis component, or
+	// directly by unit tests; nil means the check runs uncached.
+	modelAuthCache modelAuthCache
+
 	// pluginFactory builds the IdP plugin for a provider type. It is
 	// the injection point for tests to substitute a fake plugin.
 	pluginFactory func(string) (IDPPlugin, error)
@@ -557,55 +568,52 @@ func (s *Service) VerifyAPIKey(ctx context.Context, req *authv1.VerifyAPIKeyRequ
 		// unverified accept.
 		return nil, apierrors.Wrap(apierrors.CodeInternal, err, "auth: cache read failed")
 	}
-	if verdict != nil {
-		return &authv1.VerifyAPIKeyResponse{
-			Response:       okResponse(),
-			OrganizationId: verdict.OrganizationID,
-			KeyId:          verdict.KeyID,
-			Role:           verdict.Role,
-			RateLimitRpm:   verdict.RateLimitRPM,
-			RateLimitTpm:   verdict.RateLimitTPM,
-		}, nil
+	if verdict == nil {
+		repo, err := s.repository()
+		if err != nil {
+			return nil, err
+		}
+		row, err := repo.FindByLookupHash(ctx, digest)
+		if err != nil {
+			return nil, err
+		}
+
+		// Lazy status checks: no background job is involved.
+		if row.Revoked {
+			return nil, apierrors.New(apierrors.CodeAPIKeyRevoked)
+		}
+		if row.ExpiresAt != nil && time.Now().After(*row.ExpiresAt) {
+			return nil, apierrors.New(apierrors.CodeAPIKeyExpired)
+		}
+
+		// Constant-time hash comparison. A mismatch after a lookup hit is an
+		// integrity alert (SHA-256 collision or tampering).
+		if !VerifyKeyHash(digest, row.Salt, row.SaltedHash, s.hashParamsFor()) {
+			logger.S().Errorw("auth: api key hash mismatch after lookup hit", "key_id", row.ID)
+			return nil, apierrors.New(apierrors.CodeAPIKeyInvalid)
+		}
+
+		verdict = &keyVerdict{
+			OrganizationID: row.OrganizationID,
+			KeyID:          row.ID,
+			Role:           apiKeyRole,
+			RateLimitRPM:   row.RateLimitRPM,
+			RateLimitTPM:   row.RateLimitTPM,
+		}
+		if err := cache.Set(ctx, digest, verdict, s.apiKeyCacheTTL()); err != nil {
+			// A cache write failure only costs performance, not security.
+			logger.S().Warnw("auth: cache verdict write failed", "key_id", row.ID, "err", err)
+		}
 	}
 
-	repo, err := s.repository()
-	if err != nil {
+	// The model field is the data-plane half of per-tenant model
+	// authorization (feature-13, AC7): a restricted model the key's
+	// organization is not granted is rejected here. source_ip stays
+	// accepted-but-ignored in v1.
+	if err := s.checkModelAuthorization(ctx, req.GetModel(), verdict.OrganizationID); err != nil {
 		return nil, err
 	}
-	row, err := repo.FindByLookupHash(ctx, digest)
-	if err != nil {
-		return nil, err
-	}
 
-	// Lazy status checks: no background job is involved.
-	if row.Revoked {
-		return nil, apierrors.New(apierrors.CodeAPIKeyRevoked)
-	}
-	if row.ExpiresAt != nil && time.Now().After(*row.ExpiresAt) {
-		return nil, apierrors.New(apierrors.CodeAPIKeyExpired)
-	}
-
-	// Constant-time hash comparison. A mismatch after a lookup hit is an
-	// integrity alert (SHA-256 collision or tampering).
-	if !VerifyKeyHash(digest, row.Salt, row.SaltedHash, s.hashParamsFor()) {
-		logger.S().Errorw("auth: api key hash mismatch after lookup hit", "key_id", row.ID)
-		return nil, apierrors.New(apierrors.CodeAPIKeyInvalid)
-	}
-
-	verdict = &keyVerdict{
-		OrganizationID: row.OrganizationID,
-		KeyID:          row.ID,
-		Role:           apiKeyRole,
-		RateLimitRPM:   row.RateLimitRPM,
-		RateLimitTPM:   row.RateLimitTPM,
-	}
-	if err := cache.Set(ctx, digest, verdict, s.apiKeyCacheTTL()); err != nil {
-		// A cache write failure only costs performance, not security.
-		logger.S().Warnw("auth: cache verdict write failed", "key_id", row.ID, "err", err)
-	}
-
-	// model and source_ip are accepted but ignored in v1 (reserved for
-	// feature #6 authorization).
 	return &authv1.VerifyAPIKeyResponse{
 		Response:       okResponse(),
 		OrganizationId: verdict.OrganizationID,

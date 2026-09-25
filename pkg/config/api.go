@@ -293,6 +293,21 @@ type ImageConfig struct {
 	WarmupStatusConsumer ImageWarmupStatusConsumerConfig `mapstructure:"warmupStatusConsumer"`
 }
 
+// ModelAuthConfig holds the per-tenant model authorization settings
+// (feature #13).
+type ModelAuthConfig struct {
+	// CacheTTL is the TTL of the data-plane per-(org, model)
+	// authorization cache in the auth service (AD6). It bounds how long
+	// a revoked organization may keep calling a restricted model.
+	CacheTTL time.Duration `mapstructure:"cacheTTL"`
+}
+
+// ModelConfig holds model-module specific settings.
+type ModelConfig struct {
+	// Auth configures the data-plane model authorization gate.
+	Auth ModelAuthConfig `mapstructure:"auth"`
+}
+
 // LogConfig holds logging settings loaded from configuration files.
 type LogConfig struct {
 	// Level is the minimum log level: debug, info, warn, error.
@@ -326,6 +341,7 @@ type Configuration struct {
 	Controller ControllerConfig `mapstructure:"controller"`
 	Infer      InferConfig      `mapstructure:"infer"`
 	Image      ImageConfig      `mapstructure:"image"`
+	Model      ModelConfig      `mapstructure:"model"`
 	Tenancy    TenancyConfig    `mapstructure:"tenancy"`
 	Log        LogConfig        `mapstructure:"log"`
 }
@@ -356,6 +372,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Image.WarmupStatusConsumer.Workers < 0 {
 		return &FieldError{Field: "image.warmupStatusConsumer.workers", Reason: "must not be negative"}
+	}
+	if c.Model.Auth.CacheTTL < 0 {
+		return &FieldError{Field: "model.auth.cacheTTL", Reason: "must not be negative"}
 	}
 	// The tenancy defaults are filled by applyDefaults before Validate
 	// in the production path; a raw zero-value config (as built by

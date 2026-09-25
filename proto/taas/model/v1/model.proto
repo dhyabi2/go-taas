@@ -36,6 +36,35 @@ service ModelService {
   rpc DeleteModel(DeleteModelRequest) returns (DeleteModelResponse) {
     option (google.api.http) = {delete: "/api/v1/admin/models/{model_id}"};
   }
+
+  // GrantModelAccess adds an organization to a model's grant list
+  // (feature-13). Idempotent: granting an already-granted org is a
+  // no-op success. Platform-global (no X-Organization-Id).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GrantModelAccess(GrantModelAccessRequest) returns (GrantModelAccessResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/models/{model_id}:grant"
+      body: "*"
+    };
+  }
+
+  // RevokeModelAccess removes an organization from a model's grant list
+  // (feature-13). Idempotent: revoking a non-granted org is a no-op
+  // success. Platform-global (no X-Organization-Id).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc RevokeModelAccess(RevokeModelAccessRequest) returns (RevokeModelAccessResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/models/{model_id}:revoke"
+      body: "*"
+    };
+  }
+
+  // ListModelAuthorizations returns a model's grant rows, newest first,
+  // paginated (feature-13). Platform-global (no X-Organization-Id).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListModelAuthorizations(ListModelAuthorizationsRequest) returns (ListModelAuthorizationsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/models/{model_id}/authorizations"};
+  }
 }
 
 message RegisterModelRequest {
@@ -54,6 +83,10 @@ message RegisterModelResponse {
 
 message ListModelsRequest {
   taas.common.v1.PageRequest page = 1;
+  // organization_id optionally filters the catalog by the default-allow
+  // rule (feature-13): when present, zero-grant models are always
+  // returned and restricted models only if the org is granted.
+  string organization_id = 2;
 }
 
 message ListModelsResponse {
@@ -68,6 +101,9 @@ message ModelSummary {
   string latest_version = 3;
   string weight_path = 4;
   int64 created_at = 5;
+  // restricted is true iff the model has at least one grant row
+  // (feature-13). Always populated so the catalog can render the badge.
+  bool restricted = 6;
 }
 
 message GetModelRequest {
@@ -86,4 +122,39 @@ message DeleteModelRequest {
 
 message DeleteModelResponse {
   taas.common.v1.Response response = 1;
+}
+
+message GrantModelAccessRequest {
+  string model_id = 1; // path
+  string organization_id = 2;
+}
+
+message GrantModelAccessResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message RevokeModelAccessRequest {
+  string model_id = 1; // path
+  string organization_id = 2;
+}
+
+message RevokeModelAccessResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message ModelAuthorization {
+  string organization_id = 1;
+  string granted_by = 2;
+  int64 created_at = 3;
+}
+
+message ListModelAuthorizationsRequest {
+  string model_id = 1; // path
+  taas.common.v1.PageRequest page = 2;
+}
+
+message ListModelAuthorizationsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ModelAuthorization authorizations = 2;
+  taas.common.v1.PageMeta page_meta = 3;
 }

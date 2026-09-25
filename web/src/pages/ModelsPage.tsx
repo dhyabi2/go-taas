@@ -117,6 +117,15 @@ export default function ModelsPage() {
                 >
                   <td>
                     <strong>{m.name}</strong>
+                    {m.restricted && (
+                      <span
+                        className="badge restricted"
+                        data-testid="model-restricted-badge"
+                        title="Only the organizations authorized on its detail page may deploy or call this model."
+                      >
+                        Restricted
+                      </span>
+                    )}
                   </td>
                   <td className="mono">{m.latestVersion}</td>
                   <td className="mono muted">{m.weightPath}</td>

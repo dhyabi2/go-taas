@@ -213,6 +213,14 @@ table.data tr:last-child td {
   color: var(--danger);
 }
 
+/* Model restricted to the organizations authorized on its detail page
+   (feature #13): amber, matching the "needs attention" language. */
+.badge.restricted {
+  background: var(--warn-soft);
+  color: var(--warn);
+  margin-left: 8px;
+}
+
 /* ---- buttons, forms ---- */
 
 button,

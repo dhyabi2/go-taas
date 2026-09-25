@@ -108,6 +108,13 @@ tenancy:
   defaultOrgId: "org-default"
   defaultOrgDisplayName: "Default Organization"
 
+model:
+  # auth holds the data-plane per-(org, model) authorization cache
+  # (feature #13, AD6). cacheTTL bounds how long a revoked organization
+  # may keep calling a restricted model before the gate rejects it again.
+  auth:
+    cacheTTL: 5s
+
 image:
   # registry is the first-boot seed of the images table (feature #3:
   # the table is the source of truth; this seed is read only when the

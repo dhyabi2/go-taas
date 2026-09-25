@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -80,5 +81,55 @@ auth:
 	}
 	if cfg.Auth.APIKeyHash.Time != 1 || cfg.Auth.APIKeyHash.MemoryMiB != 64 || cfg.Auth.APIKeyHash.Parallelism != 1 {
 		t.Fatalf("argon2 params: %+v", cfg.Auth.APIKeyHash)
+	}
+}
+
+func TestValidateModelAuthCacheTTL(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	cfg.Model.Auth.CacheTTL = -time.Second
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative model.auth.cacheTTL must fail validation")
+	}
+}
+
+// TestParseConfigsModelAuthSection proves the key reaches the loaded
+// configuration: a key that is absent from the shipped YAML is silently
+// ignored by the env override, so it must be parsed from a file as well.
+func TestParseConfigsModelAuthSection(t *testing.T) {
+	path := writeTempConfig(t, `
+model:
+  auth:
+    cacheTTL: 7s
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Model.Auth.CacheTTL != 7*time.Second {
+		t.Fatalf("model.auth.cacheTTL: %v", cfg.Model.Auth.CacheTTL)
+	}
+}
+
+// TestParseConfigsModelAuthSectionDefault pins the default: an omitted
+// key (or a config that predates the section) gets 5s, not 0.
+func TestParseConfigsModelAuthSectionDefault(t *testing.T) {
+	path := writeTempConfig(t, "log:\n  level: info\n")
+	ParseConfigs(path)
+	if got := GetConfig().Model.Auth.CacheTTL; got != 5*time.Second {
+		t.Fatalf("default model.auth.cacheTTL: %v", got)
+	}
+}
+
+// TestShippedConfigModelAuth pins the shipped configuration file itself:
+// the key must be present with a valid, non-zero duration, because a
+// malformed value breaks config loading and a zero value silently falls
+// back to the default.
+func TestShippedConfigModelAuth(t *testing.T) {
+	ParseConfigs(filepath.Join("..", "..", "configs", "config.yaml"))
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil")
+	}
+	if cfg.Model.Auth.CacheTTL != 5*time.Second {
+		t.Fatalf("shipped model.auth.cacheTTL = %v, want 5s", cfg.Model.Auth.CacheTTL)
 	}
 }

@@ -2,9 +2,13 @@
 // Implements docs/design/model-catalog-deployment.md FR3 (accelerator →
 // image filtering, name, card type, replicas) and navigates to the
 // service detail page on success (FR3.3).
+// Implements docs/design/model-authorization.md FR5.3 (AC14): the model
+// picker is filtered by the current organization via
+// ListModels?organization_id, so a restricted model the organization is
+// not granted is not selectable.
 
-import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api';
+import { useEffect, useMemo, useState } from 'react';
+import { api, ApiError, type ModelSummary } from '../api';
 import { Dialog, ErrorBanner } from '../components';
 
 interface ImageEntry {
@@ -18,6 +22,11 @@ interface ImageEntry {
 interface ImagesResponse {
   response: { code: number; message: string };
   images: ImageEntry[];
+}
+
+interface ListModelsResponse {
+  response: { code: number; message: string };
+  models?: ModelSummary[];
 }
 
 interface CreateResponse {
@@ -42,6 +51,8 @@ export default function DeployDialog({
   onClose: () => void;
   onDeployed: (serviceId: string) => void;
 }) {
+  const [authorizedModels, setAuthorizedModels] = useState<ModelSummary[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState(modelId);
   const [version, setVersion] = useState(initialVersion);
   const [accelerator, setAccelerator] = useState('nvidia');
   const [images, setImages] = useState<ImageEntry[]>([]);
@@ -59,6 +70,35 @@ export default function DeployDialog({
       .then((data) => setImages(data.images || []))
       .catch(() => setImages([]));
   }, [orgId]);
+
+  useEffect(() => {
+    // FR5.3: the picker only offers models the current organization may
+    // use. A failure leaves the dialog usable with the pre-selected model
+    // (the server rejects an unauthorized deploy anyway).
+    api
+      .get<ListModelsResponse>(
+        `/api/v1/admin/models?organization_id=${encodeURIComponent(orgId)}&page.limit=100`,
+        orgId,
+      )
+      .then((data) => setAuthorizedModels(data.models || []))
+      .catch(() => setAuthorizedModels([]));
+  }, [orgId]);
+
+  // When the picker has a list, the selection must be one of its entries:
+  // a restricted model the organization is not granted disappears.
+  useEffect(() => {
+    if (authorizedModels.length === 0) return;
+    if (authorizedModels.some((m) => m.modelId === selectedModelId)) return;
+    const first = authorizedModels[0];
+    setSelectedModelId(first.modelId);
+    setVersion(first.latestVersion);
+  }, [authorizedModels, selectedModelId]);
+
+  const selected = useMemo(
+    () => authorizedModels.find((m) => m.modelId === selectedModelId),
+    [authorizedModels, selectedModelId],
+  );
+  const title = selected?.name ?? modelName;
 
   // FR3.2: image dropdown filtered by the chosen accelerator.
   const compatible = images.filter((i) => i.accelerator === accelerator);
@@ -90,7 +130,7 @@ export default function DeployDialog({
     try {
       const res = await api.post<CreateResponse>('/api/v1/admin/inference-services', orgId, {
         name: name.trim(),
-        modelId,
+        modelId: selectedModelId,
         modelVersion: version,
         imageId,
         accelerator,
@@ -106,8 +146,31 @@ export default function DeployDialog({
   };
 
   return (
-    <Dialog title={`Deploy ${modelName}`} onClose={onClose} testId="deploy-dialog">
+    <Dialog title={`Deploy ${title}`} onClose={onClose} testId="deploy-dialog">
       <div className="form-grid">
+        <div className="form-field full">
+          <label htmlFor="deploy-model">Model (authorized for this organization)</label>
+          <select
+            id="deploy-model"
+            data-testid="deploy-model-select"
+            value={selectedModelId}
+            onChange={(e) => {
+              setSelectedModelId(e.target.value);
+              const next = authorizedModels.find((m) => m.modelId === e.target.value);
+              setVersion(next?.latestVersion || version);
+            }}
+          >
+            {authorizedModels.length === 0 && (
+              <option value={modelId}>{modelName}</option>
+            )}
+            {authorizedModels.map((m) => (
+              <option key={m.modelId} value={m.modelId}>
+                {m.name}
+                {m.restricted ? ' (restricted)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="form-field">
           <label htmlFor="deploy-version">Model version</label>
           <input

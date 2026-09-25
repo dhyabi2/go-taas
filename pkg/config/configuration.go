@@ -108,6 +108,9 @@ func (c *Configuration) applyDefaults() {
 	if c.Image.WarmupStatusConsumer.Workers == 0 {
 		c.Image.WarmupStatusConsumer.Workers = 2
 	}
+	if c.Model.Auth.CacheTTL == 0 {
+		c.Model.Auth.CacheTTL = 5 * time.Second
+	}
 	if c.Tenancy.DefaultOrgID == "" {
 		c.Tenancy.DefaultOrgID = "org-default"
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"gorm.io/gorm"
 
 	commonv1 "github.com/go-taas/go-taas/proto/taas/common/v1"
@@ -16,6 +17,7 @@ import (
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/tenancy"
 )
 
 // ServiceName is the unique name of this service.
@@ -26,6 +28,26 @@ const (
 	listDefaultLimit = 20
 	listMaxLimit     = 100
 )
+
+// organizationMetadataKey is the gRPC metadata key carrying the
+// transitional caller organization (set by the gateway from the
+// X-Organization-Id header).
+const organizationMetadataKey = "x-organization-id"
+
+// grantedByPlaceholder is recorded as granted_by when no caller identity
+// can be resolved at all (AD8).
+const grantedByPlaceholder = "unknown"
+
+// SessionResolver resolves the authenticated caller's user id
+// (feature-13, AD8). It is implemented by the auth module (which owns the
+// session store) and injected at wiring time, following the
+// tenancy.SessionResolver pattern. Nil until wired: the grant records the
+// transitional caller organization instead and still succeeds.
+type SessionResolver interface {
+	// SessionUserID returns the authenticated caller's user id, or an
+	// error when there is no valid session.
+	SessionUserID(ctx context.Context) (string, error)
+}
 
 // Service implements the model registry gRPC service.
 type Service struct {
@@ -38,6 +60,16 @@ type Service struct {
 	// depends on model, so the guard is injected at wiring time by the
 	// composing layer (apps/taas-server) rather than imported here.
 	deleteGuard DeleteGuard
+
+	// orgGuard validates the organization a grant names (feature-13,
+	// AC1). Nil until wired: unit tests skip validation; main.go and FVT
+	// always wire it.
+	orgGuard *tenancy.OrgGuard
+
+	// sessionResolver resolves the granting caller's user id for the
+	// granted_by audit column (feature-13, AD8). Nil until wired: the
+	// transitional caller organization is recorded instead.
+	sessionResolver SessionResolver
 }
 
 // DeleteGuard blocks the deletion of a model. It returns a non-nil
@@ -65,6 +97,58 @@ func (s *Service) SetDeleteGuard(guard DeleteGuard) {
 	s.deleteGuard = guard
 }
 
+// SetOrgGuard injects the tenancy read guard used to validate the
+// organization a grant names (the SetDeleteGuard pattern). Production and
+// FVT wire it; unit tests leave it nil so checkOrg no-ops.
+func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
+
+// SetSessionResolver injects the caller-identity resolver used to fill
+// the granted_by audit column (feature-13, AD8). Production and FVT wire
+// the auth service; unit tests may inject a fake.
+func (s *Service) SetSessionResolver(r SessionResolver) { s.sessionResolver = r }
+
+// checkOrg validates that the organization exists (10005 when unknown).
+// No-op when the guard is not wired.
+func (s *Service) checkOrg(ctx context.Context, orgID string) error {
+	if s.orgGuard == nil {
+		return nil
+	}
+	return s.orgGuard.RequireExists(ctx, orgID)
+}
+
+// grantedBy resolves the granted_by audit value of a grant (AD8): the
+// authenticated caller's user id when a session is resolvable, otherwise
+// the transitional caller organization, otherwise a placeholder. A grant
+// is a platform-level act and the column is audit metadata, so an
+// unresolvable caller never fails the call.
+func (s *Service) grantedBy(ctx context.Context) string {
+	if s.sessionResolver != nil {
+		if userID, err := s.sessionResolver.SessionUserID(ctx); err == nil && userID != "" {
+			return userID
+		}
+	}
+	if orgID := callerOrgID(ctx); orgID != "" {
+		return orgID
+	}
+	return grantedByPlaceholder
+}
+
+// callerOrgID reads the optional transitional caller organization from
+// the x-organization-id gRPC metadata. Grant and revoke are
+// platform-global, so the header is optional here and only feeds the
+// granted_by fallback.
+func callerOrgID(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	values := md.Get(organizationMetadataKey)
+	if len(values) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(values[0])
+}
+
 // NewForFVT constructs a model service bound to a caller-provided GORM
 // database. It exists so full-verification tests can wire the real
 // service stack against a disposable database.
@@ -72,10 +156,11 @@ func NewForFVT(db *gorm.DB) *Service {
 	return &Service{repo: NewRepository(db)}
 }
 
-// MigrateSchemaForFVT applies the model schema (models, model_versions)
-// onto a caller-provided database for full-verification tests.
+// MigrateSchemaForFVT applies the model schema (models, model_versions,
+// model_authorizations) onto a caller-provided database for
+// full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&Model{}, &Version{})
+	return db.AutoMigrate(&Model{}, &Version{}, &Authorization{})
 }
 
 // AttachToServer implements server.Service.
@@ -91,15 +176,15 @@ func (s *Service) GetServiceHandlerRegisterFn() server.ServiceHandlerRegisterFn 
 	return modelv1.RegisterModelServiceHandler
 }
 
-// Migrate implements server.Migrator: it creates/updates the models and
-// model_versions tables via GORM AutoMigrate. The GORM models are the
-// single source of truth for the schema.
+// Migrate implements server.Migrator: it creates/updates the models,
+// model_versions and model_authorizations tables via GORM AutoMigrate.
+// The GORM models are the single source of truth for the schema.
 func (s *Service) Migrate(ctx context.Context) error {
 	db, err := s.gormDB()
 	if err != nil {
 		return err
 	}
-	return db.WithContext(ctx).AutoMigrate(&Model{}, &Version{})
+	return db.WithContext(ctx).AutoMigrate(&Model{}, &Version{}, &Authorization{})
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared
@@ -188,7 +273,10 @@ func validateWeightPath(path string) error {
 }
 
 // ListModels returns one page of the catalog, newest first, with each
-// row's latest version derived at read time.
+// row's latest version derived at read time. An organization_id filter
+// applies the default-allow rule (AC11) so the deploy form can list only
+// the models the organization may use; restricted is always populated so
+// the catalog can render the badge (AC13).
 func (s *Service) ListModels(ctx context.Context, req *modelv1.ListModelsRequest) (*modelv1.ListModelsResponse, error) {
 	repo, err := s.repository()
 	if err != nil {
@@ -196,7 +284,24 @@ func (s *Service) ListModels(ctx context.Context, req *modelv1.ListModelsRequest
 	}
 
 	offset, limit := normalizePagination(req.GetPage())
-	rows, total, err := repo.ListModels(ctx, offset, limit)
+	var (
+		rows  []*Model
+		total int64
+	)
+	if orgID := strings.TrimSpace(req.GetOrganizationId()); orgID != "" {
+		rows, total, err = repo.ListModelsForOrganization(ctx, orgID, offset, limit)
+	} else {
+		rows, total, err = repo.ListModels(ctx, offset, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	restricted, err := repo.RestrictedModelIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -204,9 +309,10 @@ func (s *Service) ListModels(ctx context.Context, req *modelv1.ListModelsRequest
 	models := make([]*modelv1.ModelSummary, 0, len(rows))
 	for _, row := range rows {
 		summary := &modelv1.ModelSummary{
-			ModelId:   row.ID,
-			Name:      row.Name,
-			CreatedAt: row.CreatedAt.Unix(),
+			ModelId:    row.ID,
+			Name:       row.Name,
+			CreatedAt:  row.CreatedAt.Unix(),
+			Restricted: restricted[row.ID],
 		}
 		// latest_version and its weight_path come from the first row of
 		// the version ordering. A per-row lookup is acceptable at catalog
@@ -253,11 +359,16 @@ func (s *Service) GetModel(ctx context.Context, req *modelv1.GetModelRequest) (*
 	if err != nil {
 		return nil, err
 	}
+	restricted, err := repo.CountAuthorizations(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	summary := &modelv1.ModelSummary{
-		ModelId:   m.ID,
-		Name:      m.Name,
-		CreatedAt: m.CreatedAt.Unix(),
+		ModelId:    m.ID,
+		Name:       m.Name,
+		CreatedAt:  m.CreatedAt.Unix(),
+		Restricted: restricted > 0,
 	}
 	versionStrings := make([]string, 0, len(versions))
 	for i, v := range versions {
@@ -298,6 +409,99 @@ func (s *Service) DeleteModel(ctx context.Context, req *modelv1.DeleteModelReque
 		return nil, err
 	}
 	return &modelv1.DeleteModelResponse{Response: okResponse()}, nil
+}
+
+// GrantModelAccess adds an organization to the model's grant list,
+// recording the granting caller and the grant time. The first grant flips
+// the model from default-allow to restricted (AC1/AC3); repeating it is
+// an idempotent no-op (AC2). Unknown model → 10101, unknown organization
+// → 10005. The RPC is platform-global: every organization's grants are
+// managed from one admin console, so it takes no org context.
+func (s *Service) GrantModelAccess(ctx context.Context, req *modelv1.GrantModelAccessRequest) (*modelv1.GrantModelAccessResponse, error) {
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetModelId()) == "" {
+		return nil, apierrors.New(apierrors.CodeModelNotFound)
+	}
+	if _, err := repo.GetModel(ctx, req.GetModelId()); err != nil {
+		return nil, err
+	}
+	orgID := strings.TrimSpace(req.GetOrganizationId())
+	if orgID == "" {
+		return nil, apierrors.New(apierrors.CodeOrganizationNotFound)
+	}
+	if err := s.checkOrg(ctx, orgID); err != nil {
+		return nil, err
+	}
+
+	if err := repo.GrantAccess(ctx, req.GetModelId(), orgID, s.grantedBy(ctx)); err != nil {
+		return nil, err
+	}
+	return &modelv1.GrantModelAccessResponse{Response: okResponse()}, nil
+}
+
+// RevokeModelAccess removes an organization from the model's grant list.
+// Revoking a grant that does not exist is an idempotent no-op (AC4), and
+// revoking the last grant returns the model to default-allow (AC3). The
+// organization is not required to exist: a grant left behind by a
+// removed organization must still be revocable.
+func (s *Service) RevokeModelAccess(ctx context.Context, req *modelv1.RevokeModelAccessRequest) (*modelv1.RevokeModelAccessResponse, error) {
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetModelId()) == "" {
+		return nil, apierrors.New(apierrors.CodeModelNotFound)
+	}
+	if _, err := repo.GetModel(ctx, req.GetModelId()); err != nil {
+		return nil, err
+	}
+	orgID := strings.TrimSpace(req.GetOrganizationId())
+	if orgID == "" {
+		return nil, apierrors.New(apierrors.CodeOrganizationNotFound)
+	}
+
+	if err := repo.RevokeAccess(ctx, req.GetModelId(), orgID); err != nil {
+		return nil, err
+	}
+	return &modelv1.RevokeModelAccessResponse{Response: okResponse()}, nil
+}
+
+// ListModelAuthorizations returns one page of the model's grant rows,
+// newest first (AC10). Unknown model → 10101.
+func (s *Service) ListModelAuthorizations(ctx context.Context, req *modelv1.ListModelAuthorizationsRequest) (*modelv1.ListModelAuthorizationsResponse, error) {
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetModelId()) == "" {
+		return nil, apierrors.New(apierrors.CodeModelNotFound)
+	}
+	if _, err := repo.GetModel(ctx, req.GetModelId()); err != nil {
+		return nil, err
+	}
+
+	offset, limit := normalizePagination(req.GetPage())
+	rows, total, err := repo.ListAuthorizations(ctx, req.GetModelId(), offset, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	authorizations := make([]*modelv1.ModelAuthorization, 0, len(rows))
+	for _, row := range rows {
+		authorizations = append(authorizations, &modelv1.ModelAuthorization{
+			OrganizationId: row.OrganizationID,
+			GrantedBy:      row.GrantedBy,
+			CreatedAt:      row.CreatedAt.Unix(),
+		})
+	}
+	return &modelv1.ListModelAuthorizationsResponse{
+		Response:       okResponse(),
+		Authorizations: authorizations,
+		PageMeta:       &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampToInt32(limit)},
+	}, nil
 }
 
 // normalizePagination clamps the page request: offset >= 0, limit

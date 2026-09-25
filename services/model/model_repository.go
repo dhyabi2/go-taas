@@ -18,8 +18,9 @@ import (
 // via the context.
 type Repository struct {
 	*database.BaseRepository[Model]
-	versions *database.BaseRepository[Version]
-	db       *database.Manager
+	versions       *database.BaseRepository[Version]
+	authorizations *database.BaseRepository[Authorization]
+	db             *database.Manager
 }
 
 // NewRepository constructs a Repository bound to a database
@@ -29,6 +30,7 @@ func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{
 		BaseRepository: database.NewBaseRepository[Model](mgr),
 		versions:       database.NewBaseRepository[Version](mgr),
+		authorizations: database.NewBaseRepository[Authorization](mgr),
 		db:             mgr,
 	}
 }
@@ -133,11 +135,16 @@ func (r *Repository) LatestVersion(ctx context.Context, modelID string) (*Versio
 	return rows[0], nil
 }
 
-// DeleteModel hard-deletes the model row and cascades its versions in
-// one transaction.
+// DeleteModel hard-deletes the model row and cascades its versions and
+// authorization grants in one transaction. The grant rows are deleted
+// with the model (the module owns them; the table carries no foreign
+// key), so a re-registered model never inherits a stale grant list.
 func (r *Repository) DeleteModel(ctx context.Context, id string) error {
 	return r.db.WithinTx(ctx, func(ctx context.Context) error {
 		if err := r.versions.DB(ctx).Where("model_id = ?", id).Delete(&Version{}).Error; err != nil {
+			return err
+		}
+		if err := r.authorizations.DB(ctx).Where("model_id = ?", id).Delete(&Authorization{}).Error; err != nil {
 			return err
 		}
 		return r.Delete(ctx, id)
