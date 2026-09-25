@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/go-taas/go-taas/compare/v1.10.0...v1.11.0) (2026-09-25)
+
+
+### Features
+
+* **model:** add per-tenant model authorization ([ff35760](https://github.com/go-taas/go-taas/commit/ff3576022f8049ad0e23cf53677c62c60ab1382e))
+
 # [1.10.0](https://github.com/go-taas/go-taas/compare/v1.9.0...v1.10.0) (2026-09-25)
 
 
