@@ -24,7 +24,8 @@
     "test:inference-autoscaling": "nightwatch --tag inference-autoscaling",
     "test:accelerator-inventory": "nightwatch --tag accelerator-inventory",
     "test:compatibility-matrix": "nightwatch --tag compatibility-matrix",
-    "test:load-testing": "nightwatch --tag load-testing"
+    "test:load-testing": "nightwatch --tag load-testing",
+    "test:sdk-quickstart": "nightwatch --tag sdk-quickstart"
   },
   "license": "Apache-2.0",
   "devDependencies": {

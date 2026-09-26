@@ -19,6 +19,7 @@ against the local docker compose stack.
 | Accelerator inventory & health | feature-18 `accelerator-inventory` | `tests/acceleratorInventory.js` |
 | Compatibility matrix | feature-19 `compatibility-matrix` | `tests/compatibilityMatrix.js` |
 | Inference load testing | feature-20 `load-testing` | `tests/loadTesting.js` |
+| SDK / Quickstart | feature-21 `sdk-quickstart` | `tests/sdkQuickstart.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md` and
