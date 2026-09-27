@@ -1,32 +1,32 @@
 /* ============================================================
-   Go TaaS console — AI-Native SaaS design system
+   Go TaaS console — AI-Native SaaS design system (v2)
    ------------------------------------------------------------
-   Style: AI-Native UI (light-first, minimal chrome)
-   Colors: Indigo/violet primary + cyan accent
-   Type:   Space Grotesk (display) + DM Sans (body)
+   Style: Refined AI-Native UI (light-first, minimal chrome)
+   Colors: Indigo primary + emerald accent
+   Type:   Plus Jakarta Sans (display + body) + JetBrains Mono
    ============================================================ */
 
 :root {
   /* Brand palette */
-  --primary: #7c3aed;
-  --primary-strong: #6d28d9;
-  --primary-soft: #f5f3ff;
-  --primary-ring: rgba(124, 58, 237, 0.18);
-  --accent: #0891b2;
-  --accent-soft: #ecfeff;
-  --accent-strong: #0e7490;
+  --primary: #6366f1;
+  --primary-strong: #4f46e5;
+  --primary-soft: #eef2ff;
+  --primary-ring: rgba(99, 102, 241, 0.18);
+  --accent: #059669;
+  --accent-soft: #ecfdf5;
+  --accent-strong: #047857;
 
   /* Neutrals (indigo-tinted slate) */
-  --bg: #faf9ff;
-  --bg-grad-1: #f3efff;
-  --bg-grad-2: #f0f9ff;
+  --bg: #f8fafc;
+  --bg-grad-1: #eef2ff;
+  --bg-grad-2: #ecfdf5;
   --panel: #ffffff;
   --panel-solid: #ffffff;
-  --border: #e7e5f4;
-  --border-strong: #d4d2ec;
-  --text: #1e1b4b;
-  --muted: #6b6a8f;
-  --muted-strong: #4c4a72;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --muted: #64748b;
+  --muted-strong: #475569;
 
   /* Semantic */
   --danger: #dc2626;
@@ -37,22 +37,22 @@
   --warn-soft: #fffbeb;
 
   /* Sidebar (deep indigo) */
-  --sidebar-bg: #17143a;
-  --sidebar-text: #c7c4e8;
-  --sidebar-muted: #8f8bb8;
-  --sidebar-active: linear-gradient(135deg, #7c3aed, #6d28d9);
-  --sidebar-hover: rgba(255, 255, 255, 0.07);
+  --sidebar-bg: #0f172a;
+  --sidebar-text: #cbd5e1;
+  --sidebar-muted: #94a3b8;
+  --sidebar-active: linear-gradient(135deg, #6366f1, #4f46e5);
+  --sidebar-hover: rgba(255, 255, 255, 0.06);
 
   /* Effects */
-  --shadow-sm: 0 1px 2px rgba(30, 27, 75, 0.05);
-  --shadow-md: 0 6px 20px rgba(30, 27, 75, 0.08);
-  --shadow-lg: 0 16px 40px rgba(30, 27, 75, 0.16);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.16);
   --radius: 14px;
   --radius-sm: 9px;
 
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
-  --font-display: 'Space Grotesk', -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-body: 'DM Sans', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-display: 'Plus Jakarta Sans', -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
 }
 
 * {
@@ -96,12 +96,12 @@ h4,
    ============================================================ */
 
 .sidebar {
-  width: 240px;
+  width: 248px;
   background: var(--sidebar-bg);
   color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
-  padding: 22px 14px;
+  padding: 24px 16px;
   gap: 20px;
   flex-shrink: 0;
   position: sticky;
@@ -137,7 +137,7 @@ h4,
 .nav-item {
   color: var(--sidebar-muted);
   text-decoration: none;
-  padding: 9px 12px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 13.5px;
@@ -155,7 +155,7 @@ h4,
 .nav-item.active {
   background: var(--sidebar-active);
   color: #fff;
-  box-shadow: 0 6px 18px rgba(124, 58, 237, 0.4);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
 }
 
 .org-switcher {
@@ -194,9 +194,9 @@ h4,
 
 .org-switcher-notice {
   font-size: 11.5px;
-  color: #a5f3fc;
-  background: rgba(8, 145, 178, 0.18);
-  border: 1px solid rgba(34, 211, 238, 0.25);
+  color: #a7f3d0;
+  background: rgba(5, 150, 105, 0.18);
+  border: 1px solid rgba(52, 211, 153, 0.25);
   border-radius: 8px;
   padding: 6px 8px;
 }
@@ -207,7 +207,7 @@ h4,
 
 .main {
   flex: 1;
-  padding: 30px 40px 48px;
+  padding: 32px 40px 48px;
   max-width: 1240px;
 }
 
@@ -215,7 +215,7 @@ h4,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 22px;
+  margin-bottom: 24px;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -323,16 +323,16 @@ table.table tbody tr:hover {
   color: var(--danger);
 }
 .badge.terminated {
-  background: #f1f0fa;
-  color: #6b6a8f;
+  background: #f1f5f9;
+  color: #64748b;
 }
 .badge.active {
   background: var(--ok-soft);
   color: var(--ok);
 }
 .badge.revoked {
-  background: #f1f0fa;
-  color: #6b6a8f;
+  background: #f1f5f9;
+  color: #64748b;
 }
 .badge.expired {
   background: var(--danger-soft);
@@ -353,16 +353,16 @@ table.table tbody tr:hover {
   color: var(--ok);
 }
 .badge.fixed {
-  background: #f1f0fa;
-  color: #6b6a8f;
+  background: #f1f5f9;
+  color: #64748b;
 }
 .badge.cold-starting {
   background: var(--warn-soft);
   color: var(--warn);
 }
 .badge.scaled-to-zero {
-  background: #f1f0fa;
-  color: #6b6a8f;
+  background: #f1f5f9;
+  color: #64748b;
 }
 .badge.steady {
   background: var(--ok-soft);
@@ -378,8 +378,8 @@ table.table tbody tr:hover {
   color: var(--danger);
 }
 .badge.disabled {
-  background: #f1f0fa;
-  color: #6b6a8f;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 /* ============================================================
@@ -616,7 +616,7 @@ button.primary:hover {
 /* ---- segmented control ---- */
 .segmented {
   display: inline-flex;
-  background: #f1f0fa;
+  background: #f1f5f9;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 3px;
@@ -634,7 +634,7 @@ button.primary:hover {
 }
 
 .segmented button:hover {
-  background: rgba(124, 58, 237, 0.08);
+  background: rgba(99, 102, 241, 0.08);
   box-shadow: none;
 }
 
@@ -651,7 +651,7 @@ button.primary:hover {
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(23, 20, 58, 0.5);
+  background: rgba(15, 23, 42, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
@@ -708,7 +708,7 @@ button.primary:hover {
 .notice {
   background: var(--accent-soft);
   color: var(--accent-strong);
-  border: 1px solid #a5f3fc;
+  border: 1px solid #a7f3d0;
   border-radius: var(--radius-sm);
   padding: 10px 14px;
   margin: 12px 0;
@@ -716,8 +716,8 @@ button.primary:hover {
 }
 
 .secret-box {
-  background: #17143a;
-  color: #a5f3fc;
+  background: #0f172a;
+  color: #a7f3d0;
   font-family: var(--mono);
   padding: 14px;
   border-radius: var(--radius-sm);
@@ -727,7 +727,7 @@ button.primary:hover {
 
 .endpoint-box {
   background: var(--primary-soft);
-  border: 1px solid #ddd6fe;
+  border: 1px solid #c7d2fe;
   border-radius: var(--radius-sm);
   padding: 12px 14px;
   font-family: var(--mono);
@@ -741,8 +741,8 @@ button.primary:hover {
 }
 
 .curl-snippet {
-  background: #17143a;
-  color: #c7c4e8;
+  background: #0f172a;
+  color: #cbd5e1;
   font-family: var(--mono);
   font-size: 12px;
   padding: 14px;
@@ -972,8 +972,8 @@ button.primary:hover {
 
 .response {
   margin-top: 16px;
-  background: #17143a;
-  color: #e2e0f5;
+  background: #0f172a;
+  color: #e2e8f0;
   border-radius: var(--radius);
   padding: 16px;
   font-size: 13.5px;
@@ -988,7 +988,7 @@ button.primary:hover {
 }
 
 .response div {
-  color: #8f8bb8;
+  color: #94a3b8;
   font-size: 12px;
 }
 
@@ -1016,8 +1016,8 @@ button.primary:hover {
   width: 54px;
   height: 54px;
   border-radius: 15px;
-  background: linear-gradient(135deg, #7c3aed, #0891b2);
-  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.4);
+  background: linear-gradient(135deg, #6366f1, #059669);
+  box-shadow: 0 10px 28px rgba(99, 102, 241, 0.4);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -1137,7 +1137,7 @@ button.primary:hover {
   font-size: 11px;
   padding: 1px 8px;
   border-radius: 999px;
-  background: var(--primary-soft, rgba(124, 58, 237, 0.12));
+  background: var(--primary-soft, rgba(99, 102, 241, 0.12));
   color: var(--primary);
 }
 
@@ -1198,18 +1198,5 @@ button.primary:hover {
     flex-direction: row;
     flex-wrap: wrap;
     gap: 4px;
-  }
-
-  .org-switcher {
-    margin-top: 0;
-    margin-left: auto;
-  }
-
-  .main {
-    padding: 20px 16px 40px;
-  }
-
-  .form-grid {
-    grid-template-columns: 1fr;
   }
 }
