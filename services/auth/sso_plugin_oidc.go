@@ -183,6 +183,11 @@ func (p *OIDCPlugin) PasswordGrant(ctx context.Context, prov *SSOProvider, usern
 // claim map. It does not verify the signature — the fake IdP signs with
 // a known secret and the exchange is over the token endpoint; signature
 // verification is the SAML plugin's concern (AC10).
+//
+// Nested objects are flattened into dotted paths so a Keycloak
+// `realm_access: {"roles": ["admin"]}` claim is addressable as
+// `realm_access.roles` (feature-22 §5.4). Arrays of strings become the
+// value list; other scalars become a single-element list.
 func decodeIDTokenClaims(token string) (map[string][]string, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) < 2 {
@@ -197,19 +202,32 @@ func decodeIDTokenClaims(token string) (map[string][]string, error) {
 		return nil, err
 	}
 	claims := map[string][]string{}
-	for k, v := range raw {
+	flattenClaims("", raw, claims)
+	return claims, nil
+}
+
+// flattenClaims walks a decoded claim object and writes leaf values into
+// out under their dotted path. Arrays of strings become the value list;
+// nested objects recurse with the path extended.
+func flattenClaims(prefix string, obj map[string]any, out map[string][]string) {
+	for k, v := range obj {
+		path := k
+		if prefix != "" {
+			path = prefix + "." + k
+		}
 		switch val := v.(type) {
 		case string:
-			claims[k] = []string{val}
+			out[path] = []string{val}
 		case []any:
 			for _, item := range val {
 				if s, ok := item.(string); ok {
-					claims[k] = append(claims[k], s)
+					out[path] = append(out[path], s)
 				}
 			}
+		case map[string]any:
+			flattenClaims(path, val, out)
 		}
 	}
-	return claims, nil
 }
 
 func base64RawURLDecode(s string) ([]byte, error) {

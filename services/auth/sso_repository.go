@@ -52,8 +52,35 @@ type BindingFilter struct {
 
 // CreateProvider inserts a new provider. A unique violation on the
 // primary key maps to CodeSSOProviderExists.
+//
+// The insert uses a map so an explicit `allow_auto_provision: false` is
+// preserved: GORM's `default:true` tag on the bool column would
+// otherwise coerce a false zero-value back to true on a struct Create
+// (feature-22 JIT-disabled providers).
 func (r *SSORepository) CreateProvider(ctx context.Context, p *SSOProvider) error {
-	if err := r.Create(ctx, p); err != nil {
+	row := map[string]any{
+		"id":                  p.ID,
+		"type":                p.Type,
+		"display_name":        p.DisplayName,
+		"issuer":              p.Issuer,
+		"client_id":           p.ClientID,
+		"client_secret":       p.ClientSecret,
+		"redirect_uri":        p.RedirectURI,
+		"scopes":              p.Scopes,
+		"metadata_url":        p.MetadataURL,
+		"entity_id":           p.EntityID,
+		"acs_url":             p.ACSUrl,
+		"host":                p.Host,
+		"port":                p.Port,
+		"bind_dn":             p.BindDN,
+		"base_dn":             p.BaseDN,
+		"user_filter":         p.UserFilter,
+		"enabled":             p.Enabled,
+		"default_org":         p.DefaultOrg,
+		"allow_auto_provision": p.AllowAutoProvision,
+		"attribute_mapping":   p.AttributeMapping,
+	}
+	if err := r.db.DB(ctx).Model(&SSOProvider{}).Create(row).Error; err != nil {
 		if isUniqueViolation(err) {
 			return apierrors.New(apierrors.CodeSSOProviderExists)
 		}
@@ -224,6 +251,19 @@ func (r *SSORepository) CreateUser(ctx context.Context, u *User) error {
 func (r *SSORepository) FindUser(ctx context.Context, id string) (*User, error) {
 	var row User
 	err := r.db.DB(ctx).Where("id = ?", id).First(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// FindUserByUsername returns the user with the given username.
+// gorm.ErrRecordNotFound passes through; the caller maps it to
+// CodeOrganizationNotFound (reused: unknown user). Used by the compose
+// seeding (feature-22 AD10).
+func (r *SSORepository) FindUserByUsername(ctx context.Context, username string) (*User, error) {
+	var row User
+	err := r.db.DB(ctx).Where("username = ?", username).First(&row).Error
 	if err != nil {
 		return nil, err
 	}
