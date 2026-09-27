@@ -119,6 +119,11 @@ func (c *Configuration) applyDefaults() {
 	if c.Auth.SessionTTL == 0 {
 		c.Auth.SessionTTL = 24 * time.Hour
 	}
+	// Feature-22 (AD3): the admin-role set defaults to the tenancy and
+	// platform role vocabulary. A deployment can override it.
+	if len(c.Auth.AdminRoles) == 0 {
+		c.Auth.AdminRoles = []string{"platform-admin", "org-admin", "admin", "owner"}
+	}
 	if c.Image.WarmupStatusConsumer.Workers == 0 {
 		c.Image.WarmupStatusConsumer.Workers = 2
 	}

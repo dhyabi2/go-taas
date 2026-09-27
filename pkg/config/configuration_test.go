@@ -175,6 +175,69 @@ func TestCompatibilityDefaults(t *testing.T) {
 	}
 }
 
+func TestAdminRolesDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	want := []string{"platform-admin", "org-admin", "admin", "owner"}
+	if len(cfg.Auth.AdminRoles) != len(want) {
+		t.Fatalf("adminRoles default = %v, want %v", cfg.Auth.AdminRoles, want)
+	}
+	for i, r := range want {
+		if cfg.Auth.AdminRoles[i] != r {
+			t.Fatalf("adminRoles[%d] = %q, want %q", i, cfg.Auth.AdminRoles[i], r)
+		}
+	}
+	// An explicit adminRoles is preserved.
+	cfg.Auth.AdminRoles = []string{"superadmin"}
+	cfg.applyDefaults()
+	if len(cfg.Auth.AdminRoles) != 1 || cfg.Auth.AdminRoles[0] != "superadmin" {
+		t.Fatalf("explicit adminRoles overwritten: %v", cfg.Auth.AdminRoles)
+	}
+}
+
+func TestValidateAdminRoles(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// An empty adminRoles (raw zero-value config) is allowed through.
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("empty adminRoles should pass validation: %v", err)
+	}
+	// A list containing an empty string fails.
+	cfg.Auth.AdminRoles = []string{"admin", ""}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("adminRoles with an empty string should fail validation")
+	}
+	// A valid list passes.
+	cfg.Auth.AdminRoles = []string{"admin", "owner"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid adminRoles rejected: %v", err)
+	}
+}
+
+func TestParseConfigsAdminRoles(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+auth:
+  adminRoles:
+    - platform-admin
+    - admin
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if len(cfg.Auth.AdminRoles) != 2 || cfg.Auth.AdminRoles[0] != "platform-admin" || cfg.Auth.AdminRoles[1] != "admin" {
+		t.Fatalf("adminRoles from file = %v, want [platform-admin admin]", cfg.Auth.AdminRoles)
+	}
+}
+
 func TestParseConfigsCompatibilitySection(t *testing.T) {
 	path := writeTempConfig(t, `
 db:

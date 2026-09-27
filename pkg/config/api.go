@@ -113,6 +113,11 @@ type AuthConfig struct {
 	LocalPasswordLogin bool `mapstructure:"localPasswordLogin"`
 	// AutoRegister enables JIT account provisioning on first SSO login.
 	AutoRegister bool `mapstructure:"autoRegister"`
+	// AdminRoles is the set of session roles that make a user an
+	// administrator (feature-22 AD3). A user is an admin iff any session
+	// role is in the set. Defaults to platform-admin, org-admin, admin,
+	// owner.
+	AdminRoles []string `mapstructure:"adminRoles"`
 }
 
 // MeteringConfig holds metering-module specific settings.
@@ -482,6 +487,17 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Auth.APIKeyHash.Time < 0 || c.Auth.APIKeyHash.MemoryMiB < 0 || c.Auth.APIKeyHash.Parallelism < 0 {
 		return &FieldError{Field: "auth.apiKeyHash", Reason: "argon2 parameters must be non-negative"}
+	}
+	// Feature-22 (AD3): the admin-role set must be a non-empty list of
+	// non-empty strings. applyDefaults fills the default before Validate
+	// in the production path; a raw zero-value config (as built by
+	// tests) is allowed through so the empty default is not rejected.
+	if len(c.Auth.AdminRoles) > 0 {
+		for _, r := range c.Auth.AdminRoles {
+			if strings.TrimSpace(r) == "" {
+				return &FieldError{Field: "auth.adminRoles", Reason: "must be a non-empty list of non-empty strings"}
+			}
+		}
 	}
 	if c.Infer.StatusConsumer.Workers < 0 {
 		return &FieldError{Field: "infer.statusConsumer.workers", Reason: "must not be negative"}

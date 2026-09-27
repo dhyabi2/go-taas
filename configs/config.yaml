@@ -45,6 +45,14 @@ auth:
     parallelism: 1
   localPasswordLogin: true
   autoRegister: true
+  # adminRoles is the set of session roles that make a user an
+  # administrator (feature-22 AD3). A user is an admin iff any session
+  # role is in the set.
+  adminRoles:
+    - platform-admin
+    - org-admin
+    - admin
+    - owner
 
 metering:
   # bufferSize/flushInterval are reserved for the future Redis metering
