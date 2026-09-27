@@ -754,6 +754,60 @@ select option {
   font-size: 18px;
 }
 
+/* Dialog forms: labels that are direct children of the dialog (the
+   pattern used by the Load Tests and other dialog forms) get the same
+   field styling as the .form class. */
+.dialog > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted-strong);
+  margin: 14px 0;
+}
+
+.dialog > label:first-of-type {
+  margin-top: 16px;
+}
+
+.dialog > label:last-of-type {
+  margin-bottom: 16px;
+}
+
+.dialog > label input,
+.dialog > label select,
+.dialog > label textarea {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  font-family: var(--font-body);
+  background: var(--panel-solid);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dialog > label input:hover,
+.dialog > label select:hover,
+.dialog > label textarea:hover {
+  border-color: var(--primary);
+}
+
+.dialog > label input:focus,
+.dialog > label select:focus,
+.dialog > label textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+  outline: none;
+}
+
+.dialog > label textarea {
+  font-family: var(--mono);
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .dialog .dialog-actions {
   display: flex;
   justify-content: flex-end;
