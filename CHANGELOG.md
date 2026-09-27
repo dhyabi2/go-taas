@@ -1,3 +1,18 @@
+# [1.26.0](https://github.com/go-taas/go-taas/compare/v1.25.0...v1.26.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** resolve lint issues and harden compose-seed coverage ([642ddd6](https://github.com/go-taas/go-taas/commit/642ddd689aa58d91125d49fddebd438ecc40f6b7))
+
+
+### Features
+
+* **auth:** implement SSOPasswordLogin and SwitchSurface ([2d01206](https://github.com/go-taas/go-taas/commit/2d0120604041f68b7c077cf14763a6e57d180344))
+* **auth:** seed the compose Keycloak provider and admin user ([1bcd67a](https://github.com/go-taas/go-taas/commit/1bcd67ac4f21d0667174e66472bd32b28e64dd7e))
+* **compose:** seed Keycloak admin user and Direct Access Grants ([50c28f4](https://github.com/go-taas/go-taas/commit/50c28f47f59274d555dd81f14a12443edfb13f0d))
+* **web:** add custom login pages and surface switch buttons ([a48d800](https://github.com/go-taas/go-taas/commit/a48d8007fe72faa64cc5a422c650d8a4c050d04d))
+
 # [1.25.0](https://github.com/go-taas/go-taas/compare/v1.24.0...v1.25.0) (2026-09-27)
 
 
