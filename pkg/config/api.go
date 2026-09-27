@@ -253,6 +253,10 @@ type ControllerConfig struct {
 	// Namespace is the Kubernetes namespace the controller manages
 	// inference resources in. Empty defaults to "taas-infer".
 	Namespace string `mapstructure:"namespace"`
+	// Kubeconfig is an explicit kubeconfig path the controller uses to
+	// reach the Kubernetes cluster. Empty means the in-cluster config is
+	// used, falling back to ~/.kube/config for local development.
+	Kubeconfig string `mapstructure:"kubeconfig"`
 }
 
 // InferConfig holds infer-module specific settings.

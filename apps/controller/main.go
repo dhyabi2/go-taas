@@ -45,7 +45,7 @@ func main() {
 	}
 	defer func() { _ = mqClient.Close() }()
 
-	k8sClient, err := k8s.NewClient(&k8s.Config{})
+	k8sClient, err := k8s.NewClient(&k8s.Config{Kubeconfig: cfg.Controller.Kubeconfig})
 	if err != nil {
 		logger.S().Fatalw("init kubernetes client failed", "err", err)
 	}

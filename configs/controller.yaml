@@ -23,3 +23,8 @@ infer:
 controller:
   workers: 4
   maxRetries: 5
+  # kubeconfig is an explicit kubeconfig path the controller uses to reach
+  # the Kubernetes cluster. Empty means the in-cluster config is used,
+  # falling back to ~/.kube/config for local development. In the compose
+  # stack this is set to the mounted host kubeconfig (CONFIG_CONTROLLER_KUBECONFIG).
+  kubeconfig: ""

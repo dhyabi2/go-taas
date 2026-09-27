@@ -100,5 +100,23 @@ services:
       - "9091:9091" # gateway (HTTP/JSON)
       - "9092:9092" # monitor (metrics, healthz)
 
+  # The controller reconciles desired-state messages from NATS against a
+  # real Kubernetes cluster. It reads the host's kubeconfig (~/.kube/config)
+  # so the compose stack can manage the cluster the operator is logged into.
+  # The kubeconfig is mounted read-only at /etc/taas/kubeconfig and selected
+  # via CONFIG_CONTROLLER_KUBECONFIG. To manage a different cluster, point
+  # KUBECONFIG at that cluster's kubeconfig before `make compose-up`.
+  controller:
+    image: ghcr.io/go-taas/go-taas/controller:dev
+    depends_on:
+      nats:
+        condition: service_healthy
+    environment:
+      CONFIG_MQ_URL: nats://nats:4222
+      CONFIG_CONTROLLER_KUBECONFIG: /etc/taas/kubeconfig
+      CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+    volumes:
+      - ${KUBECONFIG:-$HOME/.kube/config}:/etc/taas/kubeconfig:ro
+
 volumes:
   pgdata:
