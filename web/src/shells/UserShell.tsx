@@ -19,6 +19,7 @@ import { getSessionToken, setSessionToken, type SessionInfo } from '../api';
 import { useApi, useRealm } from '../surface';
 import { realmLoginPath } from '../surface-routes';
 import { OrgSwitcher } from '../org';
+import brandLogo from '../assets/brand/logo-dark.svg';
 
 export const USER_NAV_ITEMS: { path: string; label: string; testid: string; icon: Icon }[] = [
   { path: '/quickstart', label: 'Quickstart', testid: 'user-nav-quickstart', icon: Rocket },
@@ -76,7 +77,10 @@ export function UserShell({ children }: { children: ReactNode }) {
   return (
     <div className="app" data-testid="user-shell">
       <aside className="sidebar" data-testid="sidebar">
-        <div className="brand">go-taas</div>
+        <div className="brand">
+          <img src={brandLogo} alt="Go TaaS" className="brand-logo" />
+          <span>Go TaaS</span>
+        </div>
         <nav>
           {USER_NAV_ITEMS.map((item) => {
             const IconComp = item.icon;

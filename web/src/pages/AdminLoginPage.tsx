@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '../surface';
+import brandLogo from '../assets/brand/logo.svg';
 
 interface PublicProvider {
   providerId: string;
@@ -44,7 +45,9 @@ export default function AdminLoginPage() {
 
   return (
     <div className="login" data-testid="sso-login-list">
-      <div className="login-brand" aria-hidden="true" />
+      <div className="login-brand" aria-hidden="true">
+        <img src={brandLogo} alt="" className="login-brand-logo" />
+      </div>
       <h1>Admin sign in</h1>
       <p className="login-subtitle">Manage organizations, models, billing and platform settings.</p>
       {error && <div className="error" data-testid="login-error">{error}</div>}
