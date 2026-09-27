@@ -189,6 +189,7 @@ func TestFVTSSOAuthorizeAndCallback(t *testing.T) {
 			"issuer": idp.URL, "clientId": "c1", "clientSecret": "secret",
 			"redirectUri":      "https://console.example.com/callback",
 			"defaultOrg":       "org-fvt",
+			"allowAutoProvision": true,
 			"attributeMapping": `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
 		},
 	}, map[string]string{"X-Organization-Id": "org-fvt"})
