@@ -1,3 +1,10 @@
+# [1.27.0](https://github.com/go-taas/go-taas/compare/v1.26.2...v1.27.0) (2026-09-27)
+
+
+### Features
+
+* **controller:** manage a real cluster via kubeconfig in compose ([283f5b4](https://github.com/go-taas/go-taas/commit/283f5b4ef5589aa9f1c0eb5af80d5606a151df98))
+
 ## [1.26.2](https://github.com/go-taas/go-taas/compare/v1.26.1...v1.26.2) (2026-09-27)
 
 
