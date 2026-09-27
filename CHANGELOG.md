@@ -1,3 +1,10 @@
+## [1.26.2](https://github.com/go-taas/go-taas/compare/v1.26.1...v1.26.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** omit empty attribute_mapping on provider create ([6c8a3d7](https://github.com/go-taas/go-taas/commit/6c8a3d7a7d7500d310b54fe42dc47e35b711ccf4))
+
 ## [1.26.1](https://github.com/go-taas/go-taas/compare/v1.26.0...v1.26.1) (2026-09-27)
 
 
