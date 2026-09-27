@@ -1,3 +1,10 @@
+## [1.26.1](https://github.com/go-taas/go-taas/compare/v1.26.0...v1.26.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** seed admin org membership and harden compose login e2e ([f163acd](https://github.com/go-taas/go-taas/commit/f163acd4390ccc14158b6eba11f1f9e4f15e16cb))
+
 # [1.26.0](https://github.com/go-taas/go-taas/compare/v1.25.0...v1.26.0) (2026-09-27)
 
 
