@@ -26,7 +26,7 @@ import (
 // role receives 10036. The source session is left intact so the user
 // can switch back (AD9).
 func (s *Service) SwitchSurface(ctx context.Context, _ *authv1.SwitchSurfaceRequest) (*authv1.SwitchSurfaceResponse, error) {
-	return s.switchSurface(ctx, RealmAdmin, true)
+	return s.mintSwitchSession(ctx, RealmAdmin, true)
 }
 
 // SwitchSurfaceAdmin mints a user-realm session for the current user
@@ -36,13 +36,13 @@ func (s *Service) SwitchSurface(ctx context.Context, _ *authv1.SwitchSurfaceRequ
 // needed — an admin is always allowed to use the user console. The
 // source session is left intact (AD9).
 func (s *Service) SwitchSurfaceAdmin(ctx context.Context, _ *authv1.SwitchSurfaceRequest) (*authv1.SwitchSurfaceResponse, error) {
-	return s.switchSurface(ctx, RealmUser, false)
+	return s.mintSwitchSession(ctx, RealmUser, false)
 }
 
-// switchSurface is the shared switch body. It resolves the current
+// mintSwitchSession is the shared switch body. It resolves the current
 // session, optionally validates the admin role, and mints a fresh
 // session with the same identity but the target realm (AD9).
-func (s *Service) switchSurface(ctx context.Context, targetRealm string, requireAdmin bool) (*authv1.SwitchSurfaceResponse, error) {
+func (s *Service) mintSwitchSession(ctx context.Context, targetRealm string, requireAdmin bool) (*authv1.SwitchSurfaceResponse, error) {
 	sess, err := s.sessionFromContext(ctx)
 	if err != nil {
 		return nil, err

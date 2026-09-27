@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakePasswordIdP is an in-process OIDC IdP implementing the
+// fakePasswordIDP is an in-process OIDC IdP implementing the
 // resource-owner password grant token endpoint. It returns an ID token
 // with the given roles when the credentials match.
-func fakePasswordIdP(t *testing.T, roles []string) *httptest.Server {
+func fakePasswordIDP(t *testing.T, roles []string) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,7 @@ func seedPasswordProvider(t *testing.T, env *ssoEnv, idpURL string) {
 // login derives the admin realm and lands on the admin surface.
 func TestFVTSSOPasswordLoginAdmin(t *testing.T) {
 	env := newSSOEnv(t)
-	idp := fakePasswordIdP(t, []string{"admin"})
+	idp := fakePasswordIDP(t, []string{"admin"})
 	seedPasswordProvider(t, env, idp.URL)
 
 	// User binding: admin role → admin realm.
@@ -87,7 +87,7 @@ func TestFVTSSOPasswordLoginAdmin(t *testing.T) {
 // password login derives the user realm.
 func TestFVTSSOPasswordLoginUser(t *testing.T) {
 	env := newSSOEnv(t)
-	idp := fakePasswordIdP(t, []string{"developer"})
+	idp := fakePasswordIDP(t, []string{"developer"})
 	seedPasswordProvider(t, env, idp.URL)
 
 	code, body := env.call(t, http.MethodPost, "/api/v1/auth/sso/keycloak/login", map[string]any{
@@ -102,7 +102,7 @@ func TestFVTSSOPasswordLoginUser(t *testing.T) {
 // binding-derived).
 func TestFVTSSOPasswordLoginAdminBinding(t *testing.T) {
 	env := newSSOEnv(t)
-	idp := fakePasswordIdP(t, []string{"admin"})
+	idp := fakePasswordIDP(t, []string{"admin"})
 	seedPasswordProvider(t, env, idp.URL)
 
 	code, body := env.call(t, http.MethodPost, "/api/v1/admin/auth/sso/keycloak/login", map[string]any{
@@ -116,7 +116,7 @@ func TestFVTSSOPasswordLoginAdminBinding(t *testing.T) {
 // → 10024.
 func TestFVTSSOPasswordLoginWrongCredentials(t *testing.T) {
 	env := newSSOEnv(t)
-	idp := fakePasswordIdP(t, []string{"admin"})
+	idp := fakePasswordIDP(t, []string{"admin"})
 	seedPasswordProvider(t, env, idp.URL)
 
 	code, body := env.call(t, http.MethodPost, "/api/v1/auth/sso/keycloak/login", map[string]any{

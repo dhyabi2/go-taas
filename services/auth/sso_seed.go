@@ -28,6 +28,10 @@ const seedKeycloakIssuer = "http://keycloak:8080/realms/go-taas"
 const seedKeycloakClientID = "go-taas-console"
 
 // seedKeycloakClientSecret is the client secret of the compose realm.
+// It exists only in the compose realm-export.json and this seed; the
+// design doc §9 states seeded credentials are compose-only and
+// production deployments configure their own IdP.
+//nolint:gosec // compose-only credential, never used in production
 const seedKeycloakClientSecret = "go-taas-console-secret"
 
 // seedKeycloakRedirectURI is the redirect URI of the compose client.
@@ -35,9 +39,6 @@ const seedKeycloakRedirectURI = "http://localhost:9091/api/v1/auth/sso/*"
 
 // seedAdminUsername is the compose admin user's username.
 const seedAdminUsername = "admin"
-
-// seedAdminRole is the TaaS role the Keycloak admin role maps to.
-const seedAdminRole = "admin"
 
 // seedKeycloakAttributeMapping maps the Keycloak admin role claim to the
 // TaaS admin role (feature-22 §5.4). The role claim is the nested

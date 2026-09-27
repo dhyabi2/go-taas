@@ -115,3 +115,44 @@ func TestSubjectFromExternal(t *testing.T) {
 	assert.Equal(t, "", subjectFromExternal("http://other:sub-1", "http://issuer"))
 	assert.Equal(t, "", subjectFromExternal("http://issuer", "http://issuer"))
 }
+
+// TestEnsureComposeSeedNoRepo verifies the injection point returns an
+// error when the SSO repository is not wired (feature-22 AD6).
+func TestEnsureComposeSeedNoRepo(t *testing.T) {
+	svc := &Service{}
+	err := svc.EnsureComposeSeed(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "sso repository not wired")
+}
+
+// TestSeedComposeProviderAndAdminJITFallback verifies the seed falls
+// back to JIT provisioning when the Keycloak admin subject cannot be
+// resolved (feature-22 AD10): the provider and user are still seeded,
+// and the missing binding is not an error.
+func TestSeedComposeProviderAndAdminJITFallback(t *testing.T) {
+	svc, db := newSSOService(t)
+	ctx := context.Background()
+
+	// Pre-create the provider pointing at an unreachable IdP so the
+	// admin-subject resolution fails and the seed falls back to JIT.
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: seedKeycloakProviderID, Type: ProviderTypeOIDC, DisplayName: "Keycloak",
+		Issuer: "http://127.0.0.1:1/realms/go-taas", ClientID: seedKeycloakClientID,
+		ClientSecret: seedKeycloakClientSecret, RedirectURI: seedKeycloakRedirectURI,
+		Enabled: true, AllowAutoProvision: true, AttributeMapping: seedKeycloakAttributeMapping,
+	}))
+
+	require.NoError(t, svc.EnsureComposeSeed(ctx))
+
+	// The provider and admin user are still seeded.
+	prov, err := svc.ssoRepo.FindProvider(ctx, seedKeycloakProviderID)
+	require.NoError(t, err)
+	assert.True(t, prov.Enabled)
+	_, err = svc.ssoRepo.FindUserByUsername(ctx, seedAdminUsername)
+	require.NoError(t, err)
+
+	// No binding is created (the subject could not be resolved).
+	var bindingCount int64
+	require.NoError(t, db.Model(&IdentityBinding{}).Count(&bindingCount).Error)
+	assert.EqualValues(t, 0, bindingCount, "no binding when the subject is unresolvable")
+}
