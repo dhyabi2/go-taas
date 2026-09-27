@@ -30,6 +30,9 @@ module.exports = {
     browser.globals.orgB = `org-e2e-authb-${browser.globals.runId}-${browser.globals.testSeq}`;
     api.ensureOrg(browser, browser.globals.orgA);
     api.ensureOrg(browser, browser.globals.orgB);
+    // Seed a user-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'user', browser.globals.orgA);
   },
 
   afterEach(browser) {

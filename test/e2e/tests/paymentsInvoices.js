@@ -28,6 +28,9 @@ module.exports = {
     browser.globals.testSeq = (browser.globals.testSeq || 0) + 1;
     browser.globals.orgA = `org-e2e-pay-${browser.globals.runId}-${browser.globals.testSeq}`;
     api.ensureOrg(browser, browser.globals.orgA);
+    // Seed an admin-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'admin', browser.globals.orgA);
   },
 
   afterEach(browser) {

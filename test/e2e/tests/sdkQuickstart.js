@@ -88,6 +88,10 @@ module.exports = {
     browser.globals.orgB = `org-e2e-qs-b-${browser.globals.runId}-${browser.globals.testSeq}`;
     api.ensureOrg(browser, browser.globals.orgA);
     api.ensureOrg(browser, browser.globals.orgB);
+    // Seed a user-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login). The quickstart page uses
+    // orgA as the active org.
+    api.seedSession(browser, 'user', browser.globals.orgA);
   },
 
   afterEach(browser) {

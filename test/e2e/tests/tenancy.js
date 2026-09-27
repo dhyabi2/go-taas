@@ -36,6 +36,9 @@ module.exports = {
     // organizations table, so the org ids must exist first.
     api.ensureOrg(browser, browser.globals.orgA);
     api.ensureOrg(browser, browser.globals.orgB);
+    // Seed an admin-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'admin', browser.globals.orgA);
   },
 
   afterEach(browser) {

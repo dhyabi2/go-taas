@@ -181,6 +181,45 @@ const api = {
       }, [body.sessionToken]);
     });
     return this;
+  },
+
+  /**
+   * Seed a server-side session directly into Redis (via the Go seed
+   * program inside the compose network) and store the token in the
+   * browser's localStorage for the given realm. The compose stack has no
+   * interactive IdP login a headless browser can complete, so the suites
+   * authenticate with a seeded session (the frontend sends it as
+   * `Authorization: Bearer <token>`, which the realm guard validates).
+   *
+   * `realm` is 'user' or 'admin'; the token is stored under
+   * `go-taas.<realm>.session-token`.
+   */
+  seedSession(browser, realm, org) {
+    const path = require('path');
+    const { execSync } = require('child_process');
+    const repoRoot = path.resolve(__dirname, '..', '..', '..');
+    const cmd = [
+      'docker run --rm --network go-taas_default',
+      '-e GOPROXY=https://goproxy.cn,direct',
+      '-v go-taas-go-mod-cache:/go/pkg/mod',
+      '-v go-taas-go-build-cache:/root/.cache/go-build',
+      `-v "${repoRoot}":/app`,
+      '-w /app/test/e2e/seed/session',
+      'golang:1.26-alpine',
+      `sh -c "go run seed_session.go -redis 'redis:6379' -realm '${realm}' -org '${org}'"`
+    ].join(' ');
+    let token;
+    try {
+      token = execSync(cmd, {stdio: 'pipe', timeout: 120000}).toString().trim();
+    } catch (e) {
+      browser.assert.fail(`seedSession failed: ${e.message}`);
+      return this;
+    }
+    browser.assert.ok(Boolean(token), 'seedSession: session token returned');
+    browser.execute(function (t, r) {
+      localStorage.setItem(`go-taas.${r}.session-token`, t);
+    }, [token, realm]);
+    return this;
   }
 };
 

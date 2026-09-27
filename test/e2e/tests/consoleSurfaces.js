@@ -30,6 +30,9 @@ module.exports = {
     browser.globals.testSeq = (browser.globals.testSeq || 0) + 1;
     browser.globals.orgA = `org-e2e-cs-${browser.globals.runId}-${browser.globals.testSeq}`;
     api.ensureOrg(browser, browser.globals.orgA);
+    // Seed a user-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'user', browser.globals.orgA);
   },
 
   afterEach(browser) {
