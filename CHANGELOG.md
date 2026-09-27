@@ -1,3 +1,15 @@
+# [1.24.0](https://github.com/go-taas/go-taas/compare/v1.23.0...v1.24.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **services:** resolve org from session when present ([730b4ed](https://github.com/go-taas/go-taas/commit/730b4ed514e8c328435101df229315c4423c718c)), closes [#7](https://github.com/go-taas/go-taas/issues/7)
+
+
+### Features
+
+* **console:** redirect unauthenticated pages to login ([eebd05d](https://github.com/go-taas/go-taas/commit/eebd05d801575af4e647d0d797870cc8416ae108))
+
 # [1.23.0](https://github.com/go-taas/go-taas/compare/v1.22.0...v1.23.0) (2026-09-27)
 
 
