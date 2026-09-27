@@ -1,3 +1,10 @@
+# [1.23.0](https://github.com/go-taas/go-taas/compare/v1.22.0...v1.23.0) (2026-09-27)
+
+
+### Features
+
+* **ui:** use logo in the console ([0c419b6](https://github.com/go-taas/go-taas/commit/0c419b6d16bfd0da3c95836ebef6f2ba8b3dc8b3))
+
 # [1.22.0](https://github.com/go-taas/go-taas/compare/v1.21.0...v1.22.0) (2026-09-26)
 
 
