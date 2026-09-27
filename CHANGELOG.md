@@ -1,3 +1,12 @@
+# [1.25.0](https://github.com/go-taas/go-taas/compare/v1.24.0...v1.25.0) (2026-09-27)
+
+
+### Features
+
+* **auth:** add PasswordGrant to the IdP plugin framework ([32c0489](https://github.com/go-taas/go-taas/commit/32c04894a5f0e036dfe04a491febbb9731a2453f))
+* **auth:** add SSOPasswordLogin and SwitchSurface RPCs ([cc43e8a](https://github.com/go-taas/go-taas/commit/cc43e8a3168bd5b6f61faf4c98f6fa2cd6a9f763))
+* **config:** add auth.adminRoles admin-role set ([3500cd5](https://github.com/go-taas/go-taas/commit/3500cd5c0fbc7325875bf092df4ce9e070375158))
+
 # [1.24.0](https://github.com/go-taas/go-taas/compare/v1.23.0...v1.24.0) (2026-09-27)
 
 
