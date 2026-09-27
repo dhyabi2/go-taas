@@ -57,28 +57,35 @@ type BindingFilter struct {
 // preserved: GORM's `default:true` tag on the bool column would
 // otherwise coerce a false zero-value back to true on a struct Create
 // (feature-22 JIT-disabled providers).
+//
+// attribute_mapping is only included when non-empty so an omitted
+// mapping falls back to the jsonb column default '{}' (BUG-UL-001):
+// writing the empty string into the jsonb column is rejected by
+// Postgres with SQLSTATE 22P02.
 func (r *SSORepository) CreateProvider(ctx context.Context, p *SSOProvider) error {
 	row := map[string]any{
-		"id":                  p.ID,
-		"type":                p.Type,
-		"display_name":        p.DisplayName,
-		"issuer":              p.Issuer,
-		"client_id":           p.ClientID,
-		"client_secret":       p.ClientSecret,
-		"redirect_uri":        p.RedirectURI,
-		"scopes":              p.Scopes,
-		"metadata_url":        p.MetadataURL,
-		"entity_id":           p.EntityID,
-		"acs_url":             p.ACSUrl,
-		"host":                p.Host,
-		"port":                p.Port,
-		"bind_dn":             p.BindDN,
-		"base_dn":             p.BaseDN,
-		"user_filter":         p.UserFilter,
-		"enabled":             p.Enabled,
-		"default_org":         p.DefaultOrg,
+		"id":                   p.ID,
+		"type":                 p.Type,
+		"display_name":         p.DisplayName,
+		"issuer":               p.Issuer,
+		"client_id":            p.ClientID,
+		"client_secret":        p.ClientSecret,
+		"redirect_uri":         p.RedirectURI,
+		"scopes":               p.Scopes,
+		"metadata_url":         p.MetadataURL,
+		"entity_id":            p.EntityID,
+		"acs_url":              p.ACSUrl,
+		"host":                 p.Host,
+		"port":                 p.Port,
+		"bind_dn":              p.BindDN,
+		"base_dn":              p.BaseDN,
+		"user_filter":          p.UserFilter,
+		"enabled":              p.Enabled,
+		"default_org":          p.DefaultOrg,
 		"allow_auto_provision": p.AllowAutoProvision,
-		"attribute_mapping":   p.AttributeMapping,
+	}
+	if p.AttributeMapping != "" {
+		row["attribute_mapping"] = p.AttributeMapping
 	}
 	if err := r.db.DB(ctx).Model(&SSOProvider{}).Create(row).Error; err != nil {
 		if isUniqueViolation(err) {
