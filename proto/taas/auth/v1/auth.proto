@@ -577,20 +577,20 @@ message DeleteIdentityBindingResponse {
 // selected provider via the OIDC password grant or the LDAP bind.
 message SSOPasswordLoginRequest {
   string provider_id = 1; // path
-  string username = 2;    // required, 1-128 chars, trimmed
-  string password = 3;    // required, 1-256 chars; never persisted or echoed
+  string username = 2; // required, 1-128 chars, trimmed
+  string password = 3; // required, 1-256 chars; never persisted or echoed
 }
 message SSOPasswordLoginResponse {
   taas.common.v1.Response response = 1;
   string session_token = 2; // the session id, stored under the realm-matching key
-  string realm = 3;         // user | admin, derived from the role (AD2)
-  int64 expires_at = 4;     // unix seconds
+  string realm = 3; // user | admin, derived from the role (AD2)
+  int64 expires_at = 4; // unix seconds
 }
 
 message SwitchSurfaceRequest {}
 message SwitchSurfaceResponse {
   taas.common.v1.Response response = 1;
   string session_token = 2; // the target-realm session id
-  string realm = 3;         // the target realm (admin for switch-to-admin, user for switch-to-user)
-  int64 expires_at = 4;     // unix seconds
+  string realm = 3; // the target realm (admin for switch-to-admin, user for switch-to-user)
+  int64 expires_at = 4; // unix seconds
 }

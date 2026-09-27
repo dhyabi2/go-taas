@@ -49,10 +49,10 @@ func seedPasswordProvider(t *testing.T, env *ssoEnv, idpURL string) {
 		"provider": map[string]any{
 			"providerId": "keycloak", "type": "oidc", "displayName": "Keycloak",
 			"issuer": idpURL, "clientId": "go-taas-console", "clientSecret": "secret",
-			"redirectUri":      "http://localhost:9091/api/v1/auth/sso/*",
-			"defaultOrg":       "org-fvt",
+			"redirectUri":        "http://localhost:9091/api/v1/auth/sso/*",
+			"defaultOrg":         "org-fvt",
 			"allowAutoProvision": true,
-			"attributeMapping": `{"username":"preferred_username","email":"email","role":"realm_access.roles"}`,
+			"attributeMapping":   `{"username":"preferred_username","email":"email","role":"realm_access.roles"}`,
 		},
 	}, map[string]string{"X-Organization-Id": "org-fvt"})
 	require.Equal(t, http.StatusOK, code, "body: %v", body)

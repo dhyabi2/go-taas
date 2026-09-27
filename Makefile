@@ -40,23 +40,30 @@ DOCKER_BUILD_ARGS := --build-arg VERSION=$(IMAGE_TAG) \
 	--build-arg GOPROXY=$(GOPROXY) \
 	--build-arg NPM_REGISTRY=$(NPM_REGISTRY)
 
+# Docker build network. Defaults to the host network so the build container
+# can reach the module proxy / npm registry / buf remote on hosts whose
+# build-container DNS is unreachable (e.g. a container DNS pointing at an
+# IPv6 link-local resolver). Override with DOCKER_NETWORK= for the default
+# bridge network (e.g. in CI).
+DOCKER_NETWORK ?= --network=host
+
 .PHONY: all pbgen pbgen-ensure deps lint ut fvt build test clean \
 	docker-build docker-push docker-build-multi compose-up compose-down \
 	compose-ps compose-logs
 
 all: build
 
-## pbgen: update buf dependencies and regenerate protobuf code
+## pbgen: regenerate protobuf code
 ## Generated code (*.pb.go, *.pb.gw.go, docs/api/) is NOT committed;
 ## only *.proto files are tracked. Regenerate after every proto change.
+## buf generate resolves the googleapis dependency from the checked-in
+## buf.lock, so it does not need to reach the buf remote (BSR).
 pbgen:
-	buf dep update
 	buf generate
 
 # Generated protobuf code is required by every Go target. It is not
 # committed, so ensure it exists (regenerate only when missing).
 proto/taas/auth/v1/auth.pb.go:
-	buf dep update
 	buf generate
 
 .PHONY: pbgen-ensure
@@ -95,7 +102,7 @@ clean:
 docker-build:
 	@for target in $(IMAGE_TARGETS); do \
 		echo ">> building $(IMAGE_REPO)/$${target}:$(IMAGE_TAG)"; \
-		docker build --target "$${target}" \
+		docker build $(DOCKER_NETWORK) --target "$${target}" \
 			$(DOCKER_BUILD_ARGS) \
 			-f $(DOCKERFILE) -t "$(IMAGE_REPO)/$${target}:$(IMAGE_TAG)" . || exit 1; \
 	done
@@ -117,7 +124,7 @@ docker-push:
 ## NOTE: for the SSO flow the host must resolve `keycloak` to 127.0.0.1:
 ##   echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts
 compose-up:
-	docker build --target taas-server \
+	docker build $(DOCKER_NETWORK) --target taas-server \
 		$(DOCKER_BUILD_ARGS) \
 		-f $(DOCKERFILE) -t "$(IMAGE_REPO)/taas-server:$(IMAGE_TAG)" .
 	docker compose -f deploy/compose/docker-compose.yaml up -d

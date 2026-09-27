@@ -187,10 +187,10 @@ func TestFVTSSOAuthorizeAndCallback(t *testing.T) {
 		"provider": map[string]any{
 			"providerId": "okta", "type": "oidc", "displayName": "Okta",
 			"issuer": idp.URL, "clientId": "c1", "clientSecret": "secret",
-			"redirectUri":      "https://console.example.com/callback",
-			"defaultOrg":       "org-fvt",
+			"redirectUri":        "https://console.example.com/callback",
+			"defaultOrg":         "org-fvt",
 			"allowAutoProvision": true,
-			"attributeMapping": `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
+			"attributeMapping":   `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
 		},
 	}, map[string]string{"X-Organization-Id": "org-fvt"})
 	require.Equal(t, http.StatusOK, code, "body: %v", body)

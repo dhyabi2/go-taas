@@ -37,12 +37,30 @@ RUN npm run build
 # ---- Protobuf codegen stage --------------------------------------------
 # Generated Go code is not committed (only *.proto is tracked), so it is
 # regenerated here before the Go build.
-FROM bufbuild/buf:1.70.0 AS buf
+#
+# The buf stage uses the golang image so it can install the protoc plugins
+# locally (buf.gen.yaml references them via `local:`). This keeps the build
+# offline: buf generate resolves the googleapis dependency from the
+# checked-in buf.lock and runs the plugins from PATH, so neither the buf
+# remote (BSR) nor a remote plugin download is needed. `buf dep update` is
+# intentionally NOT run here: it always contacts the BSR and fails on
+# restricted networks.
+FROM golang:1.26-alpine AS buf
 WORKDIR /src
-COPY buf.yaml buf.gen.yaml ./
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
+# Install buf and the protoc plugins used by buf.gen.yaml. Versions match
+# the local plugins the host uses (protoc-gen-go v1.36.6, go-grpc 1.5.1,
+# grpc-gateway v2.27.1).
+RUN go install github.com/bufbuild/buf/cmd/buf@v1.70.0 \
+    && go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.6 \
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway@v2.27.1 \
+    && go install github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2@v2.27.1
+ENV PATH="/root/go/bin:${PATH}"
+COPY buf.yaml buf.gen.yaml buf.lock ./
 COPY proto/ ./proto/
-# buf dep update fetches the googleapis dependency declared in buf.yaml.
-RUN buf dep update && buf generate
+RUN buf generate
 
 # ---- Go build stage ---------------------------------------------------
 FROM golang:1.26-alpine AS builder
