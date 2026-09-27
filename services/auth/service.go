@@ -174,7 +174,12 @@ func (s *Service) Migrate(ctx context.Context) error {
 	}
 	// Feature #20 (AD11): seed the synthetic platform credential used by
 	// the load-test runner. The plaintext stays in memory only.
-	return s.seedSystemCredential(ctx, NewAPIKeyRepository(db))
+	if err := s.seedSystemCredential(ctx, NewAPIKeyRepository(db)); err != nil {
+		return err
+	}
+	// Feature-22 (AD6/AD10): seed the compose Keycloak provider, the
+	// admin user, and the admin user's identity binding idempotently.
+	return s.seedComposeProviderAndAdmin(ctx)
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared
