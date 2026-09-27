@@ -317,7 +317,7 @@ func (s *Service) checkOrg(ctx context.Context, orgID string, requireActive bool
 
 // ListAPIKeys returns the API keys of the caller's organization.
 func (s *Service) ListAPIKeys(ctx context.Context, req *authv1.ListAPIKeysRequest) (*authv1.ListAPIKeysResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +399,7 @@ func summarizeAPIKey(row *APIKey) *authv1.APIKeySummary {
 // CreateAPIKey issues a new API key. The plaintext key is returned
 // exactly once; only its salted hash is stored.
 func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequest) (*authv1.CreateAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +475,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequ
 // RevokeAPIKey revokes an API key. Revocation takes effect after the
 // gateway-side cache TTL expires.
 func (s *Service) RevokeAPIKey(ctx context.Context, req *authv1.RevokeAPIKeyRequest) (*authv1.RevokeAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -536,7 +536,7 @@ func (s *Service) recordAudit(ctx context.Context, ev *audit.AuditEvent) {
 // (feature #11, AD4). It never returns the plaintext and never changes
 // the secret.
 func (s *Service) UpdateAPIKey(ctx context.Context, req *authv1.UpdateAPIKeyRequest) (*authv1.UpdateAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}

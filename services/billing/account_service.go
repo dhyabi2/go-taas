@@ -47,7 +47,7 @@ func validateAccountFields(mode string, quotaCents int64, policy string) error {
 // CreateAccount creates the org's single billing account; an optional
 // opening balance is credited as a recharge transaction (AC1).
 func (s *Service) CreateAccount(ctx context.Context, req *billingv1.CreateAccountRequest) (*billingv1.CreateAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s *Service) CreateAccount(ctx context.Context, req *billingv1.CreateAccoun
 
 // ListAccounts returns the header org's accounts (0..1 rows, AC10).
 func (s *Service) ListAccounts(ctx context.Context, req *billingv1.ListAccountsRequest) (*billingv1.ListAccountsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +148,7 @@ func (s *Service) resolveAccountInOrg(ctx context.Context, repo *AccountReposito
 // GetAccount returns one account with computed remaining funds and
 // quota usage.
 func (s *Service) GetAccount(ctx context.Context, req *billingv1.GetAccountRequest) (*billingv1.GetAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (s *Service) GetAccount(ctx context.Context, req *billingv1.GetAccountReque
 // UpdateAccount replaces mode, quota and overdraw policy (AD12);
 // balance/usage fields are never settable here.
 func (s *Service) UpdateAccount(ctx context.Context, req *billingv1.UpdateAccountRequest) (*billingv1.UpdateAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (s *Service) Refund(ctx context.Context, req *billingv1.RefundRequest) (*bi
 // moneyTx implements Recharge and Refund: validation, the idempotent
 // ledger write, and the version-guarded balance update.
 func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int64, idempotencyKey, note, txType string) (*billingv1.RechargeResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int
 // ListTransactions returns the ledger filtered by account, type and
 // time range, paginated newest-first (FR6, AC9).
 func (s *Service) ListTransactions(ctx context.Context, req *billingv1.ListTransactionsRequest) (*billingv1.ListTransactionsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

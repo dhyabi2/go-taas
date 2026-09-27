@@ -300,7 +300,7 @@ func (s *Service) mqClientFor() (mq.Client, error) {
 // replicas. The change is published to the message queue and applied by
 // the controller.
 func (s *Service) CreateInferenceService(ctx context.Context, req *inferv1.CreateInferenceServiceRequest) (*inferv1.CreateInferenceServiceResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +460,7 @@ func experimentalWarning(compatStatus string) string {
 // ListInferenceServices returns the inference services of the caller's
 // organization.
 func (s *Service) ListInferenceServices(ctx context.Context, req *inferv1.ListInferenceServicesRequest) (*inferv1.ListInferenceServicesResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +499,7 @@ func (s *Service) ListInferenceServices(ctx context.Context, req *inferv1.ListIn
 
 // GetInferenceService returns one inference service with its status.
 func (s *Service) GetInferenceService(ctx context.Context, req *inferv1.GetInferenceServiceRequest) (*inferv1.GetInferenceServiceResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -586,7 +586,7 @@ func autoscalingStatusFromRow(row *InferenceService) *inferv1.AutoscalingStatus 
 // ScaleInferenceService changes the replica count of an inference
 // service.
 func (s *Service) ScaleInferenceService(ctx context.Context, req *inferv1.ScaleInferenceServiceRequest) (*inferv1.ScaleInferenceServiceResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -659,7 +659,7 @@ func (s *Service) ScaleInferenceService(ctx context.Context, req *inferv1.ScaleI
 
 // DeleteInferenceService removes an inference service.
 func (s *Service) DeleteInferenceService(ctx context.Context, req *inferv1.DeleteInferenceServiceRequest) (*inferv1.DeleteInferenceServiceResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

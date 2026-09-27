@@ -450,7 +450,7 @@ func (s *Service) ListVouchers(ctx context.Context, req *meteringv1.ListVouchers
 
 // GetVoucher returns one voucher; unknown ids return 10403 (FR4.3).
 func (s *Service) GetVoucher(ctx context.Context, req *meteringv1.GetVoucherRequest) (*meteringv1.GetVoucherResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -160,7 +160,7 @@ func (s *Service) UpdateAutoscalingPolicy(ctx context.Context, req *inferv1.Upda
 // disabling, the service returns to a fixed replica count equal to the
 // current desired count (FR2.5).
 func (s *Service) UpdateInferenceServiceAutoscaling(ctx context.Context, req *inferv1.UpdateInferenceServiceAutoscalingRequest) (*inferv1.UpdateInferenceServiceAutoscalingResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

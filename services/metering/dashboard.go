@@ -138,7 +138,7 @@ func (s *Service) ListRequestLogs(ctx context.Context, req *meteringv1.ListReque
 // GetRequestLog returns one request log for drill-down (feature #12,
 // AC-A5); unknown ids return 10405.
 func (s *Service) GetRequestLog(ctx context.Context, req *meteringv1.GetRequestLogRequest) (*meteringv1.GetRequestLogResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
