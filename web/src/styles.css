@@ -111,6 +111,30 @@ h4,
   border-right: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Slim, theme-matched scrollbar for the sidebar (WebKit/Blink). */
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* Firefox */
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
 .brand {
   font-size: 21px;
   font-weight: 700;
