@@ -20,6 +20,7 @@ against the local docker compose stack.
 | Compatibility matrix | feature-19 `compatibility-matrix` | `tests/compatibilityMatrix.js` |
 | Inference load testing | feature-20 `load-testing` | `tests/loadTesting.js` |
 | SDK / Quickstart | feature-21 `sdk-quickstart` | `tests/sdkQuickstart.js` |
+| Unified login & role-based routing | feature-22 `unified-login-role-routing` | `tests/unifiedLogin.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md` and

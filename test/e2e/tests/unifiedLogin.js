@@ -200,6 +200,30 @@ module.exports = {
     });
   },
 
+  // AC13: a disabled provider is not listed on the login page. The
+  // public projection (GET /api/v1/auth/sso/providers) filters enabled
+  // providers, so a provider disabled after creation must not render a
+  // sign-in button.
+  'AC13: disabled provider is not listed on the login page': function (browser) {
+    const providerId = `disabled-${browser.globals.runId}`;
+    api.ensureSSOProvider(browser, providerId, {
+      type: 'oidc', displayName: 'Disabled IdP',
+      issuer: 'https://idp.example.com', clientId: 'c1', clientSecret: 'secret',
+      redirectUri: 'https://console.example.com/callback',
+      attribute_mapping: '{"username":"preferred_username","email":"email"}'
+    });
+    api.request(browser, {
+      method: 'POST',
+      path: `/api/v1/admin/auth/sso/providers/${providerId}:disable`,
+      org: browser.globals.orgA
+    }, (res) => {
+      api.assertOk(browser, res, 'AC13: disable provider');
+    });
+    browser.url(browser.globals.baseUrl + '/login');
+    browser.waitForElementPresent('[data-testid="sso-login-list"]', 15000, 'AC13: provider list');
+    browser.assert.not.elementPresent(`[data-testid="sso-login-${providerId}"]`, 'AC13: disabled provider not listed');
+  },
+
   // AC14: the custom login page footer states credentials are verified
   // by the provider and not stored by go-taas.
   'AC14: custom login footer states credentials are not stored': function (browser) {

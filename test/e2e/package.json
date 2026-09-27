@@ -25,7 +25,8 @@
     "test:accelerator-inventory": "nightwatch --tag accelerator-inventory",
     "test:compatibility-matrix": "nightwatch --tag compatibility-matrix",
     "test:load-testing": "nightwatch --tag load-testing",
-    "test:sdk-quickstart": "nightwatch --tag sdk-quickstart"
+    "test:sdk-quickstart": "nightwatch --tag sdk-quickstart",
+    "test:unified-login": "nightwatch --tag unified-login"
   },
   "license": "Apache-2.0",
   "devDependencies": {
