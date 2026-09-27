@@ -139,7 +139,11 @@ export function OrgSwitcher() {
           <option value={orgId}>{orgId}</option>
         ) : (
           orgs.map((o) => (
-            <option key={o.organizationId} value={o.organizationId}>
+            <option
+              key={o.organizationId}
+              value={o.organizationId}
+              data-testid={`org-switcher-option-${o.organizationId}`}
+            >
               {o.displayName || o.organizationId}
             </option>
           ))

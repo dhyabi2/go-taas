@@ -63,7 +63,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const realm = useRealm();
   const api = useApi();
   const [path, setPath] = useState(window.location.pathname);
-  const [transitional, setTransitional] = useState(false);
 
   useEffect(() => {
     return Router.subscribe(() => setPath(window.location.pathname));
@@ -72,7 +71,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = getSessionToken(realm);
     if (!token) {
-      setTransitional(true);
+      // No session: redirect to the login page, preserving the intended
+      // destination so the operator returns here after signing in.
+      navigate(`${realmLoginPath(realm)}?next=${encodeURIComponent(window.location.pathname)}&reason=unauthenticated`);
       return;
     }
     api
@@ -132,11 +133,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
         )}
       </aside>
       <main className="main">
-        {transitional && (
-          <div className="banner" data-testid="admin-console-transitional-banner">
-            Transitional mode: no session. Requests use the stored organization.
-          </div>
-        )}
         {children}
       </main>
     </div>
