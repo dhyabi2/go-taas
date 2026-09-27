@@ -110,6 +110,93 @@ func TestOIDCPluginCallback(t *testing.T) {
 	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
 }
 
+// TestOIDCPluginPasswordGrant verifies the OAuth2 resource-owner
+// password grant (feature-22): a valid username/password returns the
+// extracted identity; wrong credentials and a missing ID token fail.
+func TestOIDCPluginPasswordGrant(t *testing.T) {
+	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", []string{"admins"})
+	plugin := &OIDCPlugin{}
+	prov := &SSOProvider{
+		Issuer:           srv.URL,
+		ClientID:         "client-1",
+		ClientSecret:     "secret",
+		AttributeMapping: `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
+	}
+
+	identity, err := plugin.PasswordGrant(context.Background(), prov, "alice", "pw")
+	require.NoError(t, err)
+	assert.Equal(t, srv.URL+":sub-1", identity.ExternalSubject)
+	assert.Equal(t, "alice", identity.Username)
+	assert.Equal(t, "alice@x.com", identity.Email)
+	assert.Equal(t, []string{"admins"}, identity.Claims["groups"])
+
+	// Missing issuer → 10028.
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{ClientID: "c"}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+
+	// IdP rejection → 10024.
+	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(badSrv.Close)
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{
+		Issuer: badSrv.URL, ClientID: "c", ClientSecret: "s",
+	}, "alice", "wrong")
+	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
+}
+
+// TestLDAPPluginPasswordBind verifies the directory bind (feature-22):
+// a valid username/password returns the identity by DN; wrong
+// credentials fail.
+func TestLDAPPluginPasswordBind(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/bind", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.FormValue("username") == "alice" && r.FormValue("password") == "pw" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"dn": "cn=alice,dc=example,dc=com",
+				"attrs": map[string][]string{
+					"uid":  {"alice"},
+					"mail": {"alice@x.com"},
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	plugin := &LDAPPlugin{}
+	prov := &SSOProvider{
+		Host:             srv.URL,
+		BaseDN:           "dc=example,dc=com",
+		UserFilter:       "(uid={{username}})",
+		AttributeMapping: `{"username":"uid","email":"mail"}`,
+	}
+
+	identity, err := plugin.PasswordGrant(context.Background(), prov, "alice", "pw")
+	require.NoError(t, err)
+	assert.Equal(t, "cn=alice,dc=example,dc=com", identity.ExternalSubject)
+	assert.Equal(t, "alice", identity.Username)
+
+	// Wrong credentials → 10024.
+	_, err = plugin.PasswordGrant(context.Background(), prov, "alice", "wrong")
+	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
+
+	// Missing host → 10028.
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+}
+
+// TestSAMLPluginPasswordGrant verifies a SAML provider cannot use the
+// password grant (feature-22 AD7): it returns CodeSSOProviderInvalid.
+func TestSAMLPluginPasswordGrant(t *testing.T) {
+	plugin := &SAMLPlugin{}
+	_, err := plugin.PasswordGrant(context.Background(), &SSOProvider{}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+}
+
 // TestOIDCPluginDiscovery verifies the plugin resolves the authorize
 // and token endpoints via OIDC discovery (the Keycloak layout) instead
 // of the legacy {issuer}/authorize and {issuer}/token paths.

@@ -89,3 +89,68 @@ func (p *LDAPPlugin) Callback(ctx context.Context, prov *SSOProvider, req *authv
 		Claims:          bindResp.Attrs,
 	}, nil
 }
+
+// PasswordGrant authenticates a username/password via a directory bind
+// (feature-22 D1). It delegates to PasswordBind.
+func (p *LDAPPlugin) PasswordGrant(ctx context.Context, prov *SSOProvider, username, password string) (*Identity, error) {
+	return p.PasswordBind(ctx, prov, username, password)
+}
+
+// PasswordBind authenticates a username/password via a directory bind
+// and extracts the identity by DN, exactly as Callback does (feature-22
+// D1). The password is used only for the bind and never persisted.
+func (p *LDAPPlugin) PasswordBind(ctx context.Context, prov *SSOProvider, username, password string) (*Identity, error) {
+	if prov.Host == "" || prov.BaseDN == "" {
+		return nil, apierrors.New(apierrors.CodeSSOProviderInvalid)
+	}
+	username = strings.TrimSpace(username)
+	if username == "" || password == "" {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+
+	endpoint := prov.Host
+	if !strings.HasPrefix(endpoint, "http") {
+		endpoint = "http://" + endpoint
+	}
+	form := url.Values{}
+	form.Set("username", username)
+	form.Set("password", password)
+	form.Set("base_dn", prov.BaseDN)
+	form.Set("user_filter", prov.UserFilter)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"/bind", strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	var bindResp struct {
+		DN    string              `json:"dn"`
+		Attrs map[string][]string `json:"attrs"`
+	}
+	if err := json.Unmarshal(body, &bindResp); err != nil || bindResp.DN == "" {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+
+	mapping, err := parseAttributeMapping(prov.AttributeMapping)
+	if err != nil {
+		return nil, err
+	}
+	return &Identity{
+		ExternalSubject: bindResp.DN,
+		Username:        claimValue(bindResp.Attrs, mapping.Username),
+		Email:           claimValue(bindResp.Attrs, mapping.Email),
+		Claims:          bindResp.Attrs,
+	}, nil
+}

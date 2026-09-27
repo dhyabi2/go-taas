@@ -93,6 +93,12 @@ func (p *SAMLPlugin) Callback(_ context.Context, prov *SSOProvider, req *authv1.
 	}, nil
 }
 
+// PasswordGrant is unsupported for SAML: SAML 2.0 has no password grant
+// (feature-22 AD7). A SAML provider keeps the redirect flow.
+func (p *SAMLPlugin) PasswordGrant(_ context.Context, _ *SSOProvider, _, _ string) (*Identity, error) {
+	return nil, apierrors.New(apierrors.CodeSSOProviderInvalid)
+}
+
 // samlSigningKey is the RSA key used to sign/verify SAML assertions.
 // In production this would be the IdP's public key; the fake IdP signs
 // with the matching private key.

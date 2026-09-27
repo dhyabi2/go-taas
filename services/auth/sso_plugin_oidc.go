@@ -109,6 +109,76 @@ func (p *OIDCPlugin) Callback(ctx context.Context, prov *SSOProvider, req *authv
 	}, nil
 }
 
+// PasswordGrant authenticates a username/password via the OAuth2
+// resource-owner password grant (Keycloak Direct Access Grants) and
+// extracts the identity from the returned ID token, exactly as Callback
+// does. The password is used only for the exchange and never persisted
+// (feature-22 D1).
+func (p *OIDCPlugin) PasswordGrant(ctx context.Context, prov *SSOProvider, username, password string) (*Identity, error) {
+	if prov.Issuer == "" || prov.ClientID == "" || prov.ClientSecret == "" {
+		return nil, apierrors.New(apierrors.CodeSSOProviderInvalid)
+	}
+	scopes := prov.Scopes
+	if scopes == "" {
+		scopes = "openid profile email"
+	}
+
+	// POST the resource-owner password grant to the token endpoint
+	// (resolved via OIDC discovery, falling back to {issuer}/token for
+	// the fake IdP).
+	tokenURL := oidcTokenEndpoint(ctx, prov.Issuer)
+	form := url.Values{}
+	form.Set("grant_type", "password")
+	form.Set("client_id", prov.ClientID)
+	form.Set("client_secret", prov.ClientSecret)
+	form.Set("username", username)
+	form.Set("password", password)
+	form.Set("scope", scopes)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := httpClient.Do(httpReq)
+	if err != nil {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	var tokenResp struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := json.Unmarshal(body, &tokenResp); err != nil || tokenResp.IDToken == "" {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+
+	claims, err := decodeIDTokenClaims(tokenResp.IDToken)
+	if err != nil {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	mapping, err := parseAttributeMapping(prov.AttributeMapping)
+	if err != nil {
+		return nil, err
+	}
+	sub := claimValue(claims, "sub")
+	if sub == "" {
+		return nil, apierrors.New(apierrors.CodeSSOAuthFailed)
+	}
+	return &Identity{
+		ExternalSubject: prov.Issuer + ":" + sub,
+		Username:        claimValue(claims, mapping.Username),
+		Email:           claimValue(claims, mapping.Email),
+		Claims:          claims,
+	}, nil
+}
+
 // decodeIDTokenClaims decodes the payload of a JWT (base64url) into a
 // claim map. It does not verify the signature — the fake IdP signs with
 // a known secret and the exchange is over the token endpoint; signature
