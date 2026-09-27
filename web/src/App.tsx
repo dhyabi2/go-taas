@@ -10,6 +10,8 @@ import { isAdminPath, MOVED_ADMIN_ROUTES, realmHome } from './surface-routes';
 import { UserShell } from './shells/UserShell';
 import { AdminShell } from './shells/AdminShell';
 import UserLoginPage from './pages/user/UserLoginPage';
+import UserCustomLoginPage from './pages/user/UserCustomLoginPage';
+import AdminCustomLoginPage from './pages/AdminCustomLoginPage';
 import UserQuickstartPage from './pages/user/QuickstartPage';
 import UserUsagePage from './pages/user/UsagePage';
 import UserApiKeysPage from './pages/user/ApiKeysPage';
@@ -77,6 +79,8 @@ function UserSurface({ path }: { path: string }) {
       <OrgProvider>
         {path === '/login' ? (
           <UserLoginPage />
+        ) : path.startsWith('/login/') ? (
+          <UserCustomLoginPage providerId={path.slice('/login/'.length)} />
         ) : (
           <UserShell>
             <Routes>
@@ -104,6 +108,8 @@ function AdminSurface({ path }: { path: string }) {
       <OrgProvider>
         {path === '/admin/login' ? (
           <AdminLoginPage />
+        ) : path.startsWith('/admin/login/') ? (
+          <AdminCustomLoginPage providerId={path.slice('/admin/login/'.length)} />
         ) : (
           <AdminShell>
             <Routes>

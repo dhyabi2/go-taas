@@ -63,6 +63,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const realm = useRealm();
   const api = useApi();
   const [path, setPath] = useState(window.location.pathname);
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [switchNotice, setSwitchNotice] = useState('');
 
   useEffect(() => {
     return Router.subscribe(() => setPath(window.location.pathname));
@@ -78,6 +81,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     }
     api
       .get<SessionInfo>('/api/v1/admin/auth/session', '')
+      .then((info) => setSession(info))
       .catch((e) => {
         const code = e && e.code;
         if (code === 10027 || code === 10038) {
@@ -96,6 +100,30 @@ export function AdminShell({ children }: { children: ReactNode }) {
     }
     setSessionToken(realm, '');
     navigate(realmLoginPath(realm));
+  };
+
+  const switchToUser = async () => {
+    setSwitching(true);
+    setSwitchNotice('');
+    try {
+      const data = await api.post<{ sessionToken?: string }>(
+        '/api/v1/admin/auth/session:switch-to-user',
+        '',
+        {},
+      );
+      if (data.sessionToken) {
+        // Store the user-realm token and navigate to the user home
+        // (feature-22 FR3.3).
+        setSessionToken('user', data.sessionToken);
+        navigate('/usage');
+      } else {
+        setSwitchNotice('Switch did not complete. Try again.');
+      }
+    } catch {
+      setSwitchNotice('Switch failed. Try again.');
+    } finally {
+      setSwitching(false);
+    }
   };
 
   return (
@@ -127,9 +155,28 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
         <OrgSwitcher />
         {getSessionToken(realm) && (
-          <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
-            Sign out
-          </button>
+          <div className="account-block" data-testid="admin-account-block">
+            {session && (
+              <div className="account-identity">
+                <span className="account-username">{session.username}</span>
+                <span className="badge">admin</span>
+              </div>
+            )}
+            <button
+              className="link"
+              data-testid="switch-to-user"
+              disabled={switching}
+              onClick={() => void switchToUser()}
+            >
+              {switching ? 'Switching…' : 'Switch to user console'}
+            </button>
+            {switchNotice && (
+              <div className="notice" data-testid="switch-notice">{switchNotice}</div>
+            )}
+            <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
+              Sign out
+            </button>
+          </div>
         )}
       </aside>
       <main className="main">

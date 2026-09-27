@@ -1,8 +1,11 @@
-// End-user login page (feature-17): realm-pinned sign-in against the
-// user surface's SSO providers.
+// End-user login page (feature-17/22): realm-pinned sign-in against the
+// user surface's SSO providers. An OIDC or LDAP provider navigates to
+// the TaaS custom login page; a SAML provider keeps the redirect flow.
 
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
+import { navigate } from '../../router';
+import { realmCustomLoginPath } from '../../surface-routes';
 import brandLogo from '../../assets/brand/logo.svg';
 
 interface PublicProvider {
@@ -25,7 +28,13 @@ export default function UserLoginPage() {
       .finally(() => setLoading(false));
   }, [api]);
 
-  const signIn = async (providerId: string) => {
+  const signIn = async (providerId: string, type: string) => {
+    // OIDC/LDAP → the TaaS custom login page (feature-22 AD7); SAML →
+    // the redirect flow.
+    if (type === 'oidc' || type === 'ldap') {
+      navigate(realmCustomLoginPath('user', providerId));
+      return;
+    }
     try {
       const data = await api.get<{ redirectUrl?: string }>(
         `/api/v1/auth/sso/${providerId}/authorize`,
@@ -60,7 +69,7 @@ export default function UserLoginPage() {
               key={p.providerId}
               className="provider-button"
               data-testid={`sso-login-${p.providerId}`}
-              onClick={() => void signIn(p.providerId)}
+              onClick={() => void signIn(p.providerId, p.type)}
             >
               Sign in with {p.displayName}
             </button>

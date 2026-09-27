@@ -28,6 +28,13 @@ export function realmLoginPath(realm: Realm): string {
   return realm === 'admin' ? '/admin/login' : '/login';
 }
 
+// realmCustomLoginPath returns the custom login route of a realm for a
+// provider (feature-22): /login/{provider_id} (user) or
+// /admin/login/{provider_id} (admin).
+export function realmCustomLoginPath(realm: Realm, providerId: string): string {
+  return realm === 'admin' ? `/admin/login/${providerId}` : `/login/${providerId}`;
+}
+
 // isAllowedNext validates the next parameter of a guard redirect so the
 // login page cannot be used as a surface-crossing redirector (S7).
 export function isAllowedNext(realm: Realm, next: string): boolean {

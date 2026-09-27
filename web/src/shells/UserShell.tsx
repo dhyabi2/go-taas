@@ -21,6 +21,11 @@ import { realmLoginPath } from '../surface-routes';
 import { OrgSwitcher } from '../org';
 import brandLogo from '../assets/brand/logo-dark.svg';
 
+// adminRoles is the set of session roles that make a user an
+// administrator (feature-22 AD3). It mirrors the server-side default so
+// the switch-to-admin button is shown only to admins.
+const adminRoles = ['platform-admin', 'org-admin', 'admin', 'owner'];
+
 export const USER_NAV_ITEMS: { path: string; label: string; testid: string; icon: Icon }[] = [
   { path: '/quickstart', label: 'Quickstart', testid: 'user-nav-quickstart', icon: Rocket },
   { path: '/usage', label: 'Usage', testid: 'user-nav-usage', icon: ChartLine },
@@ -40,6 +45,9 @@ export function UserShell({ children }: { children: ReactNode }) {
   const realm = useRealm();
   const api = useApi();
   const [path, setPath] = useState(window.location.pathname);
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [switchNotice, setSwitchNotice] = useState('');
 
   useEffect(() => {
     return Router.subscribe(() => setPath(window.location.pathname));
@@ -55,6 +63,7 @@ export function UserShell({ children }: { children: ReactNode }) {
     }
     api
       .get<SessionInfo>('/api/v1/auth/session', '')
+      .then((info) => setSession(info))
       .catch((e) => {
         const code = e && e.code;
         if (code === 10027 || code === 10038) {
@@ -73,6 +82,35 @@ export function UserShell({ children }: { children: ReactNode }) {
     }
     setSessionToken(realm, '');
     navigate(realmLoginPath(realm));
+  };
+
+  // The switch-to-admin button is shown only to users whose session has
+  // an admin role (feature-22 FR3.1).
+  const isAdmin = (session?.roles || []).some((r) => adminRoles.includes(r));
+
+  const switchToAdmin = async () => {
+    setSwitching(true);
+    setSwitchNotice('');
+    try {
+      const data = await api.post<{ sessionToken?: string }>(
+        '/api/v1/auth/session:switch-to-admin',
+        '',
+        {},
+      );
+      if (data.sessionToken) {
+        // Store the admin-realm token and navigate to the admin home
+        // (feature-22 FR3.2).
+        setSessionToken('admin', data.sessionToken);
+        navigate('/admin/models');
+      } else {
+        setSwitchNotice('Switch did not complete. Try again.');
+      }
+    } catch (e) {
+      const code = e && (e as { code?: number }).code;
+      setSwitchNotice(code === 10036 ? 'You do not have permission to switch to admin.' : 'Switch failed. Try again.');
+    } finally {
+      setSwitching(false);
+    }
   };
 
   return (
@@ -104,9 +142,30 @@ export function UserShell({ children }: { children: ReactNode }) {
         </nav>
         <OrgSwitcher />
         {getSessionToken(realm) && (
-          <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
-            Sign out
-          </button>
+          <div className="account-block" data-testid="user-account-block">
+            {session && (
+              <div className="account-identity">
+                <span className="account-username">{session.username}</span>
+                {isAdmin && <span className="badge">admin</span>}
+              </div>
+            )}
+            {isAdmin && (
+              <button
+                className="link"
+                data-testid="switch-to-admin"
+                disabled={switching}
+                onClick={() => void switchToAdmin()}
+              >
+                {switching ? 'Switching…' : 'Switch to admin'}
+              </button>
+            )}
+            {switchNotice && (
+              <div className="notice" data-testid="switch-notice">{switchNotice}</div>
+            )}
+            <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
+              Sign out
+            </button>
+          </div>
         )}
       </aside>
       <main className="main">
