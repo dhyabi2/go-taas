@@ -976,6 +976,58 @@ select option {
   flex: 1;
 }
 
+/* ---- filter/search toolbar (Load Tests and other list pages) ---- */
+.filters {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filters select,
+.filters input[type='text'],
+.filters input[type='search'] {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--panel-solid);
+  font-family: var(--font-body);
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.filters select {
+  min-width: 160px;
+}
+
+.filters input[type='text'],
+.filters input[type='search'] {
+  min-width: 240px;
+  flex: 1;
+}
+
+.filters select:hover,
+.filters input[type='text']:hover,
+.filters input[type='search']:hover {
+  border-color: var(--primary);
+}
+
+.filters select:focus,
+.filters input[type='text']:focus,
+.filters input[type='search']:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+  outline: none;
+}
+
+.filters input[type='text']::placeholder,
+.filters input[type='search']::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
+}
+
 .back-link {
   color: var(--primary);
   text-decoration: none;
