@@ -38,6 +38,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -52,6 +53,7 @@ func main() {
 	userID := flag.String("user", "e2e-user", "user id")
 	username := flag.String("username", "e2e-user", "username")
 	email := flag.String("email", "e2e@example.com", "email")
+	roles := flag.String("roles", "admin", "comma-separated session roles")
 	ttl := flag.Duration("ttl", 24*time.Hour, "session TTL")
 	flag.Parse()
 
@@ -70,7 +72,13 @@ func main() {
 	now := time.Now().Unix()
 	expiresAt := now + int64(ttl.Seconds())
 
-	roles, _ := json.Marshal([]string{"admin"})
+	roleList := []string{}
+	for _, r := range strings.Split(*roles, ",") {
+		if r = strings.TrimSpace(r); r != "" {
+			roleList = append(roleList, r)
+		}
+	}
+	rolesJSON, _ := json.Marshal(roleList)
 	orgs, _ := json.Marshal([]string{*org})
 
 	key := sessionKeyPrefix + sessionID
@@ -78,7 +86,7 @@ func main() {
 		"user_id":         *userID,
 		"username":        *username,
 		"email":           *email,
-		"roles":           string(roles),
+		"roles":           string(rolesJSON),
 		"accessible_orgs": string(orgs),
 		"active_org":      *org,
 		"expires_at":      expiresAt,

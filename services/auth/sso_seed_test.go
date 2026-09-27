@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/go-taas/go-taas/services/tenancy"
 )
 
 // TestSeedComposeProviderAndAdmin verifies the compose seeding
@@ -35,13 +37,24 @@ func TestSeedComposeProviderAndAdmin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "admin@example.com", adminUser.Email)
 
+	// The admin user has an org_members row with the admin role so the
+	// session realm derives as admin when the membership resolver is
+	// wired (feature-22 AD8).
+	var memberCount int64
+	require.NoError(t, db.Model(&tenancy.OrgMember{}).
+		Where("user_id = ? AND role = ?", adminUser.ID, tenancy.RoleAdmin).
+		Count(&memberCount).Error)
+	assert.EqualValues(t, 1, memberCount, "admin user has an admin org membership")
+
 	// The seed is idempotent: re-running does not duplicate rows.
 	require.NoError(t, svc.EnsureComposeSeed(ctx))
-	var providerCount, userCount int64
+	var providerCount, userCount, memberCount2 int64
 	require.NoError(t, db.Model(&SSOProvider{}).Count(&providerCount).Error)
 	require.NoError(t, db.Model(&User{}).Count(&userCount).Error)
+	require.NoError(t, db.Model(&tenancy.OrgMember{}).Count(&memberCount2).Error)
 	assert.EqualValues(t, 1, providerCount, "no duplicate provider on re-seed")
 	assert.EqualValues(t, 1, userCount, "no duplicate admin user on re-seed")
+	assert.EqualValues(t, 1, memberCount2, "no duplicate membership on re-seed")
 }
 
 // fakeAdminOIDCServer is an in-process OIDC IdP that answers the

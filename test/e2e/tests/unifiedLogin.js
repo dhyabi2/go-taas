@@ -130,7 +130,7 @@ module.exports = {
   // AC8: a non-admin user does not see switch-to-admin.
   'AC8: non-admin does not see switch-to-admin': function (browser) {
     // Seed a non-admin-role user session on the user console.
-    api.seedSession(browser, 'user', browser.globals.orgA);
+    api.seedSession(browser, 'user', browser.globals.orgA, 'member');
     browser.url(browser.globals.baseUrl + '/usage');
     browser.waitForElementPresent('[data-testid="user-shell"]', 15000, 'AC8: user shell');
     browser.assert.not.elementPresent('[data-testid="switch-to-admin"]', 'AC8: no switch-to-admin for non-admin');
@@ -176,6 +176,13 @@ module.exports = {
   // AC12: the user token is stored under go-taas.user.session-token and
   // the admin token under go-taas.admin.session-token.
   'AC12: tokens are stored under the realm-matching keys': function (browser) {
+    // Clear any user token left by an earlier test in this browser
+    // profile so the assertion that an admin login stores no user token
+    // is meaningful.
+    browser.execute(function () {
+      localStorage.removeItem('go-taas.user.session-token');
+      localStorage.removeItem('go-taas.admin.session-token');
+    });
     browser.url(browser.globals.baseUrl + '/login/keycloak');
     browser.waitForElementPresent('[data-testid="custom-login-username"]', 15000, 'AC12: username field');
     browser.setValue('[data-testid="custom-login-username"]', 'admin');

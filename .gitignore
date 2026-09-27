@@ -63,3 +63,6 @@ proto/**/*.pb.gw.go
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Local verification helper (never committed)
+build/docker/Dockerfile.verify

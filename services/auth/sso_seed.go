@@ -10,10 +10,12 @@ package auth
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/services/tenancy"
 )
 
 // seedKeycloakProviderID is the provider id of the compose Keycloak IdP.
@@ -39,6 +41,12 @@ const seedKeycloakRedirectURI = "http://localhost:9091/api/v1/auth/sso/*"
 
 // seedAdminUsername is the compose admin user's username.
 const seedAdminUsername = "admin"
+
+// seedAdminOrgID is the compose organization the admin user belongs to.
+// The admin user needs an org_members row with an admin role so the
+// session realm derives as admin when the membership resolver is wired
+// (feature-22 AD8).
+const seedAdminOrgID = "org-admin"
 
 // seedKeycloakAttributeMapping maps the Keycloak admin role claim to the
 // TaaS admin role (feature-22 §5.4). The role claim is the nested
@@ -102,6 +110,63 @@ func (s *Service) seedComposeProviderAndAdmin(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// 2b. The admin user's org membership with the admin role. When the
+	// membership resolver is wired (feature #10, AD2/AD11), the session
+	// roles come from org_members (authoritative), so the admin user
+	// must have an org_members row with an admin role for the realm to
+	// derive as admin (feature-22 AD8). The owning organization is
+	// created first (idempotent). Idempotent: skip if the membership
+	// already exists. The step is skipped when the tenancy tables are
+	// absent (e.g. a unit test that migrates only the auth schema).
+	db, err := s.gormDB()
+	if err != nil {
+		return err
+	}
+	if db.Migrator().HasTable(&tenancy.Organization{}) {
+		var orgCount int64
+		if err := db.WithContext(ctx).Model(&tenancy.Organization{}).
+			Where("id = ?", seedAdminOrgID).Count(&orgCount).Error; err != nil {
+			return err
+		}
+		if orgCount == 0 {
+			org := &tenancy.Organization{
+				ID:          seedAdminOrgID,
+				DisplayName: "Platform Administrators",
+				State:       tenancy.StateActive,
+			}
+			if err := db.WithContext(ctx).Create(org).Error; err != nil {
+				return err
+			}
+		}
+		var memberCount int64
+		if err := db.WithContext(ctx).Model(&tenancy.OrgMember{}).
+			Where("user_id = ?", adminUser.ID).Count(&memberCount).Error; err != nil {
+			return err
+		}
+		if memberCount == 0 {
+			member := &tenancy.OrgMember{
+				OrganizationID: seedAdminOrgID,
+				UserID:         adminUser.ID,
+				Role:           tenancy.RoleAdmin,
+				JoinedAt:       time.Now().UTC(),
+			}
+			if err := db.WithContext(ctx).Create(member).Error; err != nil {
+				return err
+			}
+		}
+	}
+
+	return s.seedAdminBinding(ctx, repo, prov, adminUser)
+}
+
+// seedAdminBinding creates the admin user's identity binding if it does
+// not exist (feature-22 AD10). The external subject is issuer + ":" +
+// the Keycloak admin subject. The realm-export.json does not fix the
+// subject, so the seed resolves it from the IdP at first boot; if it
+// cannot be resolved, the binding is created on the first successful
+// login via JIT provisioning.
+func (s *Service) seedAdminBinding(ctx context.Context, repo *SSORepository, prov *SSOProvider, adminUser *User) error {
 	adminSubject, err := s.resolveKeycloakAdminSubject(ctx, prov)
 	if err != nil || adminSubject == "" {
 		// Best-effort: JIT provisioning covers the binding on first

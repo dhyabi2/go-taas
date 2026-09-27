@@ -704,7 +704,20 @@ func (s *Service) resolveIdentity(ctx context.Context, repo *SSORepository, prov
 		Email:    identity.Email,
 	}
 	if err := repo.CreateUser(ctx, user); err != nil {
-		return nil, err
+		// A username that already exists (e.g. the compose seed created
+		// the admin user before the binding was resolvable, feature-22
+		// AD10) is bound to the existing user rather than failing: the
+		// identity is the same person, and the binding is created on the
+		// first successful login via JIT provisioning.
+		if apierrors.CodeOf(err) == apierrors.CodeUserExists {
+			existing, ferr := repo.FindUserByUsername(ctx, username)
+			if ferr != nil {
+				return nil, ferr
+			}
+			user = existing
+		} else {
+			return nil, err
+		}
 	}
 	binding = &IdentityBinding{
 		ID:              uuid.NewString(),
