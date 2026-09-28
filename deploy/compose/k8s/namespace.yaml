@@ -1,0 +1,10 @@
+# The Kubernetes namespace the compose controller manages inference
+# resources in. Created by `make compose-up` and removed by
+# `make compose-down`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: taas
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: inference

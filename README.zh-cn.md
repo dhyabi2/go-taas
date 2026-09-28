@@ -187,13 +187,13 @@ make compose-down  # 停止并删除环境
 - `WEIGHTS_STORAGE_CLASS` —— controller 用来创建共享 `model-weights` PVC 的
   JuiceFS StorageClass。
 
-控制面必须能访问推理 Pod 所使用的同一 JuiceFS 元数据引擎（即集群 Redis）。
-集群 Redis 是 ClusterIP/headless 服务，宿主机无法直连，因此启动环境前先用
-NodePort 把它暴露到节点 IP 上：
-
-```bash
-kubectl apply -f deploy/compose/cluster-prereqs.yaml
-```
+`make compose-up` 会自动创建环境所需的 Kubernetes 资源（通过
+`deploy/compose/scripts/cluster-up.sh`）：MinIO 桶、JuiceFS 文件系统、
+`taas` 命名空间、`juicefs-taas-models` StorageClass 与 secret、
+`model-weights` PVC、Redis NodePort（集群 Redis 是 ClusterIP 服务，宿主机
+无法直连，因此通过 NodePort 暴露到节点 IP 的 `:30379`），以及加速器节点
+标签。`make compose-down` 会删除 compose 环境（含数据库卷）并清理上述全部
+集群资源（通过 `deploy/compose/scripts/cluster-down.sh`）。
 
 管理控制台由 `taas-server` 提供，访问 `http://localhost:9091/admin`
 （与 API 同源，无需 CORS 配置）。管理类 API 位于 `/api/v1/admin/*`；

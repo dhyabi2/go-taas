@@ -1,0 +1,28 @@
+# Publishes the cluster Redis (the JuiceFS metadata engine) on the node
+# IP so the compose control plane can reach it. The cluster Redis is a
+# headless/ClusterIP service, so it is NOT reachable from the host where
+# docker compose runs; this NodePort makes it reachable at
+# <node-ip>:30379. Created by `make compose-up` and removed by
+# `make compose-down`.
+#
+# NOTE: the cluster Redis used by the JuiceFS filesystem has no password
+# (requirepass is empty), so JUICE_FS_META_URL must not carry one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: yunzhi-redis-nodeport
+  namespace: yunzhi
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: juicefs-meta
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: yunzhi-redis
+  ports:
+    - name: redis-client
+      port: 6379
+      targetPort: 6379
+      # Fixed NodePort so .env is stable across re-applies. Change it
+      # (and JUICE_FS_META_URL) if it collides with an existing service.
+      nodePort: 30379

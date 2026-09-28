@@ -1,0 +1,54 @@
+# Formats the JuiceFS model-weights filesystem (jfs-taas-models) so the
+# CSI driver can mount it. Runs once as a Job; the filesystem name,
+# metadata URL, storage backend and credentials are templated from the
+# .env file by deploy/compose/scripts/cluster-up.sh.
+#
+# The juicedata/mount image is already present in the cluster (the CSI
+# driver uses it). The metadata URL points at the in-cluster Redis
+# (yunzhi-redis-headless.yunzhi.svc.cluster.local:6379/1) and the data
+# backend at the in-cluster MinIO (minio-api.yunzhi:9000), so the Job
+# does not depend on host networking.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taas-juicefs-format
+  namespace: yunzhi
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: model-weights
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: juicefs
+          image: juicedata/mount:ce-v1.4.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              # Format the filesystem; tolerate an already-formatted
+              # filesystem so the Job is idempotent across re-runs.
+              juicefs format \
+                --storage=${JUICE_FS_STORAGE} \
+                --bucket=${JUICE_FS_BUCKET} \
+                --access-key=${JUICE_FS_ACCESS_KEY} \
+                --secret-key=${JUICE_FS_SECRET_KEY} \
+                ${JUICE_FS_META_URL} ${JUICE_FS_NAME} || true
+              echo "filesystem ${JUICE_FS_NAME} ready"
+          env:
+            - name: JUICE_FS_NAME
+              value: ${JUICE_FS_NAME}
+            - name: JUICE_FS_META_URL
+              value: ${JUICE_FS_META_URL}
+            - name: JUICE_FS_STORAGE
+              value: ${JUICE_FS_STORAGE}
+            - name: JUICE_FS_BUCKET
+              value: ${JUICE_FS_BUCKET}
+            - name: JUICE_FS_ACCESS_KEY
+              value: ${JUICE_FS_ACCESS_KEY}
+            - name: JUICE_FS_SECRET_KEY
+              value: ${JUICE_FS_SECRET_KEY}

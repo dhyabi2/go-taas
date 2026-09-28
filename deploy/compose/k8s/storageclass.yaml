@@ -1,0 +1,24 @@
+# The JuiceFS-backed StorageClass the controller provisions the shared
+# model-weights PVC from. It references the juicefs-taas-models-secret
+# (in the yunzhi namespace) that carries the filesystem connection
+# details. pathPattern "/" mounts the whole filesystem so the control
+# plane and every inference pod read the same model weights.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: juicefs-taas-models
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: model-weights
+provisioner: csi.juicefs.com
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+parameters:
+  csi.storage.k8s.io/controller-expand-secret-name: juicefs-taas-models-secret
+  csi.storage.k8s.io/controller-expand-secret-namespace: yunzhi
+  csi.storage.k8s.io/node-publish-secret-name: juicefs-taas-models-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: yunzhi
+  csi.storage.k8s.io/provisioner-secret-name: juicefs-taas-models-secret
+  csi.storage.k8s.io/provisioner-secret-namespace: yunzhi
+  pathPattern: /

@@ -1,0 +1,19 @@
+# The shared model-weights PersistentVolumeClaim. It is provisioned from
+# the juicefs-taas-models StorageClass so every inference pod reads the
+# same model weights the control plane downloads. Created by
+# `make compose-up` and removed by `make compose-down`.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-weights
+  namespace: taas
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: model-weights
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: juicefs-taas-models
+  resources:
+    requests:
+      storage: 100Gi

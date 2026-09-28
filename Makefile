@@ -49,7 +49,7 @@ DOCKER_NETWORK ?= --network=host
 
 .PHONY: all pbgen pbgen-ensure deps lint ut fvt build test clean \
 	docker-build docker-push docker-build-multi compose-up compose-down \
-	compose-ps compose-logs
+	compose-ps compose-logs compose-cluster-up compose-cluster-down
 
 all: build
 
@@ -115,17 +115,19 @@ docker-push:
 		docker push "$(IMAGE_REPO)/$${target}:$(IMAGE_TAG)" || exit 1; \
 	done
 
-## compose-up: build the taas-server and controller images and start the
-## local deployment-verification stack (PostgreSQL, Redis, NATS, Keycloak,
-## taas-server, controller). The admin console is served by taas-server at
-## http://localhost:9091/ — same origin as the API. Keycloak (the local
-## OIDC IdP) is at http://localhost:8080 (admin / admin); its realm,
-## client and test user are imported from deploy/compose/keycloak.
+## compose-up: create the cluster resources, build the taas-server and
+## controller images and start the local deployment-verification stack
+## (PostgreSQL, Redis, NATS, Keycloak, taas-server, controller). The admin
+## console is served by taas-server at http://localhost:9091/ — same origin
+## as the API. Keycloak (the local OIDC IdP) is at http://localhost:8080
+## (admin / admin); its realm, client and test user are imported from
+## deploy/compose/keycloak.
 ## The controller reconciles against the cluster in ~/.kube/config (or
 ## $KUBECONFIG); see deploy/compose/docker-compose.yaml.
 ## NOTE: for the SSO flow the host must resolve `keycloak` to 127.0.0.1:
 ##   echo '127.0.0.1 keycloak' | sudo tee -a /etc/hosts
 compose-up:
+	$(MAKE) compose-cluster-up
 	docker build $(DOCKER_NETWORK) --target taas-server \
 		$(DOCKER_BUILD_ARGS) \
 		-f $(DOCKERFILE) -t "$(IMAGE_REPO)/taas-server:$(IMAGE_TAG)" .
@@ -136,9 +138,24 @@ compose-up:
 	@echo ">> console: http://localhost:9091/  (API: /api/v1/..., gRPC: 9090, metrics: 9092)"
 	@echo ">> keycloak: http://localhost:8080/  (admin / admin)"
 
-## compose-down: stop and remove the local verification stack
+## compose-cluster-up: create the Kubernetes resources the compose stack
+## needs (MinIO bucket, JuiceFS filesystem, namespace, storageclass,
+## secret, PVC, redis NodePort, node labels). Idempotent.
+compose-cluster-up:
+	bash deploy/compose/scripts/cluster-up.sh
+
+## compose-down: stop and remove the local verification stack (including
+## the database volume) and clean up the Kubernetes resources the stack
+## created (namespace, storageclass, secret, PVC, redis NodePort, MinIO
+## bucket, JuiceFS filesystem, node labels).
 compose-down:
 	docker compose --env-file .env -f deploy/compose/docker-compose.yaml down -v
+	$(MAKE) compose-cluster-down
+
+## compose-cluster-down: remove the Kubernetes resources the compose stack
+## created. Idempotent.
+compose-cluster-down:
+	bash deploy/compose/scripts/cluster-down.sh
 
 ## compose-ps: show the status of the verification stack
 compose-ps:

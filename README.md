@@ -188,14 +188,15 @@ The stack reads `.env` (git-ignored; see `.env.example` for the full list):
 - `WEIGHTS_STORAGE_CLASS` — the JuiceFS-backed StorageClass the
   controller provisions the shared `model-weights` PVC from.
 
-The compose control plane must reach the same JuiceFS metadata engine the
-inference pods use, which is the cluster Redis. Because the cluster Redis
-is a ClusterIP/headless service it is not reachable from the host, so it
-is published on the node IP with a NodePort before starting the stack:
-
-```bash
-kubectl apply -f deploy/compose/cluster-prereqs.yaml
-```
+`make compose-up` creates the Kubernetes resources the stack needs
+automatically (via `deploy/compose/scripts/cluster-up.sh`): the MinIO
+bucket, the JuiceFS filesystem, the `taas` namespace, the
+`juicefs-taas-models` StorageClass + secret, the `model-weights` PVC, the
+Redis NodePort (the cluster Redis is ClusterIP-only, so it is published
+on the node IP at `:30379`), and the accelerator node labels.
+`make compose-down` removes the compose stack (including the database
+volume) and cleans up all of those cluster resources (via
+`deploy/compose/scripts/cluster-down.sh`).
 
 The admin console is served by `taas-server` at `http://localhost:9091/admin`
 (same origin as the API — no CORS setup needed). Management APIs live under
