@@ -167,13 +167,34 @@ make build   # build the binary
 
 ### Docker Compose
 
-A one-command experience environment: control plane (with console), PostgreSQL, Redis, and the message queue.
+A one-command experience environment: control plane (with console), PostgreSQL, Redis, the message queue, and a JuiceFS client that mounts the shared model-weights filesystem.
 
 ```bash
+cp .env.example .env   # fill in Harbor + JuiceFS/MinIO values (see below)
 make compose-up    # build images (console included) and start the local stack
 make compose-ps    # show stack status
 make compose-logs  # follow logs (or: make compose-logs SERVICE=taas-server)
 make compose-down  # stop and remove the stack
+```
+
+The stack reads `.env` (git-ignored; see `.env.example` for the full list):
+
+- `HARBOR_URL` / `HARBOR_USERNAME` / `HARBOR_PASSWORD` — the internal
+  container registry the image-import flow pushes engine images into
+  (all imports land in the `taas` project).
+- `JUICE_FS_*` — the JuiceFS model-weights filesystem (MinIO bucket +
+  Redis metadata) that the control plane mounts at `/data/weights` and
+  the inference pods read through the cluster StorageClass.
+- `WEIGHTS_STORAGE_CLASS` — the JuiceFS-backed StorageClass the
+  controller provisions the shared `model-weights` PVC from.
+
+The compose control plane must reach the same JuiceFS metadata engine the
+inference pods use, which is the cluster Redis. Because the cluster Redis
+is a ClusterIP/headless service it is not reachable from the host, so it
+is published on the node IP with a NodePort before starting the stack:
+
+```bash
+kubectl apply -f deploy/compose/cluster-prereqs.yaml
 ```
 
 The admin console is served by `taas-server` at `http://localhost:9091/admin`

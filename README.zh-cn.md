@@ -167,13 +167,32 @@ make build   # 构建二进制
 
 ### Docker Compose 体验
 
-一键体验环境：控制面（含控制台）+ PostgreSQL + Redis + 消息队列。
+一键体验环境：控制面（含控制台）+ PostgreSQL + Redis + 消息队列 + 挂载共享
+模型权重文件系统的 JuiceFS 客户端。
 
 ```bash
+cp .env.example .env   # 填写 Harbor 与 JuiceFS/MinIO 配置（见下）
 make compose-up    # 构建镜像（含控制台）并启动本地环境
 make compose-ps    # 查看环境状态
 make compose-logs  # 跟踪日志（或：make compose-logs SERVICE=taas-server）
 make compose-down  # 停止并删除环境
+```
+
+环境通过 `.env` 读取配置（该文件已被 git 忽略，完整变量见 `.env.example`）：
+
+- `HARBOR_URL` / `HARBOR_USERNAME` / `HARBOR_PASSWORD` —— 镜像导入流程推送
+  引擎镜像的内部 Harbor 地址（所有导入镜像都落在 `taas` 项目下）。
+- `JUICE_FS_*` —— 模型权重文件系统（MinIO 桶 + Redis 元数据）。控制面把它
+  挂载到 `/data/weights`，推理 Pod 通过集群 StorageClass 读取同一文件系统。
+- `WEIGHTS_STORAGE_CLASS` —— controller 用来创建共享 `model-weights` PVC 的
+  JuiceFS StorageClass。
+
+控制面必须能访问推理 Pod 所使用的同一 JuiceFS 元数据引擎（即集群 Redis）。
+集群 Redis 是 ClusterIP/headless 服务，宿主机无法直连，因此启动环境前先用
+NodePort 把它暴露到节点 IP 上：
+
+```bash
+kubectl apply -f deploy/compose/cluster-prereqs.yaml
 ```
 
 管理控制台由 `taas-server` 提供，访问 `http://localhost:9091/admin`

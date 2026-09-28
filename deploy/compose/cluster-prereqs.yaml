@@ -1,0 +1,38 @@
+# Cluster prerequisites for the local docker-compose verification stack.
+#
+# The compose control plane (taas-server) mounts the same JuiceFS
+# filesystem that the inference pods read through the cluster's
+# JuiceFS-backed StorageClass. To do that it must reach the JuiceFS
+# metadata engine, which is the cluster's Redis. The cluster Redis is a
+# headless/ClusterIP service, so it is NOT reachable from the host where
+# docker compose runs; this manifest publishes it on the node IP with a
+# NodePort.
+#
+# Apply once before `make compose-up`:
+#
+#   kubectl apply -f deploy/compose/cluster-prereqs.yaml
+#
+# Then point JUICE_FS_META_URL in .env at the node IP and this NodePort,
+# e.g. redis://<node-ip>:30379/1 (see .env.example in the repo root).
+#
+# NOTE: the cluster Redis used by the JuiceFS filesystem has no
+# password (requirepass is empty), so the URL must not carry one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: yunzhi-redis-nodeport
+  namespace: yunzhi
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: juicefs-meta
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: yunzhi-redis
+  ports:
+    - name: redis-client
+      port: 6379
+      targetPort: 6379
+      # Fixed NodePort so .env is stable across re-applies. Change it
+      # (and JUICE_FS_META_URL) if it collides with an existing service.
+      nodePort: 30379

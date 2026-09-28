@@ -47,55 +47,41 @@ services:
       timeout: 3s
       retries: 30
 
-  # MinIO object store backing the JuiceFS model-weights filesystem. The
-  # "taas" bucket is created by the minio-init job on startup.
-  minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-taas}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-taas-minio-secret}
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
-    volumes:
-      - minio-data:/data
-
-  # One-shot job that creates the "taas" bucket (idempotent).
-  minio-init:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-taas} ${MINIO_ROOT_PASSWORD:-taas-minio-secret}
-        mc mb --ignore-existing local/${MINIO_BUCKET:-taas}
-        echo "minio bucket ${MINIO_BUCKET:-taas} ready"
-
   # JuiceFS client that mounts the model-weights filesystem (backed by
-  # MinIO + Redis) and shares it with the control plane through the
-  # juicefs-data named volume. The control plane writes downloaded model
-  # weights here; inference pods read the same files through the
-  # JuiceFS-backed StorageClass in the cluster.
+  # the cluster's MinIO "taas" bucket + Redis DB 1) and shares it with
+  # the control plane. The control plane writes downloaded model weights
+  # here; inference pods read the same files through the JuiceFS-backed
+  # StorageClass in the cluster.
+  #
+  # Sharing a FUSE mount between containers is NOT possible through a
+  # named volume (the FUSE mount overlays the volume, so the other
+  # container sees the volume's underlying content). Instead the FUSE
+  # mount is made on a host bind mount with `rshared` propagation, so it
+  # propagates back to the host and the control plane sees it through the
+  # same bind mount. FUSE mounting also requires /dev/fuse, SYS_ADMIN and
+  # (on this host) privileged mode.
   juicefs:
-    image: juicedata/juicefs:latest
+    image: juicedata/mount:ce-v1.4.1
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        juicefs format --storage=${JUICE_FS_STORAGE:-s3} --bucket=${JUICE_FS_BUCKET} --access-key=${MINIO_ROOT_USER:-taas} --secret-key=${MINIO_ROOT_PASSWORD:-taas-minio-secret} ${JUICE_FS_META_URL} ${JUICE_FS_NAME} || true
+        juicefs format --storage=${JUICE_FS_STORAGE:-s3} --bucket=${JUICE_FS_BUCKET} --access-key=${JUICE_FS_ACCESS_KEY} --secret-key=${JUICE_FS_SECRET_KEY} ${JUICE_FS_META_URL} ${JUICE_FS_NAME} || true
         juicefs mount -d ${JUICE_FS_META_URL} /mnt/jfs
+        # The control plane (taas-server) runs as the distroless nonroot
+        # user (uid 65532); make the mount writable by it.
+        chmod -R 777 /mnt/jfs
         sleep infinity
-    depends_on:
-      minio:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    devices:
+      - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    privileged: true
     volumes:
-      - juicefs-data:/mnt/jfs
+      - type: bind
+        source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}
+        target: /mnt/jfs
+        bind:
+          propagation: rshared
 
   # Local OIDC identity provider for debugging the SSO flow (feature #7).
   # The realm, a confidential client and a test user are imported from
@@ -157,7 +143,11 @@ services:
       CONFIG_IMAGE_HARBOR_PASSWORD: ${HARBOR_PASSWORD:-}
       CONFIG_IMAGE_HARBOR_PROJECT: taas
     volumes:
-      - juicefs-data:/data/weights
+      - type: bind
+        source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}
+        target: /data/weights
+        bind:
+          propagation: rshared
     ports:
       - "9090:9090" # gRPC
       - "9091:9091" # gateway (HTTP/JSON)
@@ -178,6 +168,10 @@ services:
       CONFIG_MQ_URL: nats://nats:4222
       CONFIG_CONTROLLER_KUBECONFIG: /etc/taas/kubeconfig
       CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+      # The namespace the controller manages inference resources in. The
+      # cluster's go-taas namespace is "taas" (the controller default is
+      # "taas-infer", which does not exist in the verification cluster).
+      CONFIG_CONTROLLER_NAMESPACE: ${CONTROLLER_NAMESPACE:-taas}
       # Feature: the JuiceFS-backed StorageClass the controller
       # provisions the model-weights PVC from (read from .env).
       CONFIG_CONTROLLER_WEIGHTS_STORAGECLASS: ${WEIGHTS_STORAGE_CLASS:-}
@@ -186,5 +180,3 @@ services:
 
 volumes:
   pgdata:
-  minio-data:
-  juicefs-data:
