@@ -54,12 +54,12 @@ func newModelDownloadEnv(t *testing.T) *modelDownloadEnv {
 
 	// A fake ModelScope hub: a listing endpoint and per-file downloads.
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/api/v1/models/Qwen/Qwen2.5-0.5B/repo/files":
+		switch r.URL.Path {
+		case "/api/v1/models/Qwen/Qwen2.5-0.5B/repo/files":
 			_, _ = w.Write([]byte(`{"Data":{"Files":[{"Path":"config.json"},{"Path":"model.safetensors"}]}}`))
-		case r.URL.Path == "/models/Qwen/Qwen2.5-0.5B/resolve/master/config.json":
+		case "/models/Qwen/Qwen2.5-0.5B/resolve/master/config.json":
 			_, _ = w.Write([]byte(`{"model_type":"qwen"}`))
-		case r.URL.Path == "/models/Qwen/Qwen2.5-0.5B/resolve/master/model.safetensors":
+		case "/models/Qwen/Qwen2.5-0.5B/resolve/master/model.safetensors":
 			_, _ = w.Write([]byte("weights-bytes"))
 		default:
 			http.NotFound(w, r)

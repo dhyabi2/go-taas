@@ -19,6 +19,18 @@ service ImageService {
     };
   }
 
+  // ImportImage pulls an engine image from a source registry and pushes
+  // it into the internal Harbor project, then registers it in the
+  // catalog with the Harbor reference. All imported images land in the
+  // configured Harbor project (default "taas").
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ImportImage(ImportImageRequest) returns (ImportImageResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/images:import"
+      body: "*"
+    };
+  }
+
   // ListImages returns registered images, optionally filtered by the
   // compatibility matrix.
   // Admin-surface API: served under /api/v1/admin.
@@ -136,6 +148,31 @@ message RegisterImageRequest {
 message RegisterImageResponse {
   taas.common.v1.Response response = 1;
   string image_id = 2;
+}
+
+message ImportImageRequest {
+  // source_reference is the full source image reference to pull, e.g.
+  // "docker.1ms.run/library/vllm:v0.6.3".
+  string source_reference = 1;
+  // accelerator names the hardware platform the image runs on.
+  string accelerator = 2;
+  // engine names the inference engine (vllm, sglang, ...).
+  string engine = 3;
+  // description is free-text build notes (<= 1024 chars).
+  string description = 4;
+  // source_username optionally authenticates against a private source
+  // registry.
+  string source_username = 5;
+  // source_password optionally authenticates against a private source
+  // registry.
+  string source_password = 6;
+}
+
+message ImportImageResponse {
+  taas.common.v1.Response response = 1;
+  string image_id = 2;
+  // reference is the full Harbor reference the image was pushed to.
+  string reference = 3;
 }
 
 message ListImagesRequest {

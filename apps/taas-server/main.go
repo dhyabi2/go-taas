@@ -11,6 +11,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/config"
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/modelhub"
+	"github.com/go-taas/go-taas/pkg/registry"
 	"github.com/go-taas/go-taas/pkg/server"
 
 	"github.com/go-taas/go-taas/services/accelerator"
@@ -85,6 +86,12 @@ func main() {
 	}
 	imageSvc := image.New(srv.Components())
 	srv.RegisterService(imageSvc)
+	// Feature: image import. The importer copies an engine image from a
+	// source registry into the internal Harbor project. It is wired
+	// whenever the Harbor registry is configured.
+	if cfg.Image.Harbor.URL != "" {
+		imageSvc.SetImporter(registry.NewSkopeoImporter())
+	}
 	inferSvc := infer.New(srv.Components())
 	srv.RegisterService(inferSvc)
 	meteringSvc := metering.New(srv.Components())

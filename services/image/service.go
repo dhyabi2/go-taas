@@ -23,6 +23,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/mq"
+	"github.com/go-taas/go-taas/pkg/registry"
 	"github.com/go-taas/go-taas/pkg/server"
 	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/model"
@@ -112,9 +113,24 @@ type Service struct {
 	deleteGuard DeleteGuard
 	inUse       InUseProvider
 
+	// importer copies an engine image from a source registry into the
+	// internal Harbor project (feature: import image). Nil until wired:
+	// the import RPC fails closed.
+	importer Importer
+
 	// auditRecorder is the best-effort audit recorder (feature #15, AD3).
 	// Nil until wired: no audit events are produced.
 	auditRecorder AuditRecorder
+}
+
+// Importer copies a container image from a source reference to a
+// destination reference. It is implemented by the registry package and
+// injected at wiring time, keeping the image module free of a registry
+// dependency.
+type Importer interface {
+	// Import copies the image at srcRef to dstRef, authenticating with
+	// the given credentials.
+	Import(ctx context.Context, srcRef string, srcCreds *registry.Credentials, dstRef string, dstCreds *registry.Credentials) error
 }
 
 // AuditRecorder is the best-effort, non-fatal audit recorder seam
@@ -164,6 +180,12 @@ func (s *Service) SetDeleteGuard(guard DeleteGuard) {
 // the list in_use_count). It must be called before serving.
 func (s *Service) SetInUseProvider(provider InUseProvider) {
 	s.inUse = provider
+}
+
+// SetImporter installs the image importer used by the import RPC. It
+// must be called before serving.
+func (s *Service) SetImporter(imp Importer) {
+	s.importer = imp
 }
 
 // SetCardTypesProvider installs the live card-type provider from the
@@ -498,6 +520,99 @@ func (s *Service) RegisterImage(ctx context.Context, req *imagev1.RegisterImageR
 		Result:         "success",
 	})
 	return &imagev1.RegisterImageResponse{Response: okResponse(), ImageId: img.ID}, nil
+}
+
+// ImportImage pulls an engine image from a source registry and pushes
+// it into the internal Harbor project, then registers it in the catalog
+// with the Harbor reference. All imported images land in the configured
+// Harbor project (default "taas"). The import fails closed when the
+// Harbor registry or the importer is not configured.
+func (s *Service) ImportImage(ctx context.Context, req *imagev1.ImportImageRequest) (*imagev1.ImportImageResponse, error) {
+	sourceRef := strings.TrimSpace(req.GetSourceReference())
+	accelerator := strings.ToLower(strings.TrimSpace(req.GetAccelerator()))
+	engine := strings.TrimSpace(req.GetEngine())
+	description := strings.TrimSpace(req.GetDescription())
+	srcUser := strings.TrimSpace(req.GetSourceUsername())
+	srcPass := req.GetSourcePassword()
+
+	if sourceRef == "" {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: source_reference is required")
+	}
+	if !IsValidAccelerator(accelerator) {
+		return nil, errors.New(errors.CodeImageIncompatible)
+	}
+	if len(engine) < 1 || len(engine) > maxEngineLen {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: engine must be 1-%d characters", maxEngineLen)
+	}
+	if len(description) > maxDescriptionLen {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: description must be at most %d characters", maxDescriptionLen)
+	}
+
+	cfg := config.GetConfig()
+	if cfg == nil || cfg.Image.Harbor.URL == "" {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: internal Harbor registry is not configured")
+	}
+	if s.importer == nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: image import is not configured")
+	}
+
+	// Derive the destination reference: the source repository name and
+	// tag are preserved, but the registry host is replaced by the
+	// internal Harbor and the image lands in the configured project.
+	_, repo, tag, err := registry.ParseReference(sourceRef)
+	if err != nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: %v", err)
+	}
+	destRef := registry.JoinReference(cfg.Image.Harbor.URL, cfg.Image.Harbor.Project+"/"+repo, tag)
+
+	// The catalog name is the Harbor reference (host/project/repo) so
+	// the deployed pods pull from the internal registry.
+	name := cfg.Image.Harbor.URL + "/" + cfg.Image.Harbor.Project + "/" + repo
+
+	repoHandle, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := repoHandle.FindByTriple(ctx, name, tag, accelerator); err == nil {
+		return nil, errors.New(errors.CodeImageExists)
+	}
+
+	var srcCreds *registry.Credentials
+	if srcUser != "" {
+		srcCreds = &registry.Credentials{Username: srcUser, Password: srcPass}
+	}
+	dstCreds := &registry.Credentials{Username: cfg.Image.Harbor.Username, Password: cfg.Image.Harbor.Password}
+
+	if err := s.importer.Import(ctx, sourceRef, srcCreds, destRef, dstCreds); err != nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: import %s failed: %v", sourceRef, err)
+	}
+
+	img := &Image{
+		ID:          uuid.NewString(),
+		Name:        name,
+		Tag:         tag,
+		Accelerator: accelerator,
+		Engine:      engine,
+		Description: description,
+	}
+	if err := repoHandle.CreateImage(ctx, img); err != nil {
+		return nil, err
+	}
+	// Feature #15: record the successful import best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: "",
+		ActorUserID:    "admin",
+		ActorType:      "user",
+		Action:         "image.import",
+		ResourceType:   "image",
+		ResourceID:     img.ID,
+		Result:         "success",
+	})
+	return &imagev1.ImportImageResponse{
+		Response:  okResponse(),
+		ImageId:   img.ID,
+		Reference: destRef,
+	}, nil
 }
 
 // ListImages returns registered images, optionally filtered by the

@@ -19,8 +19,10 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"github.com/go-taas/go-taas/pkg/config"
 	"github.com/go-taas/go-taas/pkg/grpcmiddleware"
 	"github.com/go-taas/go-taas/pkg/mq"
+	"github.com/go-taas/go-taas/pkg/registry"
 	"github.com/go-taas/go-taas/pkg/server"
 	imagev1 "github.com/go-taas/go-taas/proto/taas/image/v1"
 	inferv1 "github.com/go-taas/go-taas/proto/taas/infer/v1"
@@ -81,6 +83,14 @@ func newImageEnv(t *testing.T) *imageEnv {
 	imageSvc := image.NewForFVT(db, bus)
 	imageSvc.SetDeleteGuard(infer.NewDeleteImageGuard(db))
 	imageSvc.SetInUseProvider(infer.NewImageInUseProvider(db))
+	// Feature: image import. Wire a fake importer and the Harbor config
+	// so the import RPC works end-to-end.
+	imageSvc.SetImporter(&fvtImporter{})
+	config.SetConfigForTest(&config.Configuration{
+		Image: config.ImageConfig{
+			Harbor: config.HarborConfig{URL: "hub.example.com", Username: "admin", Password: "secret", Project: "taas"},
+		},
+	})
 
 	// The real warmup status consumer runs against the bus, so
 	// controller reports flow through the production path.
@@ -324,4 +334,69 @@ func (e *imageEnv) reportWarmupStatus(t *testing.T, taskID, state string, nodeRe
 	})
 	require.NoError(t, err)
 	require.NoError(t, e.mqBus.Publish(context.Background(), mq.DefaultSubjects().ImageWarmupStatus, body, nil))
+}
+
+// fvtImporter is a no-op image importer for the FVT stack.
+type fvtImporter struct{}
+
+func (fvtImporter) Import(context.Context, string, *registry.Credentials, string, *registry.Credentials) error {
+	return nil
+}
+
+// TestImageImport verifies the image-import user story: importing an
+// engine image from a source registry pushes it into the internal Harbor
+// project and registers it in the catalog with the Harbor reference.
+func TestImageImport(t *testing.T) {
+	env := newImageEnv(t)
+
+	code, body := env.call(t, http.MethodPost, "/api/v1/admin/images:import", map[string]any{
+		"source_reference": "docker.1ms.run/library/vllm:v0.6.3",
+		"accelerator":      "nvidia",
+		"engine":           "vllm",
+		"description":      "imported vLLM",
+	})
+	require.Equal(t, http.StatusOK, code, "import must succeed: %v", body)
+	imageID, ok := body["imageId"].(string)
+	require.True(t, ok, "imageId missing: %v", body)
+	assert.Equal(t, "hub.example.com/taas/library/vllm:v0.6.3", body["reference"])
+
+	// The catalog row carries the Harbor reference.
+	code, got := env.call(t, http.MethodGet, "/api/v1/admin/images/"+imageID, nil)
+	require.Equal(t, http.StatusOK, code)
+	img, ok := got["image"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "hub.example.com/taas/library/vllm", img["name"])
+	assert.Equal(t, "v0.6.3", img["tag"])
+
+	// Importing the same source again is a duplicate.
+	code, body = env.call(t, http.MethodPost, "/api/v1/admin/images:import", map[string]any{
+		"source_reference": "docker.1ms.run/library/vllm:v0.6.3",
+		"accelerator":      "nvidia",
+		"engine":           "vllm",
+	})
+	assert.NotEqual(t, http.StatusOK, code)
+	assert.Equal(t, float64(10202), body["code"])
+}
+
+// TestImageImportValidation verifies the import RPC rejects invalid
+// requests.
+func TestImageImportValidation(t *testing.T) {
+	env := newImageEnv(t)
+
+	// Empty source reference.
+	code, body := env.call(t, http.MethodPost, "/api/v1/admin/images:import", map[string]any{
+		"accelerator": "nvidia",
+		"engine":      "vllm",
+	})
+	assert.NotEqual(t, http.StatusOK, code)
+	assert.Equal(t, float64(10207), body["code"])
+
+	// Unsupported accelerator.
+	code, body = env.call(t, http.MethodPost, "/api/v1/admin/images:import", map[string]any{
+		"source_reference": "vllm:latest",
+		"accelerator":      "tpu",
+		"engine":           "vllm",
+	})
+	assert.NotEqual(t, http.StatusOK, code)
+	assert.Equal(t, float64(10204), body["code"])
 }
