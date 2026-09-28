@@ -178,6 +178,7 @@ module.exports = {
           imageId: NVIDIA_IMAGE,
           replicas: '2',
           accelerator: 'nvidia',
+          acceleratorType: 'gpu',
           autoscaling: {
             enabled: true, minReplicas: 1, maxReplicas: 8,
             targetConcurrency: 48, scaleToZero: false, cooldownSeconds: 200
@@ -240,7 +241,8 @@ module.exports = {
             modelVersion: 'v1',
             imageId: NVIDIA_IMAGE,
             replicas: '2',
-            accelerator: 'nvidia'
+            accelerator: 'nvidia',
+            acceleratorType: 'gpu'
           }
         }, (res2) => {
           const created = api.assertOk(browser, res2, 'AC3: create service without policy');
@@ -286,6 +288,7 @@ module.exports = {
           imageId: NVIDIA_IMAGE,
           replicas: '2',
           accelerator: 'nvidia',
+          acceleratorType: 'gpu',
           autoscaling: {
             enabled: true, minReplicas: 1, maxReplicas: 8,
             targetConcurrency: 48, scaleToZero: false, cooldownSeconds: 200
@@ -347,6 +350,7 @@ module.exports = {
           imageId: NVIDIA_IMAGE,
           replicas: '4',
           accelerator: 'nvidia',
+          acceleratorType: 'gpu',
           autoscaling: {
             enabled: true, minReplicas: 1, maxReplicas: 8,
             targetConcurrency: 48, scaleToZero: false, cooldownSeconds: 200
@@ -407,7 +411,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '2',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create service');
