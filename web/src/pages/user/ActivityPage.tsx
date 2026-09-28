@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { formatTime } from '../../api';
 
 interface AuditEvent {
@@ -23,6 +24,7 @@ interface AuditEvent {
 export default function ActivityPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [error, setError] = useState('');
 
@@ -30,23 +32,23 @@ export default function ActivityPage() {
     api
       .get<{ auditEvents?: AuditEvent[] }>('/api/v1/audit/activity?page.limit=100', orgId)
       .then((data) => setEvents(data.auditEvents || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load activity'));
-  }, [api, orgId]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('uactivity.loadFailed')));
+  }, [api, orgId, t]);
 
   return (
     <div className="page">
-      <h1>My Activity</h1>
+      <h1>{t('uactivity.title')}</h1>
       {error && <div className="error">{error}</div>}
       {events.length === 0 ? (
-        <div className="empty" data-testid="activity-empty">No activity yet.</div>
+        <div className="empty" data-testid="activity-empty">{t('uactivity.empty')}</div>
       ) : (
         <table className="table" data-testid="activity-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Action</th>
-              <th>Resource</th>
-              <th>Result</th>
+              <th>{t('uactivity.colTime')}</th>
+              <th>{t('uactivity.colAction')}</th>
+              <th>{t('uactivity.colResource')}</th>
+              <th>{t('uactivity.colResult')}</th>
             </tr>
           </thead>
           <tbody>

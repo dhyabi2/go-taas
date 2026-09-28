@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type IdentityBinding, type PageMeta, type SSOProvider } from '../api';
 import { useOrg } from '../org';
 import { Dialog, ErrorBanner, Pagination } from '../components';
+import { useI18n } from '../i18n';
 
 interface ListResponse {
   response: { code: number; message: string };
@@ -21,6 +22,7 @@ const PAGE_SIZE = 20;
 
 export default function IdentityBindingsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [bindings, setBindings] = useState<IdentityBinding[]>([]);
   const [providers, setProviders] = useState<SSOProvider[]>([]);
   const [total, setTotal] = useState(0);
@@ -57,11 +59,11 @@ export default function IdentityBindingsPage() {
       setBindings(data.bindings || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load bindings');
+      setError(e instanceof Error ? e.message : t('bindings.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     void loadProviders();
@@ -75,13 +77,13 @@ export default function IdentityBindingsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Identity Bindings</h1>
+          <h1>{t('bindings.title')}</h1>
           <div className="subtitle">
-            External identities bound to platform users.
+            {t('bindings.subtitle')}
           </div>
         </div>
         <button data-testid="create-identity-binding" onClick={() => setCreateOpen(true)}>
-          Pre-assign Binding
+          {t('bindings.preassign')}
         </button>
       </div>
 
@@ -89,20 +91,20 @@ export default function IdentityBindingsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : bindings.length === 0 ? (
           <div className="empty-state" data-testid="identity-bindings-empty">
-            No identity bindings.
+            {t('bindings.empty')}
           </div>
         ) : (
           <table className="data" data-testid="identity-bindings-table">
             <thead>
               <tr>
-                <th>Provider</th>
-                <th>External subject</th>
-                <th>User</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('bindings.colProvider')}</th>
+                <th>{t('bindings.colSubject')}</th>
+                <th>{t('bindings.colUser')}</th>
+                <th>{t('bindings.colCreated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -118,7 +120,7 @@ export default function IdentityBindingsPage() {
                       data-testid={`identity-binding-delete-${b.bindingId}`}
                       onClick={() => setDeleteTarget(b)}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>
@@ -169,6 +171,7 @@ function CreateBindingDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [providerId, setProviderId] = useState('');
   const [subject, setSubject] = useState('');
   const [userId, setUserId] = useState('');
@@ -177,7 +180,7 @@ function CreateBindingDialog({
 
   const submit = async () => {
     if (!providerId || !subject.trim() || !userId.trim()) {
-      setError('Provider, external subject, and user are required.');
+      setError(t('bindings.validationRequired'));
       return;
     }
     setSubmitting(true);
@@ -190,24 +193,24 @@ function CreateBindingDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to create binding');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('bindings.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Pre-assign Identity Binding" onClose={onClose} testId="create-identity-binding-dialog">
+    <Dialog title={t('bindings.createTitle')} onClose={onClose} testId="create-identity-binding-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="identity-binding-provider">Provider</label>
+          <label htmlFor="identity-binding-provider">{t('bindings.fieldProvider')}</label>
           <select
             id="identity-binding-provider"
             data-testid="identity-binding-provider-select"
             value={providerId}
             onChange={(e) => setProviderId(e.target.value)}
           >
-            <option value="">Select provider…</option>
+            <option value="">{t('bindings.placeholderProvider')}</option>
             {providers.map((p) => (
               <option
                 key={p.providerId}
@@ -220,33 +223,33 @@ function CreateBindingDialog({
           </select>
         </div>
         <div className="form-field">
-          <label htmlFor="identity-binding-subject">External subject</label>
+          <label htmlFor="identity-binding-subject">{t('bindings.fieldSubject')}</label>
           <input
             id="identity-binding-subject"
             data-testid="identity-binding-subject-input"
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            placeholder="e.g. https://issuer.example.com:user-123"
+            placeholder={t('bindings.placeholderSubject')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="identity-binding-user">User ID</label>
+          <label htmlFor="identity-binding-user">{t('bindings.fieldUserId')}</label>
           <input
             id="identity-binding-user"
             data-testid="identity-binding-user-input"
             value={userId}
             onChange={(e) => setUserId(e.target.value)}
-            placeholder="e.g. a user uuid"
+            placeholder={t('bindings.placeholderUserId')}
           />
         </div>
       </div>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="identity-binding-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Creating…' : 'Create'}
+          {submitting ? t('common.creating') : t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -264,6 +267,7 @@ function DeleteBindingDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -274,24 +278,24 @@ function DeleteBindingDialog({
       await api.del(`/api/v1/admin/auth/identity-bindings/${binding.bindingId}`, orgId);
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to delete binding');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('bindings.deleteFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Delete Identity Binding?" onClose={onClose} testId="identity-binding-confirm-dialog">
+    <Dialog title={t('bindings.deleteTitle')} onClose={onClose} testId="identity-binding-confirm-dialog">
       <p>
-        This severs the external identity link. The user account is kept.
+        {t('bindings.deleteBody')}
       </p>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button className="danger" data-testid="identity-binding-confirm-ok" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Deleting…' : 'Delete'}
+          {submitting ? t('common.deleting') : t('common.delete')}
         </button>
       </div>
     </Dialog>

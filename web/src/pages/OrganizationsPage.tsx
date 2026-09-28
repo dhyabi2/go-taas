@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, formatTime, type OrganizationSummary, type PageMeta } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, StateBadge } from '../components';
 
 interface ListResponse {
@@ -17,6 +18,7 @@ const PAGE_SIZE = 20;
 
 export default function OrganizationsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -46,11 +48,11 @@ export default function OrganizationsPage() {
       setOrgs(data.organizations || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load organizations');
+      setError(e instanceof Error ? e.message : t('orgs.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset, state]);
+  }, [orgId, offset, state, t]);
 
   useEffect(() => {
     void load();
@@ -60,14 +62,11 @@ export default function OrganizationsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Organizations</h1>
-          <div className="subtitle">
-            The platform organization registry. Every API key, inference
-            service and usage record belongs to exactly one organization.
-          </div>
+          <h1>{t('orgs.title')}</h1>
+          <div className="subtitle">{t('orgs.subtitle')}</div>
         </div>
         <button data-testid="create-org" onClick={() => setCreateOpen(true)}>
-          Create Organization
+          {t('orgs.create')}
         </button>
       </div>
 
@@ -82,7 +81,7 @@ export default function OrganizationsPage() {
             setOffset(0);
           }}
         >
-          <option value="all">All states</option>
+          <option value="all">{t('common.allStates')}</option>
           <option value="active">active</option>
           <option value="disabled">disabled</option>
         </select>
@@ -90,22 +89,22 @@ export default function OrganizationsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : orgs.length === 0 ? (
           <div className="empty-state" data-testid="orgs-empty">
-            No organizations match your filters.
+            {t('orgs.empty')}
           </div>
         ) : (
           <table className="data" data-testid="orgs-table">
             <thead>
               <tr>
-                <th>Organization</th>
-                <th>State</th>
-                <th>API keys</th>
-                <th>Inference services</th>
-                <th>Projects</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('orgs.colOrganization')}</th>
+                <th>{t('orgs.colState')}</th>
+                <th>{t('orgs.colApiKeys')}</th>
+                <th>{t('orgs.colServices')}</th>
+                <th>{t('orgs.colProjects')}</th>
+                <th>{t('orgs.colCreated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -128,7 +127,7 @@ export default function OrganizationsPage() {
                       data-testid={`org-edit-${org.organizationId}`}
                       onClick={() => setEditTarget(org)}
                     >
-                      Edit
+                      {t('common.edit')}
                     </button>
                     {org.state === 'active' ? (
                       <button
@@ -138,7 +137,7 @@ export default function OrganizationsPage() {
                           setConfirmTarget({ org, action: 'disable' })
                         }
                       >
-                        Disable
+                        {t('common.disable')}
                       </button>
                     ) : (
                       <button
@@ -148,7 +147,7 @@ export default function OrganizationsPage() {
                           setConfirmTarget({ org, action: 'enable' })
                         }
                       >
-                        Enable
+                        {t('common.enable')}
                       </button>
                     )}
                   </td>
@@ -215,6 +214,7 @@ function CreateOrgDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -223,11 +223,11 @@ function CreateOrgDialog({
 
   const submit = async () => {
     if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(id.trim())) {
-      setError('ID must be 3-64 chars: lowercase letters, digits, hyphens; start with letter/digit.');
+      setError(t('orgs.validationId'));
       return;
     }
     if (!name.trim()) {
-      setError('Display name is required.');
+      setError(t('orgs.validationDisplayName'));
       return;
     }
     setSubmitting(true);
@@ -241,39 +241,39 @@ function CreateOrgDialog({
       onDone();
     } catch (e) {
       // 10015: the organization id already exists.
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to create organization');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('orgs.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Create Organization" onClose={onClose} testId="create-org-dialog">
+    <Dialog title={t('orgs.createTitle')} onClose={onClose} testId="create-org-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="org-id">Organization ID</label>
+          <label htmlFor="org-id">{t('orgs.fieldOrgId')}</label>
           <input
             id="org-id"
             data-testid="org-id-input"
             value={id}
             maxLength={64}
             onChange={(e) => setId(e.target.value)}
-            placeholder="e.g. org-acme"
+            placeholder={t('orgs.placeholderOrgId')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="org-name">Display name</label>
+          <label htmlFor="org-name">{t('orgs.fieldDisplayName')}</label>
           <input
             id="org-name"
             data-testid="org-name-input"
             value={name}
             maxLength={128}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. ACME Inc."
+            placeholder={t('orgs.placeholderDisplayName')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="org-desc">Description (optional)</label>
+          <label htmlFor="org-desc">{t('common.descriptionOptional')}</label>
           <textarea
             id="org-desc"
             data-testid="org-desc-input"
@@ -287,10 +287,10 @@ function CreateOrgDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="org-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Creating…' : 'Create'}
+          {submitting ? t('common.creating') : t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -308,6 +308,7 @@ function EditOrgDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = useState(org.displayName);
   const [description, setDescription] = useState(org.description || '');
   const [submitting, setSubmitting] = useState(false);
@@ -315,7 +316,7 @@ function EditOrgDialog({
 
   const submit = async () => {
     if (!name.trim()) {
-      setError('Display name is required.');
+      setError(t('orgs.validationDisplayName'));
       return;
     }
     setSubmitting(true);
@@ -331,17 +332,17 @@ function EditOrgDialog({
       );
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update organization');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('orgs.updateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Edit ${org.organizationId}`} onClose={onClose} testId="edit-org-dialog">
+    <Dialog title={t('orgs.editTitle', { orgId: org.organizationId })} onClose={onClose} testId="edit-org-dialog">
       <div className="form-grid">
         <div className="form-field full">
-          <label htmlFor="org-edit-name">Display name</label>
+          <label htmlFor="org-edit-name">{t('orgs.fieldDisplayName')}</label>
           <input
             id="org-edit-name"
             data-testid="org-edit-name-input"
@@ -351,7 +352,7 @@ function EditOrgDialog({
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="org-edit-desc">Description</label>
+          <label htmlFor="org-edit-desc">{t('orgs.fieldDescription')}</label>
           <textarea
             id="org-edit-desc"
             data-testid="org-edit-desc-input"
@@ -365,10 +366,10 @@ function EditOrgDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="org-edit-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -388,6 +389,7 @@ function ConfirmStateDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -401,7 +403,7 @@ function ConfirmStateDialog({
       );
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : `failed to ${action} organization`);
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('orgs.actionFailed', { action }));
     } finally {
       setSubmitting(false);
     }
@@ -409,23 +411,19 @@ function ConfirmStateDialog({
 
   return (
     <Dialog
-      title={`${action === 'disable' ? 'Disable' : 'Enable'} ${org.organizationId}?`}
+      title={t(action === 'disable' ? 'orgs.disableTitle' : 'orgs.enableTitle', { orgId: org.organizationId })}
       onClose={onClose}
       testId="org-confirm-dialog"
     >
       {action === 'disable' ? (
-        <p>
-          Disabling blocks new API keys and new inference service
-          deployments for this organization. Existing resources stay
-          readable and revocable.
-        </p>
+        <p>{t('orgs.disableBody')}</p>
       ) : (
-        <p>Enabling restores full write access for this organization.</p>
+        <p>{t('orgs.enableBody')}</p>
       )}
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" data-testid="org-confirm-cancel" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className={action === 'disable' ? 'danger' : ''}
@@ -433,7 +431,7 @@ function ConfirmStateDialog({
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Working…' : action === 'disable' ? 'Disable' : 'Enable'}
+          {submitting ? t('common.working') : t(action === 'disable' ? 'common.disable' : 'common.enable')}
         </button>
       </div>
     </Dialog>

@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { BackLink } from '../../components';
 import { formatTime, type GetAvailableModelResponse } from '../../api';
 
@@ -40,6 +41,7 @@ interface ModelLoadTestsResponse {
 export default function ModelDetailPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const id = window.location.pathname.split('/').pop() || '';
   const [data, setData] = useState<GetAvailableModelResponse | null>(null);
   const [compat, setCompat] = useState<ModelCompatibilityResponse | null>(null);
@@ -53,25 +55,25 @@ export default function ModelDetailPage() {
     api
       .get<GetAvailableModelResponse>(`/api/v1/models/${id}`, orgId)
       .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load model'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('umodeldetail.loadFailed')))
       .finally(() => setLoading(false));
     // Feature #19: the masked compatibility projection (FR5.2).
     api
       .get<ModelCompatibilityResponse>(`/api/v1/models/${id}/compatibility`, orgId)
       .then(setCompat)
-      .catch((e) => setCompatError(e instanceof Error ? e.message : 'failed to load compatibility'));
+      .catch((e) => setCompatError(e instanceof Error ? e.message : t('umodeldetail.compatFailed')));
     // Feature #20: the masked performance projection (AD2).
     api
       .get<ModelLoadTestsResponse>(`/api/v1/models/${id}/load-tests`, orgId)
       .then(setPerf)
-      .catch((e) => setPerfError(e instanceof Error ? e.message : 'failed to load performance'));
-  }, [api, orgId, id]);
+      .catch((e) => setPerfError(e instanceof Error ? e.message : t('umodeldetail.perfFailed')));
+  }, [api, orgId, id, t]);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
   if (error)
     return (
       <div>
-        <BackLink to="/models" label="Back to Models" />
+        <BackLink to="/models" label={t('umodeldetail.back')} />
         <div className="error">{error}</div>
       </div>
     );
@@ -85,7 +87,7 @@ export default function ModelDetailPage() {
 
   return (
     <div className="page" data-testid="model-detail-page">
-      <BackLink to="/models" label="Back to Models" />
+      <BackLink to="/models" label={t('umodeldetail.back')} />
       <div className="page-header">
         <div>
           <h1 data-testid="model-detail-name">{m.name}</h1>
@@ -94,67 +96,69 @@ export default function ModelDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Autoscaling</h3>
+        <h3 style={{ marginTop: 0 }}>{t('umodeldetail.autoscaling')}</h3>
         {!as ? (
-          <p className="muted" data-testid="model-autoscaling-none">No autoscaling information.</p>
+          <p className="muted" data-testid="model-autoscaling-none">{t('umodeldetail.asEmpty')}</p>
         ) : (
           <div className="detail-grid" data-testid="model-autoscaling-summary">
             <div className="detail-item">
-              <div className="label">Status</div>
+              <div className="label">{t('umodeldetail.status')}</div>
               <div className="value">
                 <AutoscalingStateBadge state={as.state} />
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Autoscaling</div>
-              <div className="value">{as.autoscaled ? 'On' : 'Off'}</div>
+              <div className="label">{t('umodeldetail.autoscaling2')}</div>
+              <div className="value">{as.autoscaled ? t('common.on') : t('common.off')}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Replicas</div>
+              <div className="label">{t('umodeldetail.replicas')}</div>
               <div className="value" data-testid="model-autoscaling-replicas">
                 {as.currentReplicas}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Min / Max</div>
+              <div className="label">{t('umodeldetail.minMax')}</div>
               <div className="value">
                 {as.minReplicas} / {as.maxReplicas}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Scale to zero</div>
-              <div className="value">{as.scaleToZero ? 'On' : 'Off'}</div>
+              <div className="label">{t('umodeldetail.scaleToZero')}</div>
+              <div className="value">{as.scaleToZero ? t('common.on') : t('common.off')}</div>
             </div>
           </div>
         )}
         {as?.state === 'warming-up' && (
           <p className="muted" data-testid="model-warming-up-hint">
-            This model is warming up from zero — the first request may be slower
-            than usual.
+            {t('umodeldetail.warmingHint')}
           </p>
         )}
       </div>
 
       <div className="panel" data-testid="model-detail-compatibility">
-        <h3 style={{ marginTop: 0 }}>Compatibility</h3>
+        <h3 style={{ marginTop: 0 }}>{t('umodeldetail.compatibility')}</h3>
         {compatError ? (
           <div className="error" data-testid="model-detail-compat-error">{compatError}</div>
         ) : entries.length === 0 ? (
           <p className="muted" data-testid="model-detail-compat-empty">
-            No supported engine/card-type combinations for this model yet.
+            {t('umodeldetail.compatEmpty')}
           </p>
         ) : (
           <>
             <p className="muted" data-testid="model-detail-compatibility-summary">
-              Supported on {supported} engine/card-type combination{supported === 1 ? '' : 's'} and
-              experimental on {experimental}.
+              {t('umodeldetail.compatSummary', {
+                n: supported,
+                s: supported === 1 ? '' : 's',
+                n2: experimental,
+              })}
             </p>
             <table className="data" data-testid="model-detail-compatibility-table">
               <thead>
                 <tr>
-                  <th>Engine</th>
-                  <th>Card type</th>
-                  <th>Status</th>
+                  <th>{t('umodeldetail.colEngine')}</th>
+                  <th>{t('umodeldetail.colCardType')}</th>
+                  <th>{t('umodeldetail.colStatus')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -166,36 +170,36 @@ export default function ModelDetailPage() {
                     </td>
                     <td>
                       <span className={`badge ${e.status === 'supported' ? 'running' : 'autoscaled'}`}>
-                        {e.status === 'supported' ? 'Supported' : 'Experimental'}
+                        {e.status === 'supported' ? t('umodeldetail.supported') : t('umodeldetail.experimental')}
                       </span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="muted">Compatibility is curated by the platform operator.</p>
+            <p className="muted">{t('umodeldetail.compatMuted')}</p>
           </>
         )}
       </div>
 
       <div className="panel" data-testid="model-detail-performance">
-        <h3 style={{ marginTop: 0 }}>Performance</h3>
+        <h3 style={{ marginTop: 0 }}>{t('umodeldetail.performance')}</h3>
         {perfError ? (
           <div className="error" data-testid="model-detail-performance-error">{perfError}</div>
         ) : (perf?.results || []).length === 0 ? (
           <p className="muted" data-testid="model-detail-performance-empty">
-            No performance results recorded for this model yet.
+            {t('umodeldetail.perfEmpty')}
           </p>
         ) : (
           <table className="data" data-testid="model-detail-performance-table">
             <thead>
               <tr>
-                <th>Throughput</th>
-                <th>p95 latency</th>
-                <th>Tokens/sec</th>
-                <th>Error rate</th>
-                <th>Concurrency</th>
-                <th>Measured</th>
+                <th>{t('umodeldetail.colThroughput')}</th>
+                <th>{t('umodeldetail.colP95')}</th>
+                <th>{t('umodeldetail.colTokensSec')}</th>
+                <th>{t('umodeldetail.colErrorRate')}</th>
+                <th>{t('umodeldetail.colConcurrency')}</th>
+                <th>{t('umodeldetail.colMeasured')}</th>
               </tr>
             </thead>
             <tbody>
@@ -218,7 +222,8 @@ export default function ModelDetailPage() {
 }
 
 function AutoscalingStateBadge({ state }: { state: string }) {
-  const label = state === 'warming-up' ? 'Warming up' : state === 'scaled-to-zero' ? 'Scaled to zero' : state;
+  const { t } = useI18n();
+  const label = state === 'warming-up' ? t('umodeldetail.warmingUp') : state === 'scaled-to-zero' ? t('umodeldetail.scaledToZero') : state;
   return (
     <span className={`badge ${state}`} data-testid={`model-autoscaling-state-${state}`}>
       {label}

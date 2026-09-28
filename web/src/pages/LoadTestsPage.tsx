@@ -10,6 +10,7 @@ import { useOrg } from '../org';
 import { formatPercent, formatRate, formatTime, type PageMeta } from '../api';
 import { Dialog, ErrorBanner, Pagination, usePolling } from '../components';
 import { navigate } from '../router';
+import { useI18n } from '../i18n';
 
 interface LoadTestSummary {
   loadTestId: string;
@@ -73,36 +74,39 @@ function NewLoadTestDialog({
 }) {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [serviceId, setServiceId] = useState('');
   const [concurrency, setConcurrency] = useState('1');
   const [duration, setDuration] = useState('60');
   const [rate, setRate] = useState('0');
-  const [prompt, setPrompt] = useState('Write a short poem about distributed systems.');
+  const [prompt, setPrompt] = useState(t('loadtests.defaultPrompt'));
   const [maxTokens, setMaxTokens] = useState('256');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const validate = (): string => {
-    if (!serviceId) return 'Select a running inference service.';
+  const validate = (
+    t: (key: string, vars?: Record<string, string | number>) => string,
+  ): string => {
+    if (!serviceId) return t('loadtests.validationService');
     const c = Number(concurrency);
     if (!Number.isInteger(c) || c < 1 || c > 1000)
-      return 'Concurrency must be an integer between 1 and 1000.';
+      return t('loadtests.validationConcurrency');
     const d = Number(duration);
     if (!Number.isInteger(d) || d < 5 || d > 3600)
-      return 'Duration must be between 5 and 3600 seconds.';
+      return t('loadtests.validationDuration');
     const r = Number(rate);
     if (!Number.isInteger(r) || r < 0 || r > 10000)
-      return 'Request rate must be between 0 and 10000 requests/second (0 = unlimited).';
-    if (!prompt.trim()) return 'Prompt template is required.';
-    if (prompt.length > 4096) return 'Prompt template must be 4096 characters or fewer.';
+      return t('loadtests.validationRequestRate');
+    if (!prompt.trim()) return t('loadtests.validationPromptRequired');
+    if (prompt.length > 4096) return t('loadtests.validationPromptLength');
     const m = Number(maxTokens);
     if (!Number.isInteger(m) || m < 1 || m > 8192)
-      return 'Max tokens must be between 1 and 8192.';
+      return t('loadtests.validationMaxTokens');
     return '';
   };
 
   const submit = async () => {
-    const problem = validate();
+    const problem = validate(t);
     if (problem) {
       setError(problem);
       return;
@@ -124,23 +128,23 @@ function NewLoadTestDialog({
       );
       onCreated(res.loadTestId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to create load test');
+      setError(e instanceof Error ? e.message : t('loadtests.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="New Load Test" onClose={onClose} testId="new-load-test-dialog">
+    <Dialog title={t('loadtests.newTitle')} onClose={onClose} testId="new-load-test-dialog">
       {error && <ErrorBanner message={error} />}
       <label>
-        Service
+        {t('loadtests.fieldService')}
         <select
           value={serviceId}
           onChange={(e) => setServiceId(e.target.value)}
           data-testid="load-test-service"
         >
-          <option value="">Select a running service…</option>
+          <option value="">{t('loadtests.placeholderService')}</option>
           {services.map((s) => (
             <option key={s.serviceId} value={s.serviceId}>
               {s.name}
@@ -149,7 +153,7 @@ function NewLoadTestDialog({
         </select>
       </label>
       <label>
-        Concurrency (1-1000)
+        {t('loadtests.fieldConcurrency')}
         <input
           type="number"
           min={1}
@@ -160,7 +164,7 @@ function NewLoadTestDialog({
         />
       </label>
       <label>
-        Duration seconds (5-3600)
+        {t('loadtests.fieldDuration')}
         <input
           type="number"
           min={5}
@@ -171,7 +175,7 @@ function NewLoadTestDialog({
         />
       </label>
       <label>
-        Request rate req/s (0 = unlimited)
+        {t('loadtests.fieldRequestRate')}
         <input
           type="number"
           min={0}
@@ -182,7 +186,7 @@ function NewLoadTestDialog({
         />
       </label>
       <label>
-        Prompt template
+        {t('loadtests.fieldPromptTemplate')}
         <textarea
           rows={3}
           value={prompt}
@@ -191,7 +195,7 @@ function NewLoadTestDialog({
         />
       </label>
       <label>
-        Max tokens (1-8192)
+        {t('loadtests.fieldMaxTokens')}
         <input
           type="number"
           min={1}
@@ -203,15 +207,15 @@ function NewLoadTestDialog({
       </label>
       {services.length === 0 && (
         <p className="muted" data-testid="load-test-no-services">
-          No running inference services. Deploy a service first.
+          {t('loadtests.mutedNoServices')}
         </p>
       )}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button onClick={submit} disabled={submitting} data-testid="load-test-submit">
-          {submitting ? 'Starting…' : 'Start load test'}
+          {submitting ? t('loadtests.starting') : t('loadtests.start')}
         </button>
       </div>
     </Dialog>
@@ -221,6 +225,7 @@ function NewLoadTestDialog({
 export default function LoadTestsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [runs, setRuns] = useState<LoadTestSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -253,13 +258,13 @@ export default function LoadTestsPage() {
         setLastUpdated(Math.floor(Date.now() / 1000));
         setStale(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'failed to load load tests');
+        setError(e instanceof Error ? e.message : t('loadtests.loadFailed'));
         if (runs.length > 0) setStale(true);
       } finally {
         setLoading(false);
       }
     },
-    [api, orgId, offset, statusFilter, search, runs.length],
+    [api, orgId, offset, statusFilter, search, runs.length, t],
   );
 
   const loadServices = useCallback(async () => {
@@ -303,7 +308,7 @@ export default function LoadTestsPage() {
       await api.post(`/api/v1/admin/load-tests/${id}:stop`, orgId, {});
       await load(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to stop load test');
+      setError(e instanceof Error ? e.message : t('loadtests.stopFailed'));
     }
   };
 
@@ -312,7 +317,7 @@ export default function LoadTestsPage() {
       await api.del(`/api/v1/admin/load-tests/${id}`, orgId);
       await load(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to delete load test');
+      setError(e instanceof Error ? e.message : t('loadtests.deleteFailed'));
     }
   };
 
@@ -320,15 +325,14 @@ export default function LoadTestsPage() {
     <div className="page" data-testid="load-tests-page">
       <div className="page-header">
         <div>
-          <h1>Load Tests</h1>
+          <h1>{t('loadtests.title')}</h1>
           <div className="subtitle">
-            Drive real inference traffic and inspect throughput, latency and
-            tokens/sec
+            {t('loadtests.subtitle')}
             {lastUpdated && (
               <>
                 {' · '}
                 <span data-testid="load-tests-last-updated">
-                  updated {formatTime(lastUpdated)}
+                  {t('loadtests.updated', { time: formatTime(lastUpdated) })}
                 </span>
               </>
             )}
@@ -340,38 +344,38 @@ export default function LoadTestsPage() {
             onClick={() => void load(false)}
             data-testid="load-tests-refresh"
           >
-            Refresh
+            {t('common.refresh')}
           </button>
           <button onClick={() => setDialogOpen(true)} data-testid="new-load-test">
-            New Load Test
+            {t('loadtests.new')}
           </button>
         </div>
       </div>
 
       {stale && (
         <div className="banner stale" data-testid="load-tests-stale">
-          Showing stale data — the last refresh failed.
+          {t('common.staleData')}
         </div>
       )}
       {error && (
         <div data-testid="load-tests-error">
           <ErrorBanner message={error} />
           <button className="secondary" onClick={() => void load(false)} data-testid="load-tests-retry">
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
 
       {activeRuns.length > 0 && (
         <div className="panel" style={{ marginBottom: 16 }} data-testid="load-tests-active">
-          <h3 style={{ marginTop: 0 }}>Active runs</h3>
+          <h3 style={{ marginTop: 0 }}>{t('loadtests.activeRuns')}</h3>
           <table className="data" data-testid="load-tests-active-table">
             <thead>
               <tr>
-                <th>Service</th>
-                <th>State</th>
-                <th>Concurrency</th>
-                <th>Started</th>
+                <th>{t('loadtests.colService')}</th>
+                <th>{t('loadtests.colState')}</th>
+                <th>{t('loadtests.colConcurrency')}</th>
+                <th>{t('loadtests.colStarted')}</th>
                 <th />
               </tr>
             </thead>
@@ -400,7 +404,7 @@ export default function LoadTestsPage() {
                       onClick={() => void stopRun(r.loadTestId)}
                       data-testid={`load-test-stop-${r.loadTestId}`}
                     >
-                      Stop
+                      {t('loadtest.stop')}
                     </button>
                   </td>
                 </tr>
@@ -420,7 +424,7 @@ export default function LoadTestsPage() {
             }}
             data-testid="load-test-status-filter"
           >
-            <option value="">All statuses</option>
+            <option value="">{t('common.allStatuses')}</option>
             {STATES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -428,7 +432,7 @@ export default function LoadTestsPage() {
             ))}
           </select>
           <input
-            placeholder="Search by service name"
+            placeholder={t('common.searchByServiceName')}
             value={search}
             onChange={(e) => {
               setOffset(0);
@@ -439,24 +443,24 @@ export default function LoadTestsPage() {
         </div>
 
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : runs.length === 0 ? (
           <p className="muted" data-testid="load-tests-empty">
-            No load tests yet. Start one to measure this service under load.
+            {t('loadtests.empty')}
           </p>
         ) : (
           <>
             <table className="data" data-testid="load-tests-table">
               <thead>
                 <tr>
-                  <th>Service</th>
-                  <th>Model</th>
-                  <th>State</th>
-                  <th>Throughput</th>
-                  <th>p95 latency</th>
-                  <th>Tokens/sec</th>
-                  <th>Error rate</th>
-                  <th>Created</th>
+                  <th>{t('loadtests.colService2')}</th>
+                  <th>{t('loadtests.colModel')}</th>
+                  <th>{t('loadtests.colState2')}</th>
+                  <th>{t('loadtests.colThroughput')}</th>
+                  <th>{t('loadtests.colP95')}</th>
+                  <th>{t('loadtests.colTokensSec')}</th>
+                  <th>{t('loadtests.colErrorRate')}</th>
+                  <th>{t('loadtests.colCreated')}</th>
                   <th />
                 </tr>
               </thead>
@@ -490,7 +494,7 @@ export default function LoadTestsPage() {
                           onClick={() => void stopRun(r.loadTestId)}
                           data-testid={`load-test-stop-${r.loadTestId}`}
                         >
-                          Stop
+                          {t('loadtest.stop')}
                         </button>
                       ) : (
                         <button
@@ -498,7 +502,7 @@ export default function LoadTestsPage() {
                           onClick={() => void deleteRun(r.loadTestId)}
                           data-testid={`load-test-delete-${r.loadTestId}`}
                         >
-                          Delete
+                          {t('common.delete')}
                         </button>
                       )}
                     </td>

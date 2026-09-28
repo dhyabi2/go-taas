@@ -19,6 +19,7 @@ import {
   StateBadge,
   usePolling,
 } from '../components';
+import { useI18n } from '../i18n';
 
 interface ListResponse {
   response: { code: number; message: string };
@@ -30,6 +31,7 @@ const PAGE_SIZE = 20;
 
 export default function InferenceServicesPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [services, setServices] = useState<InferenceServiceSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -49,11 +51,11 @@ export default function InferenceServicesPage() {
       setServices(data.services || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load services');
+      setError(e instanceof Error ? e.message : t('services.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     void load();
@@ -67,9 +69,9 @@ export default function InferenceServicesPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Inference Services</h1>
+          <h1>{t('services.title')}</h1>
           <div className="subtitle">
-            Deployed model endpoints. Terminated services are hidden.
+            {t('services.subtitle')}
           </div>
         </div>
       </div>
@@ -78,22 +80,22 @@ export default function InferenceServicesPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : services.length === 0 ? (
           <div className="empty-state" data-testid="services-empty">
-            No inference services. Deploy one from the Models page.
+            {t('services.empty')}
           </div>
         ) : (
           <table className="data" data-testid="services-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Model</th>
-                <th>Replicas</th>
-                <th>State</th>
-                <th>Autoscaling</th>
-                <th>Updated</th>
-                <th>Actions</th>
+                <th>{t('services.colName')}</th>
+                <th>{t('services.colModel')}</th>
+                <th>{t('services.colReplicas')}</th>
+                <th>{t('services.colState')}</th>
+                <th>{t('services.colAutoscaling')}</th>
+                <th>{t('services.colUpdated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -124,21 +126,21 @@ export default function InferenceServicesPage() {
                       data-testid={`autoscaling-${s.name}`}
                       onClick={() => setAutoscalingTarget(s)}
                     >
-                      Autoscaling
+                      {t('services.autoscaling')}
                     </button>{' '}
                     <button
                       className="link"
                       data-testid={`scale-${s.name}`}
                       onClick={() => setScaleTarget(s)}
                     >
-                      Scale
+                      {t('services.scale')}
                     </button>{' '}
                     <button
                       className="link danger"
                       data-testid={`delete-${s.name}`}
                       onClick={() => setDeleteTarget(s)}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>
@@ -198,23 +200,28 @@ export default function InferenceServicesPage() {
 // AutoscalingBadge renders the autoscaling column badge (feature #16,
 // FR3.1): On/Off with current/min-max.
 function AutoscalingBadge({ service }: { service: InferenceServiceSummary }) {
+  const { t } = useI18n();
   if (!service.autoscalingEnabled) {
-    return <span className="badge fixed" data-testid={`autoscaling-badge-${service.name}`}>Off</span>;
+    return <span className="badge fixed" data-testid={`autoscaling-badge-${service.name}`}>{t('common.off')}</span>;
   }
   const state = service.autoscalingState;
   if (state === 'cold-starting') {
     return (
       <span className="badge cold-starting" data-testid={`autoscaling-badge-${service.name}`}>
-        Cold-starting
+        {t('service.asColdStarting')}
       </span>
     );
   }
   if (state === 'error') {
-    return <span className="badge error" data-testid={`autoscaling-badge-${service.name}`}>Error</span>;
+    return <span className="badge error" data-testid={`autoscaling-badge-${service.name}`}>{t('service.asError')}</span>;
   }
   return (
     <span className="badge autoscaled" data-testid={`autoscaling-badge-${service.name}`}>
-      On · {service.currentReplicas}/{service.minReplicas}–{service.maxReplicas}
+      {t('services.asBadge', {
+        cur: service.currentReplicas ?? 0,
+        min: service.minReplicas ?? 0,
+        max: service.maxReplicas ?? 0,
+      })}
     </span>
   );
 }
@@ -232,6 +239,7 @@ function AutoscalingDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [policy, setPolicy] = useState<AutoscalingPolicy>({
     enabled: service.autoscalingEnabled ?? false,
     minReplicas: service.minReplicas ?? 1,
@@ -249,19 +257,22 @@ function AutoscalingDialog({
     setFieldErrors({});
   };
 
-  const validate = (p: AutoscalingPolicy): Record<string, string> => {
+  const validate = (
+    p: AutoscalingPolicy,
+    t: (key: string, vars?: Record<string, string | number>) => string,
+  ): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (p.minReplicas > p.maxReplicas) errs.maxReplicas = 'Max replicas must be ≥ min replicas and ≤ 100.';
-    if (p.minReplicas === 0 && !p.scaleToZero) errs.minReplicas = 'Min replicas must be 0 to enable scale-to-zero.';
-    if (p.scaleToZero && p.minReplicas !== 0) errs.scaleToZero = 'Set min replicas to 0 to enable scale-to-zero.';
-    if (p.targetConcurrency < 1 || p.targetConcurrency > 1000) errs.targetConcurrency = 'Target concurrency must be between 1 and 1000.';
-    if (p.cooldownSeconds < 0 || p.cooldownSeconds > 3600) errs.cooldownSeconds = 'Cooldown must be between 0 and 3600 seconds.';
-    if (p.maxReplicas < 1 || p.maxReplicas > 100) errs.maxReplicas = 'Max replicas must be ≥ min replicas and ≤ 100.';
+    if (p.minReplicas > p.maxReplicas) errs.maxReplicas = t('services.validationMax');
+    if (p.minReplicas === 0 && !p.scaleToZero) errs.minReplicas = t('services.validationMinZero');
+    if (p.scaleToZero && p.minReplicas !== 0) errs.scaleToZero = t('services.validationSetMinZero');
+    if (p.targetConcurrency < 1 || p.targetConcurrency > 1000) errs.targetConcurrency = t('services.validationConcurrency');
+    if (p.cooldownSeconds < 0 || p.cooldownSeconds > 3600) errs.cooldownSeconds = t('services.validationCooldown');
+    if (p.maxReplicas < 1 || p.maxReplicas > 100) errs.maxReplicas = t('services.validationMax');
     return errs;
   };
 
   const submit = async () => {
-    const errs = validate(policy);
+    const errs = validate(policy, t);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setSubmitting(true);
@@ -274,23 +285,22 @@ function AutoscalingDialog({
       );
       onSaved();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update autoscaling');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('services.asUpdateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Autoscaling · ${service.name}`} onClose={onClose} testId="autoscaling-dialog">
+    <Dialog title={t('services.asTitle', { name: service.name })} onClose={onClose} testId="autoscaling-dialog">
       {!policy.enabled && (
         <div className="warning-banner" data-testid="autoscaling-disable-warning">
-          Autoscaling will be disabled and the service will run at a fixed
-          replica count equal to its current count.
+          {t('services.asWarning')}
         </div>
       )}
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="asd-enabled">Enabled</label>
+          <label htmlFor="asd-enabled">{t('services.fieldEnabled')}</label>
           <input
             id="asd-enabled"
             data-testid="asd-enabled"
@@ -300,7 +310,7 @@ function AutoscalingDialog({
           />
         </div>
         <div className="form-field">
-          <label htmlFor="asd-min">Min replicas</label>
+          <label htmlFor="asd-min">{t('services.fieldMinReplicas')}</label>
           <input
             id="asd-min"
             data-testid="asd-min"
@@ -314,7 +324,7 @@ function AutoscalingDialog({
           {fieldErrors.minReplicas && <div className="field-error">{fieldErrors.minReplicas}</div>}
         </div>
         <div className="form-field">
-          <label htmlFor="asd-max">Max replicas</label>
+          <label htmlFor="asd-max">{t('services.fieldMaxReplicas')}</label>
           <input
             id="asd-max"
             data-testid="asd-max"
@@ -328,7 +338,7 @@ function AutoscalingDialog({
           {fieldErrors.maxReplicas && <div className="field-error">{fieldErrors.maxReplicas}</div>}
         </div>
         <div className="form-field">
-          <label htmlFor="asd-target">Target concurrency</label>
+          <label htmlFor="asd-target">{t('services.fieldTargetConcurrency')}</label>
           <input
             id="asd-target"
             data-testid="asd-target"
@@ -342,7 +352,7 @@ function AutoscalingDialog({
           {fieldErrors.targetConcurrency && <div className="field-error">{fieldErrors.targetConcurrency}</div>}
         </div>
         <div className="form-field">
-          <label htmlFor="asd-scale-to-zero">Scale to zero</label>
+          <label htmlFor="asd-scale-to-zero">{t('services.fieldScaleToZero')}</label>
           <input
             id="asd-scale-to-zero"
             data-testid="asd-scale-to-zero"
@@ -354,7 +364,7 @@ function AutoscalingDialog({
           {fieldErrors.scaleToZero && <div className="field-error">{fieldErrors.scaleToZero}</div>}
         </div>
         <div className="form-field">
-          <label htmlFor="asd-cooldown">Cooldown seconds</label>
+          <label htmlFor="asd-cooldown">{t('services.fieldCooldown')}</label>
           <input
             id="asd-cooldown"
             data-testid="asd-cooldown"
@@ -371,10 +381,10 @@ function AutoscalingDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="submit-autoscaling" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -392,6 +402,7 @@ function ScaleDialog({
   onClose: () => void;
   onScaled: () => void;
 }) {
+  const { t } = useI18n();
   const [replicas, setReplicas] = useState(String(service.replicas));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -399,7 +410,7 @@ function ScaleDialog({
   const submit = async () => {
     const r = parseInt(replicas, 10);
     if (!Number.isInteger(r) || r < 1 || r > 100) {
-      setError('Replicas must be an integer between 1 and 100.');
+      setError(t('services.validationReplicas'));
       return;
     }
     setSubmitting(true);
@@ -412,20 +423,22 @@ function ScaleDialog({
       );
       onScaled();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to scale');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('services.scaleFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Scale ${service.name}`} onClose={onClose} testId="scale-dialog">
-      <p>
-        Current replicas: <strong>{service.replicas}</strong>
-      </p>
+    <Dialog title={t('services.scaleTitle', { name: service.name })} onClose={onClose} testId="scale-dialog">
+      <p
+        dangerouslySetInnerHTML={{
+          __html: t('services.scaleBody', { n: service.replicas }),
+        }}
+      />
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="scale-replicas">New replicas (1-100)</label>
+          <label htmlFor="scale-replicas">{t('services.fieldNewReplicas')}</label>
           <input
             id="scale-replicas"
             data-testid="scale-replicas-input"
@@ -440,14 +453,14 @@ function ScaleDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="submit-scale"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Scaling…' : 'Scale'}
+          {submitting ? t('common.working') : t('services.scale')}
         </button>
       </div>
     </Dialog>
@@ -465,6 +478,7 @@ function DeleteDialog({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -475,23 +489,21 @@ function DeleteDialog({
       await api.del(`/api/v1/admin/inference-services/${service.serviceId}`, orgId);
       onDeleted();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to delete');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('services.deleteFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Delete ${service.name}?`} onClose={onClose} testId="delete-dialog">
+    <Dialog title={t('services.deleteTitle', { name: service.name })} onClose={onClose} testId="delete-dialog">
       <p>
-        The Kubernetes Deployment and Service are removed. This action is
-        idempotent but the service cannot be restarted — deploy again from the
-        Models page if needed.
+        {t('services.deleteBody')}
       </p>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="danger"
@@ -499,7 +511,7 @@ function DeleteDialog({
           disabled={submitting}
           onClick={() => void del()}
         >
-          {submitting ? 'Deleting…' : 'Delete'}
+          {submitting ? t('common.deleting') : t('common.delete')}
         </button>
       </div>
     </Dialog>

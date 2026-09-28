@@ -7,6 +7,7 @@ import { useApi } from '../surface';
 import { useOrg } from '../org';
 import { formatTime } from '../api';
 import { BackLink, ErrorBanner } from '../components';
+import { useI18n } from '../i18n';
 
 interface AcceleratorGPU {
   index: string;
@@ -68,6 +69,7 @@ function healthBadgeClass(health: string): string {
 export default function AcceleratorNodeDetailPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const nodeId = window.location.pathname.split('/').pop() || '';
   const [node, setNode] = useState<AcceleratorNode | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,28 +91,26 @@ export default function AcceleratorNodeDetailPage() {
       if (code === 10208) {
         setNotFound(true);
       } else {
-        setError(e instanceof Error ? e.message : 'failed to load node');
+        setError(e instanceof Error ? e.message : t('accnode.loadFailed'));
       }
     } finally {
       setLoading(false);
     }
-  }, [api, orgId, nodeId]);
+  }, [api, orgId, nodeId, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
 
   if (notFound) {
     return (
       <div data-testid="accelerator-node-not-found">
         <div data-testid="accelerator-node-back">
-          <BackLink to="/admin/accelerators" label="Back to Accelerators" />
+          <BackLink to="/admin/accelerators" label={t('accnode.back')} />
         </div>
-        <div className="empty-state">
-          Node not found — it may have been removed.
-        </div>
+        <div className="empty-state">{t('accnode.notFound')}</div>
       </div>
     );
   }
@@ -119,7 +119,7 @@ export default function AcceleratorNodeDetailPage() {
     return (
       <div>
         <div data-testid="accelerator-node-back">
-          <BackLink to="/admin/accelerators" label="Back to Accelerators" />
+          <BackLink to="/admin/accelerators" label={t('accnode.back')} />
         </div>
         <ErrorBanner message={error} />
       </div>
@@ -132,7 +132,7 @@ export default function AcceleratorNodeDetailPage() {
   return (
     <div data-testid="accelerator-node-detail">
       <div data-testid="accelerator-node-back">
-        <BackLink to="/admin/accelerators" label="Back to Accelerators" />
+        <BackLink to="/admin/accelerators" label={t('accnode.back')} />
       </div>
 
       <div className="page-header">
@@ -143,55 +143,55 @@ export default function AcceleratorNodeDetailPage() {
               {s.health}
             </span>
           </h1>
-          <div className="subtitle">Node {s.nodeId}</div>
+          <div className="subtitle">{t('accnode.subtitle', { nodeId: s.nodeId })}</div>
         </div>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>Overview</h3>
+        <h3>{t('accnode.overview')}</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <div className="label">Vendor</div>
+            <div className="label">{t('accnode.vendor')}</div>
             <div className="value">{s.vendor}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Readiness</div>
+            <div className="label">{t('accnode.readiness')}</div>
             <div className="value">{s.readiness}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Device plugin</div>
+            <div className="label">{t('accnode.devicePlugin')}</div>
             <div className="value">{s.devicePluginState}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Driver version</div>
+            <div className="label">{t('accnode.driverVersion')}</div>
             <div className="value mono">{s.driverVersion || '—'}</div>
           </div>
           <div className="detail-item">
-            <div className="label">GPUs (alloc/free)</div>
+            <div className="label">{t('accnode.gpus')}</div>
             <div className="value">
               {s.gpusAllocated} / {s.gpusFree}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Last updated</div>
+            <div className="label">{t('accnode.lastUpdated')}</div>
             <div className="value">{formatTime(s.lastUpdatedAt)}</div>
           </div>
         </div>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>GPU breakdown</h3>
+        <h3>{t('accnode.gpuBreakdown')}</h3>
         {node.gpus.length === 0 ? (
-          <div className="muted">No per-GPU breakdown reported.</div>
+          <div className="muted">{t('accnode.gpuEmpty')}</div>
         ) : (
           <table className="data" data-testid="accelerator-node-gpus">
             <thead>
               <tr>
-                <th>Index</th>
-                <th>Model</th>
-                <th>Allocated</th>
-                <th>Free</th>
-                <th>Note</th>
+                <th>{t('accnode.colIndex')}</th>
+                <th>{t('accnode.colModel')}</th>
+                <th>{t('accnode.colAllocated')}</th>
+                <th>{t('accnode.colFree')}</th>
+                <th>{t('accnode.colNote')}</th>
               </tr>
             </thead>
             <tbody>
@@ -210,17 +210,17 @@ export default function AcceleratorNodeDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>Resources</h3>
+        <h3>{t('accnode.resources')}</h3>
         {node.resources.length === 0 ? (
-          <div className="muted">No accelerator resources reported.</div>
+          <div className="muted">{t('accnode.resourcesEmpty')}</div>
         ) : (
           <table className="data" data-testid="accelerator-node-resources">
             <thead>
               <tr>
-                <th>Card type</th>
-                <th>Allocatable</th>
-                <th>Allocated</th>
-                <th>Free</th>
+                <th>{t('accnode.colCardType')}</th>
+                <th>{t('accnode.colAllocatable')}</th>
+                <th>{t('accnode.colAllocated')}</th>
+                <th>{t('accnode.colFree')}</th>
               </tr>
             </thead>
             <tbody>
@@ -242,10 +242,10 @@ export default function AcceleratorNodeDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3>Labels &amp; taints</h3>
+        <h3>{t('accnode.labelsTaints')}</h3>
         <div className="detail-grid">
           <div className="detail-item" data-testid="accelerator-node-labels">
-            <div className="label">Labels</div>
+            <div className="label">{t('accnode.labels')}</div>
             <div className="value">
               {Object.keys(node.labels || {}).length === 0
                 ? '—'
@@ -255,7 +255,7 @@ export default function AcceleratorNodeDetailPage() {
             </div>
           </div>
           <div className="detail-item" data-testid="accelerator-node-taints">
-            <div className="label">Taints</div>
+            <div className="label">{t('accnode.taints')}</div>
             <div className="value">
               {node.taints.length === 0 ? '—' : node.taints.join(', ')}
             </div>
@@ -264,26 +264,26 @@ export default function AcceleratorNodeDetailPage() {
       </div>
 
       <div className="panel">
-        <h3>Warmup context</h3>
+        <h3>{t('accnode.warmup')}</h3>
         {node.warmupTasks.length === 0 ? (
           <div className="muted" data-testid="accelerator-node-warmup-empty">
-            No warmup tasks targeted this node.
+            {t('accnode.warmupEmpty')}
           </div>
         ) : (
           <table className="data" data-testid="accelerator-node-warmup">
             <thead>
               <tr>
-                <th>Task</th>
-                <th>State</th>
-                <th>Node outcome</th>
+                <th>{t('accnode.colTask')}</th>
+                <th>{t('accnode.colState')}</th>
+                <th>{t('accnode.colNodeOutcome')}</th>
               </tr>
             </thead>
             <tbody>
-              {node.warmupTasks.map((t) => (
-                <tr key={t.taskId}>
-                  <td className="mono">{t.taskId}</td>
-                  <td>{t.state}</td>
-                  <td>{t.nodeOutcome || '—'}</td>
+              {node.warmupTasks.map((task) => (
+                <tr key={task.taskId}>
+                  <td className="mono">{task.taskId}</td>
+                  <td>{task.state}</td>
+                  <td>{task.nodeOutcome || '—'}</td>
                 </tr>
               ))}
             </tbody>

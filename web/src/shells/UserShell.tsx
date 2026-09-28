@@ -19,6 +19,7 @@ import { getSessionToken, setSessionToken, type SessionInfo } from '../api';
 import { useApi, useRealm } from '../surface';
 import { realmLoginPath } from '../surface-routes';
 import { OrgSwitcher } from '../org';
+import { useI18n } from '../i18n';
 import brandLogo from '../assets/brand/logo-dark.svg';
 
 // adminRoles is the set of session roles that make a user an
@@ -26,15 +27,15 @@ import brandLogo from '../assets/brand/logo-dark.svg';
 // the switch-to-admin button is shown only to admins.
 const adminRoles = ['platform-admin', 'org-admin', 'admin', 'owner'];
 
-export const USER_NAV_ITEMS: { path: string; label: string; testid: string; icon: Icon }[] = [
-  { path: '/quickstart', label: 'Quickstart', testid: 'user-nav-quickstart', icon: Rocket },
-  { path: '/usage', label: 'Usage', testid: 'user-nav-usage', icon: ChartLine },
-  { path: '/api-keys', label: 'API Keys', testid: 'user-nav-api-keys', icon: Key },
-  { path: '/request-logs', label: 'Request Logs', testid: 'user-nav-request-logs', icon: ListMagnifyingGlass },
-  { path: '/playground', label: 'Playground', testid: 'user-nav-playground', icon: Play },
-  { path: '/billing', label: 'Billing', testid: 'user-nav-billing', icon: Receipt },
-  { path: '/activity', label: 'Activity', testid: 'user-nav-activity', icon: Pulse },
-  { path: '/models', label: 'Models', testid: 'user-nav-models', icon: Cube },
+export const USER_NAV_ITEMS: { path: string; labelKey: string; testid: string; icon: Icon }[] = [
+  { path: '/quickstart', labelKey: 'nav.quickstart', testid: 'user-nav-quickstart', icon: Rocket },
+  { path: '/usage', labelKey: 'nav.usage', testid: 'user-nav-usage', icon: ChartLine },
+  { path: '/api-keys', labelKey: 'nav.apiKeys', testid: 'user-nav-api-keys', icon: Key },
+  { path: '/request-logs', labelKey: 'nav.requestLogs', testid: 'user-nav-request-logs', icon: ListMagnifyingGlass },
+  { path: '/playground', labelKey: 'nav.playground', testid: 'user-nav-playground', icon: Play },
+  { path: '/billing', labelKey: 'nav.billing', testid: 'user-nav-billing', icon: Receipt },
+  { path: '/activity', labelKey: 'nav.activity', testid: 'user-nav-activity', icon: Pulse },
+  { path: '/models', labelKey: 'nav.models', testid: 'user-nav-models', icon: Cube },
 ];
 
 function isActive(path: string, current: string): boolean {
@@ -44,6 +45,7 @@ function isActive(path: string, current: string): boolean {
 export function UserShell({ children }: { children: ReactNode }) {
   const realm = useRealm();
   const api = useApi();
+  const { t, lang, setLang } = useI18n();
   const [path, setPath] = useState(window.location.pathname);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -103,11 +105,11 @@ export function UserShell({ children }: { children: ReactNode }) {
         setSessionToken('admin', data.sessionToken);
         navigate('/admin/models');
       } else {
-        setSwitchNotice('Switch did not complete. Try again.');
+        setSwitchNotice(t('account.switchIncomplete'));
       }
     } catch (e) {
       const code = e && (e as { code?: number }).code;
-      setSwitchNotice(code === 10036 ? 'You do not have permission to switch to admin.' : 'Switch failed. Try again.');
+      setSwitchNotice(code === 10036 ? t('account.switchNoPermission') : t('account.switchFailed'));
     } finally {
       setSwitching(false);
     }
@@ -135,12 +137,19 @@ export function UserShell({ children }: { children: ReactNode }) {
                 }}
               >
                 <IconComp size={18} weight="duotone" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </a>
             );
           })}
         </nav>
         <OrgSwitcher />
+        <button
+          className="lang-switch"
+          data-testid="lang-switch"
+          onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+        >
+          {t('lang.switch')}
+        </button>
         {getSessionToken(realm) && (
           <div className="account-block" data-testid="user-account-block">
             {session && (
@@ -156,14 +165,14 @@ export function UserShell({ children }: { children: ReactNode }) {
                 disabled={switching}
                 onClick={() => void switchToAdmin()}
               >
-                {switching ? 'Switching…' : 'Switch to admin'}
+                {switching ? t('account.switching') : t('account.switchToAdmin')}
               </button>
             )}
             {switchNotice && (
               <div className="notice" data-testid="switch-notice">{switchNotice}</div>
             )}
             <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
-              Sign out
+              {t('account.signOut')}
             </button>
           </div>
         )}

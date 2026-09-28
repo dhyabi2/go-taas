@@ -9,6 +9,7 @@ import { useApi } from '../surface';
 import { setSessionToken, type Realm } from '../api';
 import { navigate } from '../router';
 import { realmCustomLoginPath, realmHome } from '../surface-routes';
+import { useI18n } from '../i18n';
 import brandLogo from '../assets/brand/logo.svg';
 
 interface PasswordLoginResponse {
@@ -17,30 +18,31 @@ interface PasswordLoginResponse {
   expiresAt?: string;
 }
 
-// errorCopy maps business codes to sentences (feature-22 FR6.3).
-function errorCopy(code: number): string {
-  switch (code) {
-    case 10022:
-      return 'This identity provider is disabled. Ask your platform operator.';
-    case 10024:
-      return 'The username or password is incorrect.';
-    case 10025:
-      return 'This identity is not linked to a go-taas account. Ask your organization administrator for an invitation.';
-    case 10027:
-      return 'Sign-in did not complete. Try again.';
-    default:
-      return 'Sign-in failed. Try again.';
-  }
-}
-
 export default function AdminCustomLoginPage({ providerId }: { providerId: string }) {
   const api = useApi();
+  const { t } = useI18n();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = username.trim().length > 0 && password.length > 0 && !submitting;
+
+  // errorCopy maps business codes to sentences (feature-22 FR6.3).
+  const errorCopy = (code: number): string => {
+    switch (code) {
+      case 10022:
+        return t('login.errorDisabled');
+      case 10024:
+        return t('login.errorBadCredentials');
+      case 10025:
+        return t('login.errorNoAccount');
+      case 10027:
+        return t('login.errorIncomplete');
+      default:
+        return t('login.errorIncomplete');
+    }
+  };
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -55,7 +57,7 @@ export default function AdminCustomLoginPage({ providerId }: { providerId: strin
       const token = data.sessionToken;
       const realm = (data.realm as Realm) || 'user';
       if (!token) {
-        setError('Sign-in did not complete. Try again.');
+        setError(t('login.errorIncomplete'));
         return;
       }
       // Store the token under the realm-matching key (feature-22 FR2.3).
@@ -84,12 +86,10 @@ export default function AdminCustomLoginPage({ providerId }: { providerId: strin
           navigate('/admin/login');
         }}
       >
-        ← All sign-in options
+        ← {t('login.back')}
       </a>
-      <h1>Sign in to {providerId}</h1>
-      <p className="login-subtitle">
-        Your credentials are verified by {providerId} and are not stored by go-taas.
-      </p>
+      <h1>{t('login.signInWith', { name: providerId })}</h1>
+      <p className="login-subtitle">{t('login.credentialsNote', { name: providerId })}</p>
       {error && (
         <div className="error" data-testid="custom-login-error" role="alert">
           {error}
@@ -103,7 +103,7 @@ export default function AdminCustomLoginPage({ providerId }: { providerId: strin
         }}
       >
         <label className="field">
-          <span>Username</span>
+          <span>{t('login.username')}</span>
           <input
             type="text"
             autoComplete="username"
@@ -114,7 +114,7 @@ export default function AdminCustomLoginPage({ providerId }: { providerId: strin
           />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t('login.password')}</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -130,7 +130,7 @@ export default function AdminCustomLoginPage({ providerId }: { providerId: strin
           data-testid="custom-login-submit"
           disabled={!canSubmit}
         >
-          {submitting ? 'Signing in…' : 'Sign in'}
+          {submitting ? t('login.signingIn') : t('login.submit')}
         </button>
       </form>
     </div>

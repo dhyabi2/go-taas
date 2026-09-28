@@ -30,29 +30,30 @@ import { getSessionToken, setSessionToken, type SessionInfo } from '../api';
 import { useApi, useRealm } from '../surface';
 import { realmLoginPath } from '../surface-routes';
 import { OrgSwitcher } from '../org';
+import { useI18n } from '../i18n';
 import brandLogo from '../assets/brand/logo-dark.svg';
 
-export const ADMIN_NAV_ITEMS: { path: string; label: string; testid: string; icon: Icon }[] = [
-  { path: '/admin/organizations', label: 'Organizations', testid: 'nav-organizations', icon: Buildings },
-  { path: '/admin/projects', label: 'Projects', testid: 'nav-projects', icon: Folder },
-  { path: '/admin/members', label: 'Members', testid: 'nav-members', icon: Users },
-  { path: '/admin/invitations', label: 'Invitations', testid: 'nav-invitations', icon: Envelope },
-  { path: '/admin/sso', label: 'SSO Providers', testid: 'nav-sso-providers', icon: Key },
-  { path: '/admin/identity-bindings', label: 'Identity Bindings', testid: 'nav-identity-bindings', icon: LinkSimple },
-  { path: '/admin/models', label: 'Models', testid: 'nav-models', icon: Cube },
-  { path: '/admin/inference-services', label: 'Inference Services', testid: 'nav-inference-services', icon: Rocket },
-  { path: '/admin/images', label: 'Images', testid: 'nav-images', icon: Image },
-  { path: '/admin/usage', label: 'Usage', testid: 'nav-usage', icon: ChartLine },
-  { path: '/admin/pricing', label: 'Pricing', testid: 'nav-pricing', icon: Tag },
-  { path: '/admin/billing', label: 'Bills', testid: 'nav-bills', icon: Receipt },
-  { path: '/admin/billing/accounts', label: 'Accounts', testid: 'nav-accounts', icon: UserCircle },
-  { path: '/admin/billing/payments', label: 'Payments', testid: 'nav-payments', icon: CreditCard },
-  { path: '/admin/billing/invoices', label: 'Invoices', testid: 'nav-invoices', icon: FileText },
-  { path: '/admin/audit-logs', label: 'Audit Logs', testid: 'nav-audit-logs', icon: Scroll },
-  { path: '/admin/autoscaling', label: 'Autoscaling', testid: 'nav-autoscaling', icon: Gauge },
-  { path: '/admin/accelerators', label: 'Accelerators', testid: 'nav-accelerators', icon: Cpu },
-  { path: '/admin/compatibility', label: 'Compatibility', testid: 'nav-compatibility', icon: PuzzlePiece },
-  { path: '/admin/load-tests', label: 'Load Tests', testid: 'nav-load-tests', icon: Gauge },
+export const ADMIN_NAV_ITEMS: { path: string; labelKey: string; testid: string; icon: Icon }[] = [
+  { path: '/admin/organizations', labelKey: 'nav.organizations', testid: 'nav-organizations', icon: Buildings },
+  { path: '/admin/projects', labelKey: 'nav.projects', testid: 'nav-projects', icon: Folder },
+  { path: '/admin/members', labelKey: 'nav.members', testid: 'nav-members', icon: Users },
+  { path: '/admin/invitations', labelKey: 'nav.invitations', testid: 'nav-invitations', icon: Envelope },
+  { path: '/admin/sso', labelKey: 'nav.ssoProviders', testid: 'nav-sso-providers', icon: Key },
+  { path: '/admin/identity-bindings', labelKey: 'nav.identityBindings', testid: 'nav-identity-bindings', icon: LinkSimple },
+  { path: '/admin/models', labelKey: 'nav.models', testid: 'nav-models', icon: Cube },
+  { path: '/admin/inference-services', labelKey: 'nav.inferenceServices', testid: 'nav-inference-services', icon: Rocket },
+  { path: '/admin/images', labelKey: 'nav.images', testid: 'nav-images', icon: Image },
+  { path: '/admin/usage', labelKey: 'nav.usage', testid: 'nav-usage', icon: ChartLine },
+  { path: '/admin/pricing', labelKey: 'nav.pricing', testid: 'nav-pricing', icon: Tag },
+  { path: '/admin/billing', labelKey: 'nav.bills', testid: 'nav-bills', icon: Receipt },
+  { path: '/admin/billing/accounts', labelKey: 'nav.accounts', testid: 'nav-accounts', icon: UserCircle },
+  { path: '/admin/billing/payments', labelKey: 'nav.payments', testid: 'nav-payments', icon: CreditCard },
+  { path: '/admin/billing/invoices', labelKey: 'nav.invoices', testid: 'nav-invoices', icon: FileText },
+  { path: '/admin/audit-logs', labelKey: 'nav.auditLogs', testid: 'nav-audit-logs', icon: Scroll },
+  { path: '/admin/autoscaling', labelKey: 'nav.autoscaling', testid: 'nav-autoscaling', icon: Gauge },
+  { path: '/admin/accelerators', labelKey: 'nav.accelerators', testid: 'nav-accelerators', icon: Cpu },
+  { path: '/admin/compatibility', labelKey: 'nav.compatibility', testid: 'nav-compatibility', icon: PuzzlePiece },
+  { path: '/admin/load-tests', labelKey: 'nav.loadTests', testid: 'nav-load-tests', icon: Gauge },
 ];
 
 function isActive(path: string, current: string): boolean {
@@ -62,6 +63,7 @@ function isActive(path: string, current: string): boolean {
 export function AdminShell({ children }: { children: ReactNode }) {
   const realm = useRealm();
   const api = useApi();
+  const { t, lang, setLang } = useI18n();
   const [path, setPath] = useState(window.location.pathname);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [switching, setSwitching] = useState(false);
@@ -117,10 +119,10 @@ export function AdminShell({ children }: { children: ReactNode }) {
         setSessionToken('user', data.sessionToken);
         navigate('/usage');
       } else {
-        setSwitchNotice('Switch did not complete. Try again.');
+        setSwitchNotice(t('account.switchIncomplete'));
       }
     } catch {
-      setSwitchNotice('Switch failed. Try again.');
+      setSwitchNotice(t('account.switchFailed'));
     } finally {
       setSwitching(false);
     }
@@ -148,12 +150,19 @@ export function AdminShell({ children }: { children: ReactNode }) {
                 }}
               >
                 <IconComp size={18} weight="duotone" aria-hidden="true" />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </a>
             );
           })}
         </nav>
         <OrgSwitcher />
+        <button
+          className="lang-switch"
+          data-testid="lang-switch"
+          onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}
+        >
+          {t('lang.switch')}
+        </button>
         {getSessionToken(realm) && (
           <div className="account-block" data-testid="admin-account-block">
             {session && (
@@ -168,13 +177,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
               disabled={switching}
               onClick={() => void switchToUser()}
             >
-              {switching ? 'Switching…' : 'Switch to user console'}
+              {switching ? t('account.switching') : t('account.switchToUser')}
             </button>
             {switchNotice && (
               <div className="notice" data-testid="switch-notice">{switchNotice}</div>
             )}
             <button className="link" data-testid="user-menu-logout" onClick={() => void logout()}>
-              Sign out
+              {t('account.signOut')}
             </button>
           </div>
         )}

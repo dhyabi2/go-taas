@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useApi } from '../surface';
 import { useOrg } from '../org';
 import { formatTime } from '../api';
+import { useI18n } from '../i18n';
 
 interface AuditEvent {
   auditEventId: string;
@@ -23,6 +24,7 @@ interface AuditEvent {
 export default function AuditLogsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [error, setError] = useState('');
 
@@ -30,25 +32,25 @@ export default function AuditLogsPage() {
     api
       .get<{ auditEvents?: AuditEvent[] }>('/api/v1/admin/audit/events?page.limit=100', orgId)
       .then((data) => setEvents(data.auditEvents || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load audit events'));
-  }, [api, orgId]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('audit.loadFailed')));
+  }, [api, orgId, t]);
 
   return (
     <div className="page">
-      <h1>Audit Logs</h1>
+      <h1>{t('audit.title')}</h1>
       {error && <div className="error">{error}</div>}
       {events.length === 0 ? (
-        <div className="empty" data-testid="audit-logs-empty">No audit events yet.</div>
+        <div className="empty" data-testid="audit-logs-empty">{t('audit.empty')}</div>
       ) : (
         <table className="table" data-testid="audit-logs-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Action</th>
-              <th>Actor</th>
-              <th>Resource</th>
-              <th>Result</th>
-              <th>IP</th>
+              <th>{t('audit.colTime')}</th>
+              <th>{t('audit.colAction')}</th>
+              <th>{t('audit.colActor')}</th>
+              <th>{t('audit.colResource')}</th>
+              <th>{t('audit.colResult')}</th>
+              <th>{t('audit.colIp')}</th>
             </tr>
           </thead>
           <tbody>

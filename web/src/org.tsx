@@ -6,6 +6,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { getOrgId, getSessionToken, setOrgId, type OrganizationSummary, type SessionInfo } from './api';
 import { useApi, useRealm } from './surface';
+import { useI18n } from './i18n';
 
 const DEFAULT_ORG = 'org-default';
 
@@ -43,6 +44,7 @@ export function useOrg() {
 export function OrgSwitcher() {
   const realm = useRealm();
   const api = useApi();
+  const { t } = useI18n();
   const { orgId, setOrgId } = useOrg();
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
   const [notice, setNotice] = useState('');
@@ -118,7 +120,7 @@ export function OrgSwitcher() {
   if (!loaded && orgs.length === 0) {
     return (
       <div className="org-switcher">
-        <label htmlFor="org-switcher-select">Organization</label>
+        <label htmlFor="org-switcher-select">{t('org.organization')}</label>
         <select id="org-switcher-select" data-testid="org-switcher-select" value={orgId} disabled>
           <option value={orgId}>{orgId}</option>
         </select>
@@ -128,7 +130,7 @@ export function OrgSwitcher() {
 
   return (
     <div className="org-switcher">
-      <label htmlFor="org-switcher-select">Organization</label>
+      <label htmlFor="org-switcher-select">{t('org.organization')}</label>
       <select
         id="org-switcher-select"
         data-testid="org-switcher-select"

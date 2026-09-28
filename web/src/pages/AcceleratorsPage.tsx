@@ -9,6 +9,7 @@ import { useApi } from '../surface';
 import { useOrg } from '../org';
 import { formatTime, type PageMeta } from '../api';
 import { ErrorBanner, Pagination, usePolling } from '../components';
+import { useI18n } from '../i18n';
 
 interface AcceleratorNodeSummary {
   nodeId: string;
@@ -78,6 +79,7 @@ function healthBadgeClass(health: string): string {
 export default function AcceleratorsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [nodes, setNodes] = useState<AcceleratorNodeSummary[]>([]);
   const [cardTypes, setCardTypes] = useState<CardTypeSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -117,7 +119,7 @@ export default function AcceleratorsPage() {
         setLastUpdated(Math.floor(Date.now() / 1000));
         setStale(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'failed to load accelerators');
+        setError(e instanceof Error ? e.message : t('accelerators.loadFailed'));
         // A failed poll keeps the last good data (FR5.3).
         if (nodes.length > 0) setStale(true);
       } finally {
@@ -125,7 +127,7 @@ export default function AcceleratorsPage() {
         setRefreshing(false);
       }
     },
-    [api, orgId, offset, vendor, health, search, nodes.length],
+    [api, orgId, offset, vendor, health, search, nodes.length, t],
   );
 
   useEffect(() => {
@@ -145,14 +147,14 @@ export default function AcceleratorsPage() {
     <div data-testid="accelerators-page">
       <div className="page-header">
         <div>
-          <h1>Accelerators</h1>
-          <div className="subtitle">
-            GPU fleet capacity and health across NVIDIA, Iluvatar CoreX, and MetaX.
-          </div>
+          <h1>{t('accelerators.title')}</h1>
+          <div className="subtitle">{t('accelerators.subtitle')}</div>
         </div>
         <div className="toolbar">
           <span className="muted" data-testid="accelerators-last-updated">
-            Last updated: {lastUpdated ? formatTime(lastUpdated) : '—'}
+            {t('common.lastUpdated', {
+              time: lastUpdated ? formatTime(lastUpdated) : '—',
+            })}
           </span>
           <button
             className="secondary"
@@ -160,7 +162,7 @@ export default function AcceleratorsPage() {
             disabled={refreshing}
             onClick={refresh}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {refreshing ? t('common.refreshing') : t('common.refresh')}
           </button>
         </div>
       </div>
@@ -172,16 +174,16 @@ export default function AcceleratorsPage() {
       )}
       {stale && (
         <div className="warning-banner" data-testid="accelerators-stale-banner">
-          Showing stale data — the last poll failed.{' '}
+          {t('common.staleData')}{' '}
           <button className="link" data-testid="accelerators-stale-retry" onClick={refresh}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
 
       {zeroNodeVendors.map((v) => (
         <div className="warning-banner" data-testid={`accelerators-vendor-banner-${v}`}>
-          {v}: 0 nodes
+          {t('accelerators.vendorNodes', { v })}
         </div>
       ))}
 
@@ -201,21 +203,21 @@ export default function AcceleratorsPage() {
                 <span className={vendorBadgeClass(c.vendor)}>{c.vendor}</span>
               </div>
               <div className="detail-item">
-                <div className="label">Card type</div>
+                <div className="label">{t('accelerators.cardType')}</div>
                 <div className="value">{c.cardType}</div>
               </div>
               <div className="detail-item">
-                <div className="label">Free / Total</div>
+                <div className="label">{t('accelerators.freeTotal')}</div>
                 <div className="value">
                   {c.free} / {c.total}
                 </div>
               </div>
               <div className="detail-item">
-                <div className="label">Utilization</div>
-                <div className="value">{pct}% free</div>
+                <div className="label">{t('accelerators.utilization')}</div>
+                <div className="value">{t('accelerators.percentFree', { pct })}</div>
               </div>
               <div className="detail-item">
-                <div className="label">Nodes</div>
+                <div className="label">{t('accelerators.nodes')}</div>
                 <div className="value">{c.nodeCount}</div>
               </div>
               {noFree && (
@@ -223,7 +225,7 @@ export default function AcceleratorsPage() {
                   className="badge failed"
                   data-testid={`accelerator-card-no-free-${c.vendor}-${c.cardType}`}
                 >
-                  No free capacity
+                  {t('accelerators.noFreeCapacity')}
                 </div>
               )}
             </div>
@@ -231,7 +233,7 @@ export default function AcceleratorsPage() {
         })}
         {cardTypes.length === 0 && !loading && (
           <div className="empty-state" data-testid="accelerators-summary-empty">
-            No card types yet.
+            {t('accelerators.emptyCards')}
           </div>
         )}
       </div>
@@ -245,7 +247,7 @@ export default function AcceleratorsPage() {
             setOffset(0);
           }}
         >
-          <option value="">All vendors</option>
+          <option value="">{t('common.allVendors')}</option>
           {VENDORS.map((v) => (
             <option key={v} value={v}>
               {v}
@@ -260,7 +262,7 @@ export default function AcceleratorsPage() {
             setOffset(0);
           }}
         >
-          <option value="">All health</option>
+          <option value="">{t('common.allHealth')}</option>
           {HEALTHS.map((h) => (
             <option key={h} value={h}>
               {h}
@@ -269,7 +271,7 @@ export default function AcceleratorsPage() {
         </select>
         <input
           data-testid="accelerators-search"
-          placeholder="Search node name"
+          placeholder={t('common.searchByName')}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -280,25 +282,24 @@ export default function AcceleratorsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : nodes.length === 0 ? (
           <div className="empty-state" data-testid="accelerators-empty">
-            No accelerator nodes found — install a GPU Operator and label your
-            compute nodes.
+            {t('accelerators.empty')}
           </div>
         ) : (
           <table className="data" data-testid="accelerators-table">
             <thead>
               <tr>
-                <th>Node</th>
-                <th>Vendor</th>
-                <th>Card type(s)</th>
-                <th>GPUs (alloc/free)</th>
-                <th>Driver</th>
-                <th>Device plugin</th>
-                <th>Readiness</th>
-                <th>Health</th>
-                <th>Last updated</th>
+                <th>{t('accelerators.colNode')}</th>
+                <th>{t('accelerators.colVendor')}</th>
+                <th>{t('accelerators.colCardTypes')}</th>
+                <th>{t('accelerators.colGpus')}</th>
+                <th>{t('accelerators.colDriver')}</th>
+                <th>{t('accelerators.colDevicePlugin')}</th>
+                <th>{t('accelerators.colReadiness')}</th>
+                <th>{t('accelerators.colHealth')}</th>
+                <th>{t('accelerators.colLastUpdated')}</th>
               </tr>
             </thead>
             <tbody>

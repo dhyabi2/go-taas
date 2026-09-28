@@ -9,6 +9,7 @@ import {
   type GetAutoscalingPolicyResponse,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { ErrorBanner } from '../components';
 
 const DEFAULTS: AutoscalingPolicy = {
@@ -22,6 +23,7 @@ const DEFAULTS: AutoscalingPolicy = {
 
 export default function AutoscalingPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [policy, setPolicy] = useState<AutoscalingPolicy>(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -38,41 +40,41 @@ export default function AutoscalingPage() {
       );
       if (data.policy) setPolicy(data.policy);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load policy');
+      setError(e instanceof Error ? e.message : t('autoscaling.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const validate = (p: AutoscalingPolicy): Record<string, string> => {
+  const validate = (p: AutoscalingPolicy, t: (key: string, vars?: Record<string, string | number>) => string): Record<string, string> => {
     const errs: Record<string, string> = {};
     if (p.minReplicas > p.maxReplicas) {
-      errs.maxReplicas = 'Max replicas must be ≥ min replicas and ≤ 100.';
+      errs.maxReplicas = t('autoscaling.validationMax');
     }
     if (p.minReplicas === 0 && !p.scaleToZero) {
-      errs.minReplicas = 'Min replicas must be 0 to enable scale-to-zero.';
+      errs.minReplicas = t('autoscaling.validationMinZero');
     }
     if (p.scaleToZero && p.minReplicas !== 0) {
-      errs.scaleToZero = 'Set min replicas to 0 to enable scale-to-zero.';
+      errs.scaleToZero = t('autoscaling.validationSetMinZero');
     }
     if (p.targetConcurrency < 1 || p.targetConcurrency > 1000) {
-      errs.targetConcurrency = 'Target concurrency must be between 1 and 1000.';
+      errs.targetConcurrency = t('autoscaling.validationConcurrency');
     }
     if (p.cooldownSeconds < 0 || p.cooldownSeconds > 3600) {
-      errs.cooldownSeconds = 'Cooldown must be between 0 and 3600 seconds.';
+      errs.cooldownSeconds = t('autoscaling.validationCooldown');
     }
     if (p.maxReplicas < 1 || p.maxReplicas > 100) {
-      errs.maxReplicas = 'Max replicas must be ≥ min replicas and ≤ 100.';
+      errs.maxReplicas = t('autoscaling.validationMax');
     }
     return errs;
   };
 
   const save = async () => {
-    const errs = validate(policy);
+    const errs = validate(policy, t);
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setSaving(true);
@@ -85,9 +87,9 @@ export default function AutoscalingPage() {
         { policy },
       );
       if (data.policy) setPolicy(data.policy);
-      setToast('Default policy saved.');
+      setToast(t('autoscaling.saved'));
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to save policy');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('autoscaling.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -103,17 +105,14 @@ export default function AutoscalingPage() {
     setFieldErrors({});
   };
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
 
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1>Default autoscaling policy</h1>
-          <div className="subtitle">
-            Applied to new inference services. Existing services keep their own
-            policy unless you edit them.
-          </div>
+          <h1>{t('autoscaling.title')}</h1>
+          <div className="subtitle">{t('autoscaling.subtitle')}</div>
         </div>
       </div>
 
@@ -127,7 +126,7 @@ export default function AutoscalingPage() {
       <div className="panel" style={{ maxWidth: 560 }}>
         <div className="form-grid">
           <div className="form-field">
-            <label htmlFor="as-enabled">Enabled</label>
+            <label htmlFor="as-enabled">{t('autoscaling.enabled')}</label>
             <input
               id="as-enabled"
               data-testid="as-enabled"
@@ -137,7 +136,7 @@ export default function AutoscalingPage() {
             />
           </div>
           <div className="form-field">
-            <label htmlFor="as-min">Min replicas</label>
+            <label htmlFor="as-min">{t('autoscaling.minReplicas')}</label>
             <input
               id="as-min"
               data-testid="as-min"
@@ -153,7 +152,7 @@ export default function AutoscalingPage() {
             )}
           </div>
           <div className="form-field">
-            <label htmlFor="as-max">Max replicas</label>
+            <label htmlFor="as-max">{t('autoscaling.maxReplicas')}</label>
             <input
               id="as-max"
               data-testid="as-max"
@@ -169,7 +168,7 @@ export default function AutoscalingPage() {
             )}
           </div>
           <div className="form-field">
-            <label htmlFor="as-target">Target concurrency</label>
+            <label htmlFor="as-target">{t('autoscaling.targetConcurrency')}</label>
             <input
               id="as-target"
               data-testid="as-target"
@@ -185,7 +184,7 @@ export default function AutoscalingPage() {
             )}
           </div>
           <div className="form-field">
-            <label htmlFor="as-scale-to-zero">Scale to zero</label>
+            <label htmlFor="as-scale-to-zero">{t('autoscaling.scaleToZero')}</label>
             <input
               id="as-scale-to-zero"
               data-testid="as-scale-to-zero"
@@ -199,7 +198,7 @@ export default function AutoscalingPage() {
             )}
           </div>
           <div className="form-field">
-            <label htmlFor="as-cooldown">Cooldown seconds</label>
+            <label htmlFor="as-cooldown">{t('autoscaling.cooldown')}</label>
             <input
               id="as-cooldown"
               data-testid="as-cooldown"
@@ -217,10 +216,10 @@ export default function AutoscalingPage() {
         </div>
         <div className="dialog-actions">
           <button className="secondary" data-testid="as-reset" onClick={reset}>
-            Reset to defaults
+            {t('autoscaling.reset')}
           </button>
           <button data-testid="as-save" disabled={saving} onClick={() => void save()}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>
       </div>

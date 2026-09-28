@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../surface';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { formatTime } from '../api';
 
 interface PaymentChannel {
@@ -29,6 +30,7 @@ interface PaymentIntent {
 export default function BillingPaymentsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [channels, setChannels] = useState<PaymentChannel[]>([]);
   const [intents, setIntents] = useState<PaymentIntent[]>([]);
   const [error, setError] = useState('');
@@ -37,14 +39,14 @@ export default function BillingPaymentsPage() {
     api
       .get<{ channels?: PaymentChannel[] }>('/api/v1/admin/billing/payment-channels?page.limit=100', orgId)
       .then((data) => setChannels(data.channels || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load channels'));
+      .catch((e) => setError(e instanceof Error ? e.message : t('payments.loadFailed')));
     api
       .get<{ intents?: PaymentIntent[] }>('/api/v1/admin/billing/payment-intents?page.limit=100', orgId)
       .then((data) => setIntents(data.intents || []))
       .catch(() => {
         // Intents may be empty; not fatal.
       });
-  }, [api, orgId]);
+  }, [api, orgId, t]);
 
   const payIntent = async (intentId: string) => {
     try {
@@ -53,21 +55,21 @@ export default function BillingPaymentsPage() {
         prev.map((i) => (i.intentId === intentId ? { ...i, status: 'paid' } : i)),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'payment failed');
+      setError(e instanceof Error ? e.message : t('payments.paymentFailed'));
     }
   };
 
   return (
     <div className="page">
-      <h1>Payments</h1>
+      <h1>{t('payments.title')}</h1>
       {error && <div className="error">{error}</div>}
-      <h2>Channels</h2>
+      <h2>{t('payments.channels')}</h2>
       <table className="table" data-testid="payments-table">
         <thead>
           <tr>
-            <th>Channel</th>
-            <th>Type</th>
-            <th>Status</th>
+            <th>{t('payments.colChannel')}</th>
+            <th>{t('payments.colType')}</th>
+            <th>{t('payments.colStatus')}</th>
           </tr>
         </thead>
         <tbody>
@@ -75,23 +77,23 @@ export default function BillingPaymentsPage() {
             <tr key={c.channelId}>
               <td>{c.displayName}</td>
               <td>{c.type}</td>
-              <td>{c.enabled ? 'Enabled' : 'Disabled'}</td>
+              <td>{c.enabled ? t('common.enabled') : t('common.disabled')}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <h2>Payment Intents</h2>
+      <h2>{t('payments.intents')}</h2>
       {intents.length === 0 ? (
-        <div className="empty">No payment intents yet.</div>
+        <div className="empty">{t('payments.intentsEmpty')}</div>
       ) : (
         <table className="table">
           <thead>
             <tr>
-              <th>Amount</th>
-              <th>Channel</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Action</th>
+              <th>{t('payments.colAmount')}</th>
+              <th>{t('payments.colChannel')}</th>
+              <th>{t('payments.colStatus')}</th>
+              <th>{t('payments.colCreated')}</th>
+              <th>{t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -107,7 +109,7 @@ export default function BillingPaymentsPage() {
                       data-testid={`payment-intent-pay-${i.intentId}`}
                       onClick={() => void payIntent(i.intentId)}
                     >
-                      Simulate payment
+                      {t('payments.simulate')}
                     </button>
                   )}
                 </td>

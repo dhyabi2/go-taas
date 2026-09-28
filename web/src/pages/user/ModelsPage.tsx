@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { navigate } from '../../router';
 import { type AvailableModel, type PageMeta } from '../../api';
 
@@ -16,6 +17,7 @@ interface ListResponse {
 export default function ModelsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,25 +26,25 @@ export default function ModelsPage() {
     api
       .get<ListResponse>('/api/v1/models?page.limit=100', orgId)
       .then((data) => setModels(data.models || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load models'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('umodels.loadFailed')))
       .finally(() => setLoading(false));
-  }, [api, orgId]);
+  }, [api, orgId, t]);
 
   return (
     <div className="page">
-      <h1>Models</h1>
+      <h1>{t('umodels.title')}</h1>
       {error && <div className="error">{error}</div>}
       {loading ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">{t('common.loading')}</div>
       ) : models.length === 0 ? (
-        <div className="empty" data-testid="models-empty">No models available.</div>
+        <div className="empty" data-testid="models-empty">{t('umodels.empty')}</div>
       ) : (
         <table className="data" data-testid="models-table">
           <thead>
             <tr>
-              <th>Model</th>
-              <th>Version</th>
-              <th>Autoscaling</th>
+              <th>{t('umodels.colModel')}</th>
+              <th>{t('umodels.colVersion')}</th>
+              <th>{t('umodels.colAutoscaling')}</th>
             </tr>
           </thead>
           <tbody>
@@ -70,21 +72,22 @@ export default function ModelsPage() {
 }
 
 export function AutoscalingIndicator({ autoscaling }: { autoscaling?: AvailableModel['autoscaling'] }) {
+  const { t } = useI18n();
   if (!autoscaling) {
-    return <span className="badge fixed" data-testid="autoscaling-fixed">Fixed</span>;
+    return <span className="badge fixed" data-testid="autoscaling-fixed">{t('umodels.fixed')}</span>;
   }
   if (!autoscaling.autoscaled) {
-    return <span className="badge fixed" data-testid="autoscaling-fixed">Fixed</span>;
+    return <span className="badge fixed" data-testid="autoscaling-fixed">{t('umodels.fixed')}</span>;
   }
   if (autoscaling.state === 'scaled-to-zero') {
-    return <span className="badge scaled-to-zero" data-testid="autoscaling-scaled-to-zero">Scaled to zero</span>;
+    return <span className="badge scaled-to-zero" data-testid="autoscaling-scaled-to-zero">{t('umodels.scaledToZero')}</span>;
   }
   if (autoscaling.state === 'warming-up') {
-    return <span className="badge cold-starting" data-testid="autoscaling-warming-up">Warming up</span>;
+    return <span className="badge cold-starting" data-testid="autoscaling-warming-up">{t('umodels.warmingUp')}</span>;
   }
   return (
     <span className="badge autoscaled" data-testid="autoscaling-autoscaled">
-      Autoscaled · {autoscaling.currentReplicas} replicas
+      {t('umodels.autoscaled', { n: autoscaling.currentReplicas })}
     </span>
   );
 }

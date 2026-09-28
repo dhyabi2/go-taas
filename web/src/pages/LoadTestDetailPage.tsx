@@ -10,6 +10,7 @@ import { useOrg } from '../org';
 import { ApiError, formatPercent, formatRate, formatTime } from '../api';
 import { BackLink, ErrorBanner, usePolling } from '../components';
 import { navigate } from '../router';
+import { useI18n } from '../i18n';
 
 interface LoadTestSummary {
   loadTestId: string;
@@ -79,6 +80,7 @@ function stateBadgeClass(state: string): string {
 export default function LoadTestDetailPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const id = window.location.pathname.split('/').pop() || '';
   const [data, setData] = useState<DetailResponse | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -99,13 +101,13 @@ export default function LoadTestDetailPage() {
           setNotFound(true);
           return;
         }
-        setError(e instanceof Error ? e.message : 'failed to load load test');
+        setError(e instanceof Error ? e.message : t('loadtest.loadFailed'));
         setStale(true);
       } finally {
         setLoading(false);
       }
     },
-    [api, orgId, id],
+    [api, orgId, id, t],
   );
 
   useEffect(() => {
@@ -127,7 +129,7 @@ export default function LoadTestDetailPage() {
       await api.post(`/api/v1/admin/load-tests/${id}:stop`, orgId, {});
       await load(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to stop load test');
+      setError(e instanceof Error ? e.message : t('loadtest.stopFailed'));
     }
   };
 
@@ -136,16 +138,16 @@ export default function LoadTestDetailPage() {
       await api.del(`/api/v1/admin/load-tests/${id}`, orgId);
       navigate('/admin/load-tests');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to delete load test');
+      setError(e instanceof Error ? e.message : t('loadtest.deleteFailed'));
     }
   };
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
   if (notFound)
     return (
       <div className="page" data-testid="load-test-not-found">
-        <BackLink to="/admin/load-tests" label="Back to Load Tests" />
-        <div className="error">Load test not found.</div>
+        <BackLink to="/admin/load-tests" label={t('loadtest.back')} />
+        <div className="error">{t('loadtest.notFound')}</div>
       </div>
     );
   if (!data) return null;
@@ -157,7 +159,7 @@ export default function LoadTestDetailPage() {
 
   return (
     <div className="page" data-testid="load-test-detail-page">
-      <BackLink to="/admin/load-tests" label="Back to Load Tests" />
+      <BackLink to="/admin/load-tests" label={t('loadtest.back')} />
 
       <div className="page-header">
         <div>
@@ -167,12 +169,12 @@ export default function LoadTestDetailPage() {
         <div className="actions">
           {active && (
             <button onClick={() => void stop()} data-testid="load-test-stop">
-              Stop
+              {t('loadtest.stop')}
             </button>
           )}
           {!active && (
             <button className="secondary" onClick={() => void remove()} data-testid="load-test-delete">
-              Delete
+              {t('common.delete')}
             </button>
           )}
         </div>
@@ -180,7 +182,7 @@ export default function LoadTestDetailPage() {
 
       {stale && (
         <div className="banner stale" data-testid="load-test-detail-stale">
-          Showing stale data — the last refresh failed.
+          {t('loadtest.stale')}
         </div>
       )}
       {error && (
@@ -190,10 +192,10 @@ export default function LoadTestDetailPage() {
       )}
 
       <div className="panel" style={{ marginBottom: 16 }} data-testid="load-test-summary">
-        <h3 style={{ marginTop: 0 }}>Configuration</h3>
+        <h3 style={{ marginTop: 0 }}>{t('loadtest.config')}</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <div className="label">State</div>
+            <div className="label">{t('loadtest.state')}</div>
             <div className="value">
               <span className={stateBadgeClass(s.state)} data-testid="load-test-detail-state">
                 {s.state}
@@ -201,36 +203,36 @@ export default function LoadTestDetailPage() {
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Model</div>
+            <div className="label">{t('loadtest.model')}</div>
             <div className="value">{s.modelName}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Concurrency</div>
+            <div className="label">{t('loadtest.concurrency')}</div>
             <div className="value">{s.concurrency}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Duration</div>
-            <div className="value">{s.durationSeconds}s</div>
+            <div className="label">{t('loadtest.duration')}</div>
+            <div className="value">{t('loadtest.durationS', { n: s.durationSeconds })}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Request rate</div>
+            <div className="label">{t('loadtest.requestRate')}</div>
             <div className="value">{s.requestRate === 0 ? 'unlimited' : `${s.requestRate} req/s`}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Max tokens</div>
+            <div className="label">{t('loadtest.maxTokens')}</div>
             <div className="value">{data.maxTokens}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Started</div>
+            <div className="label">{t('loadtest.started')}</div>
             <div className="value">{formatTime(s.startedAt)}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Completed</div>
+            <div className="label">{t('loadtest.completed')}</div>
             <div className="value">{formatTime(s.completedAt)}</div>
           </div>
         </div>
         <div className="detail-item" style={{ marginTop: 12 }}>
-          <div className="label">Prompt template</div>
+          <div className="label">{t('loadtest.promptTemplate')}</div>
           <pre className="mono" data-testid="load-test-prompt-template">
             {data.promptTemplate}
           </pre>
@@ -244,28 +246,28 @@ export default function LoadTestDetailPage() {
 
       {active && (
         <div className="panel" style={{ marginBottom: 16 }} data-testid="load-test-progress">
-          <h3 style={{ marginTop: 0 }}>Live progress</h3>
+          <h3 style={{ marginTop: 0 }}>{t('loadtest.liveProgress')}</h3>
           <div className="detail-grid">
             <div className="detail-item">
-              <div className="label">Requests sent</div>
+              <div className="label">{t('loadtest.requestsSent')}</div>
               <div className="value" data-testid="load-test-requests-sent">
                 {progress?.requestsSent ?? '0'}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Successes</div>
+              <div className="label">{t('loadtest.successes')}</div>
               <div className="value" data-testid="load-test-successes">
                 {progress?.successCount ?? '0'}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Failures</div>
+              <div className="label">{t('loadtest.failures')}</div>
               <div className="value" data-testid="load-test-failures">
                 {progress?.failureCount ?? '0'}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Elapsed</div>
+              <div className="label">{t('loadtest.elapsed')}</div>
               <div className="value" data-testid="load-test-elapsed">
                 {elapsed}s / {s.durationSeconds}s
               </div>
@@ -276,38 +278,38 @@ export default function LoadTestDetailPage() {
 
       {result && (
         <div className="panel" data-testid="load-test-result">
-          <h3 style={{ marginTop: 0 }}>Results</h3>
+          <h3 style={{ marginTop: 0 }}>{t('loadtest.results')}</h3>
           <div className="detail-grid">
             <div className="detail-item">
-              <div className="label">Throughput</div>
+              <div className="label">{t('loadtest.throughput')}</div>
               <div className="value" data-testid="load-test-throughput">
                 {formatRate(result.throughputRps)} req/s
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Output tokens/sec</div>
+              <div className="label">{t('loadtest.outputTokensSec')}</div>
               <div className="value" data-testid="load-test-tokens-per-sec">
                 {formatRate(result.outputTokensPerSec)}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Error rate</div>
+              <div className="label">{t('loadtest.errorRate')}</div>
               <div className="value" data-testid="load-test-error-rate">
                 {formatPercent(result.errorRate)}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Total requests</div>
+              <div className="label">{t('loadtest.totalRequests')}</div>
               <div className="value">{result.totalRequests}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Successes / failures</div>
+              <div className="label">{t('loadtest.successFailures')}</div>
               <div className="value">
                 {result.successCount} / {result.failureCount}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Input / output tokens</div>
+              <div className="label">{t('loadtest.inputOutputTokens')}</div>
               <div className="value">
                 {result.inputTokens} / {result.outputTokens}
               </div>
@@ -317,8 +319,8 @@ export default function LoadTestDetailPage() {
           <table className="data" style={{ marginTop: 12 }} data-testid="load-test-latency-table">
             <thead>
               <tr>
-                <th>Percentile</th>
-                <th>Latency</th>
+                <th>{t('loadtest.colPercentile')}</th>
+                <th>{t('loadtest.colLatency')}</th>
               </tr>
             </thead>
             <tbody>

@@ -12,6 +12,7 @@ import {
   type PriceTier,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, usePolling } from '../components';
 
 interface PricesResponse {
@@ -39,6 +40,7 @@ function tierBound(tokens: number): string {
 
 export default function PricingPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [prices, setPrices] = useState<PriceEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -62,11 +64,11 @@ export default function PricingPage() {
       setPrices(data.prices || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load prices');
+      setError(e instanceof Error ? e.message : t('pricing.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset, includeHistory]);
+  }, [orgId, offset, includeHistory, t]);
 
   useEffect(() => {
     setLoading(true);
@@ -80,14 +82,11 @@ export default function PricingPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Pricing</h1>
-          <div className="subtitle">
-            The model × accelerator price matrix. Prices are per one million
-            tokens; the “default” card is the per-model fallback.
-          </div>
+          <h1>{t('pricing.title')}</h1>
+          <div className="subtitle">{t('pricing.subtitle')}</div>
         </div>
         <button data-testid="pricing-set-button" onClick={() => setDialogOpen(true)}>
-          Set price
+          {t('pricing.setPrice')}
         </button>
       </div>
 
@@ -102,7 +101,7 @@ export default function PricingPage() {
             setIncludeHistory(false);
           }}
         >
-          Current
+          {t('pricing.current')}
         </button>
         <button
           className={includeHistory ? '' : 'secondary'}
@@ -112,29 +111,29 @@ export default function PricingPage() {
             setIncludeHistory(true);
           }}
         >
-          History
+          {t('pricing.history')}
         </button>
       </div>
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : prices.length === 0 ? (
           <div className="empty-state" data-testid="pricing-empty">
-            No prices configured. Set the first price with “Set price”.
+            {t('pricing.empty')}
           </div>
         ) : (
           <table className="data" data-testid="pricing-table">
             <thead>
               <tr>
-                <th>Model</th>
-                <th>Card</th>
-                <th>Input / 1M</th>
-                <th>Output / 1M</th>
-                <th>Cached / 1M</th>
-                <th>Tiers</th>
-                <th>Currency</th>
-                <th>Effective from</th>
+                <th>{t('pricing.colModel')}</th>
+                <th>{t('pricing.colCard')}</th>
+                <th>{t('pricing.colInput')}</th>
+                <th>{t('pricing.colOutput')}</th>
+                <th>{t('pricing.colCached')}</th>
+                <th>{t('pricing.colTiers')}</th>
+                <th>{t('pricing.colCurrency')}</th>
+                <th>{t('pricing.colEffective')}</th>
               </tr>
             </thead>
             <tbody>
@@ -155,7 +154,7 @@ export default function PricingPage() {
                       <span className="mono" title={p.tiers
                         .map((t) => `≤${tierBound(Number(t.upToTokens) || 0)}: ${t.inputPricePerMillion}/${t.outputPricePerMillion}`)
                         .join('  ')}>
-                        {p.tiers.length} tiers
+                        {t('pricing.tiersCount', { n: p.tiers.length })}
                       </span>
                     ) : (
                       <span className="muted">flat</span>
@@ -198,6 +197,7 @@ function SetPriceDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [modelId, setModelId] = useState('');
   const [card, setCard] = useState('');
   const [inputRate, setInputRate] = useState('');
@@ -235,36 +235,36 @@ function SetPriceDialog({
       await api.put<SetPriceResponse>('/api/v1/admin/billing/prices', orgId, body);
       onSaved();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to save price');
+      setError(e instanceof Error ? e.message : t('pricing.saveFailed'));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog title="Set price" onClose={onClose} testId="set-price-dialog">
+    <Dialog title={t('pricing.setTitle')} onClose={onClose} testId="set-price-dialog">
       {error && <ErrorBanner message={error} />}
       <div className="form-grid">
         <label>
-          Model
+          {t('pricing.fieldModel')}
           <input
             data-testid="set-price-model"
             value={modelId}
             onChange={(e) => setModelId(e.target.value)}
-            placeholder="qwen-2.5-7b"
+            placeholder={t('pricing.placeholderModel')}
           />
         </label>
         <label>
-          Accelerator card
+          {t('pricing.fieldCard')}
           <input
             data-testid="set-price-card"
             value={card}
             onChange={(e) => setCard(e.target.value)}
-            placeholder="A800 or default"
+            placeholder={t('pricing.placeholderCard')}
           />
         </label>
         <label>
-          Input price / 1M tokens
+          {t('pricing.fieldInput')}
           <input
             data-testid="set-price-input-rate"
             type="number"
@@ -275,7 +275,7 @@ function SetPriceDialog({
           />
         </label>
         <label>
-          Output price / 1M tokens
+          {t('pricing.fieldOutput')}
           <input
             data-testid="set-price-output-rate"
             type="number"
@@ -286,7 +286,7 @@ function SetPriceDialog({
           />
         </label>
         <label>
-          Cached price / 1M tokens
+          {t('pricing.fieldCached')}
           <input
             data-testid="set-price-cached-rate"
             type="number"
@@ -298,20 +298,19 @@ function SetPriceDialog({
         </label>
       </div>
 
-      <h3 style={{ marginTop: 16 }}>Volume tiers (optional)</h3>
+      <h3 style={{ marginTop: 16 }}>{t('pricing.tiersSection')}</h3>
       <div className="muted" style={{ marginBottom: 8 }}>
-        Rates apply once the organization's month-to-date tokens for (model,
-        card) pass each bound. The last tier is unbounded (leave 0).
+        {t('pricing.tiersNote')}
       </div>
-      {tiers.map((t, i) => (
+      {tiers.map((tier, i) => (
         <div key={i} className="toolbar" style={{ marginBottom: 8 }} data-testid={`tier-row-${i}`}>
           <input
             style={{ width: 140 }}
             data-testid={`tier-bound-${i}`}
             type="number"
             min="0"
-            placeholder="up to tokens"
-            value={t.upToTokens}
+            placeholder={t('pricing.placeholderUpTo')}
+            value={tier.upToTokens}
             onChange={(e) =>
               setTiers((prev) =>
                 prev.map((x, j) => (j === i ? { ...x, upToTokens: e.target.value } : x)),
@@ -324,8 +323,8 @@ function SetPriceDialog({
             type="number"
             min="0"
             step="0.01"
-            placeholder="in / 1M"
-            value={t.inputPricePerMillion || ''}
+            placeholder={t('pricing.placeholderIn')}
+            value={tier.inputPricePerMillion || ''}
             onChange={(e) =>
               setTiers((prev) =>
                 prev.map((x, j) =>
@@ -340,8 +339,8 @@ function SetPriceDialog({
             type="number"
             min="0"
             step="0.01"
-            placeholder="out / 1M"
-            value={t.outputPricePerMillion || ''}
+            placeholder={t('pricing.placeholderOut')}
+            value={tier.outputPricePerMillion || ''}
             onChange={(e) =>
               setTiers((prev) =>
                 prev.map((x, j) =>
@@ -355,24 +354,24 @@ function SetPriceDialog({
             data-testid={`tier-remove-${i}`}
             onClick={() => setTiers((prev) => prev.filter((_, j) => j !== i))}
           >
-            Remove
+            {t('common.remove')}
           </button>
         </div>
       ))}
       <button className="secondary" data-testid="tier-add" onClick={addTier}>
-        Add tier
+        {t('pricing.addTier')}
       </button>
 
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="set-price-save"
           disabled={saving}
           onClick={() => void save()}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>

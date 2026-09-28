@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, formatTime, type PageMeta, type RequestLog } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, StateBadge, usePolling } from '../components';
 
 interface ListResponse {
@@ -14,9 +15,9 @@ interface ListResponse {
 
 const PAGE_SIZE = 20;
 const RANGE_PRESETS = [
-  { id: '24h', label: 'Last 24 hours', hours: 24 },
-  { id: '7d', label: 'Last 7 days', hours: 7 * 24 },
-  { id: '30d', label: 'Last 30 days', hours: 30 * 24 },
+  { id: '24h', labelKey: 'reqlogs.range24h', hours: 24 },
+  { id: '7d', labelKey: 'reqlogs.range7d', hours: 7 * 24 },
+  { id: '30d', labelKey: 'reqlogs.range30d', hours: 30 * 24 },
 ];
 
 function rangeFor(preset: string): { since: number; until: number } {
@@ -27,6 +28,7 @@ function rangeFor(preset: string): { since: number; until: number } {
 
 export default function RequestLogsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -60,11 +62,11 @@ export default function RequestLogsPage() {
       setLogs(data.requestLogs || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load request logs');
+      setError(e instanceof Error ? e.message : t('reqlogs.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, range.since, range.until, offset, statusFilter, keyFilter, modelFilter]);
+  }, [orgId, range.since, range.until, offset, statusFilter, keyFilter, modelFilter, t]);
 
   useEffect(() => {
     void load();
@@ -76,11 +78,8 @@ export default function RequestLogsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Request Logs</h1>
-          <div className="subtitle">
-            Per-request metadata (latency, status, error). Logs appear within the
-            ingestion window.
-          </div>
+          <h1>{t('reqlogs.title')}</h1>
+          <div className="subtitle">{t('reqlogs.subtitle')}</div>
         </div>
       </div>
 
@@ -94,7 +93,7 @@ export default function RequestLogsPage() {
             data-testid={`request-log-range-${p.id}`}
             onClick={() => setPreset(p.id)}
           >
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
         <select
@@ -102,20 +101,20 @@ export default function RequestLogsPage() {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         >
-          <option value="">All statuses</option>
-          <option value="success">success</option>
-          <option value="error">error</option>
-          <option value="streaming">streaming</option>
+          <option value="">{t('common.allStatuses')}</option>
+          <option value="success">{t('reqlogs.filterSuccess')}</option>
+          <option value="error">{t('reqlogs.filterError')}</option>
+          <option value="streaming">{t('reqlogs.filterStreaming')}</option>
         </select>
         <input
           data-testid="request-log-filter-key"
-          placeholder="API key id"
+          placeholder={t('reqlogs.placeholderApiKey')}
           value={keyFilter}
           onChange={(e) => setKeyFilter(e.target.value)}
         />
         <input
           data-testid="request-log-filter-model"
-          placeholder="Model id"
+          placeholder={t('reqlogs.placeholderModel')}
           value={modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
         />
@@ -123,24 +122,23 @@ export default function RequestLogsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : logs.length === 0 ? (
           <div className="empty-state" data-testid="request-logs-empty">
-            No request logs in this range. Logs appear after the first inference
-            calls.
+            {t('reqlogs.empty')}
           </div>
         ) : (
           <table className="data" data-testid="request-logs-table">
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Request</th>
-                <th>Key</th>
-                <th>Model</th>
-                <th>Tokens</th>
-                <th>Latency</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th>{t('reqlogs.colTime')}</th>
+                <th>{t('reqlogs.colRequest')}</th>
+                <th>{t('reqlogs.colKey')}</th>
+                <th>{t('reqlogs.colModel')}</th>
+                <th>{t('reqlogs.colTokens')}</th>
+                <th>{t('reqlogs.colLatency')}</th>
+                <th>{t('reqlogs.colStatus')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -153,7 +151,7 @@ export default function RequestLogsPage() {
                   <td>
                     {log.promptTokens} / {log.completionTokens}
                   </td>
-                  <td>{log.latencyMs} ms</td>
+                  <td>{t('reqlogs.latencyMs', { latencyMs: log.latencyMs })}</td>
                   <td>
                     <StateBadge state={log.status} />
                   </td>
@@ -163,7 +161,7 @@ export default function RequestLogsPage() {
                       data-testid={`request-log-detail-${log.requestLogId}`}
                       onClick={() => setDetail(log)}
                     >
-                      Detail
+                      {t('common.detail')}
                     </button>
                   </td>
                 </tr>
@@ -182,48 +180,52 @@ export default function RequestLogsPage() {
       </div>
 
       {detail && (
-        <Dialog title="Request Log Detail" onClose={() => setDetail(null)}>
+        <Dialog title={t('reqlogs.detailTitle')} onClose={() => setDetail(null)}>
           <div className="detail-grid">
             <div className="detail-item">
-              <div className="label">Request ID</div>
+              <div className="label">{t('reqlogs.fieldRequestId')}</div>
               <div className="value mono">{detail.requestId}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Status</div>
+              <div className="label">{t('reqlogs.fieldStatus')}</div>
               <div className="value">
                 <StateBadge state={detail.status} />
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Model</div>
+              <div className="label">{t('reqlogs.fieldModel')}</div>
               <div className="value mono">{detail.modelId}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Service</div>
+              <div className="label">{t('reqlogs.fieldService')}</div>
               <div className="value mono">{detail.serviceId || '—'}</div>
             </div>
             <div className="detail-item">
-              <div className="label">API Key</div>
+              <div className="label">{t('reqlogs.fieldApiKey')}</div>
               <div className="value mono">{detail.apiKeyId}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Latency</div>
-              <div className="value">{detail.latencyMs} ms</div>
+              <div className="label">{t('reqlogs.fieldLatency')}</div>
+              <div className="value">{t('reqlogs.latencyMs', { latencyMs: detail.latencyMs })}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Tokens</div>
+              <div className="label">{t('reqlogs.fieldTokens')}</div>
               <div className="value">
-                {detail.promptTokens} in / {detail.completionTokens} out /{' '}
-                {detail.cachedTokens} cached / {detail.reasoningTokens} reasoning
+                {t('reqlogs.tokensText', {
+                  in: detail.promptTokens,
+                  out: detail.completionTokens,
+                  cached: detail.cachedTokens,
+                  reasoning: detail.reasoningTokens,
+                })}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Created</div>
+              <div className="label">{t('reqlogs.fieldCreated')}</div>
               <div className="value">{formatTime(detail.createdAt)}</div>
             </div>
             {detail.error && (
               <div className="detail-item">
-                <div className="label">Error</div>
+                <div className="label">{t('reqlogs.fieldError')}</div>
                 <div className="value">{detail.error}</div>
               </div>
             )}

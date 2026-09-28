@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { type AvailableModel, type PlaygroundInferResponse } from '../../api';
 
 export default function PlaygroundPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [models, setModels] = useState<AvailableModel[]>([]);
   const [modelId, setModelId] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -23,8 +25,8 @@ export default function PlaygroundPage() {
         setModels(list);
         if (list.length > 0) setModelId(list[0].modelId);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load models'));
-  }, [api, orgId]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('uplayground.modelsFailed')));
+  }, [api, orgId, t]);
 
   const send = async () => {
     setError('');
@@ -37,20 +39,20 @@ export default function PlaygroundPage() {
       );
       setResponse(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'playground request failed');
+      setError(e instanceof Error ? e.message : t('uplayground.failed'));
     }
   };
 
   return (
     <div className="page">
-      <h1>Playground</h1>
+      <h1>{t('uplayground.title')}</h1>
       {error && <div className="error">{error}</div>}
       {models.length === 0 ? (
-        <div className="empty" data-testid="playground-no-models">No models available.</div>
+        <div className="empty" data-testid="playground-no-models">{t('uplayground.empty')}</div>
       ) : (
         <>
           <div className="form-row">
-            <label htmlFor="playground-model-select">Model</label>
+            <label htmlFor="playground-model-select">{t('uplayground.model')}</label>
             <select
               id="playground-model-select"
               data-testid="playground-model-select"
@@ -65,7 +67,7 @@ export default function PlaygroundPage() {
             </select>
           </div>
           <div className="form-row">
-            <label htmlFor="playground-prompt-input">Prompt</label>
+            <label htmlFor="playground-prompt-input">{t('uplayground.prompt')}</label>
             <textarea
               id="playground-prompt-input"
               data-testid="playground-prompt-input"
@@ -74,14 +76,17 @@ export default function PlaygroundPage() {
             />
           </div>
           <button data-testid="playground-send" onClick={() => void send()}>
-            Send
+            {t('uplayground.send')}
           </button>
           {response && (
             <div className="response" data-testid="playground-response">
-              <pre>{response.completion || '(no completion)'}</pre>
+              <pre>{response.completion || t('uplayground.noCompletion')}</pre>
               <div>
-                {response.promptTokens} prompt · {response.completionTokens} completion ·{' '}
-                {response.latencyMs}ms
+                {t('uplayground.response', {
+                  prompt: response.promptTokens,
+                  completion: response.completionTokens,
+                  latency: response.latencyMs,
+                })}
               </div>
             </div>
           )}

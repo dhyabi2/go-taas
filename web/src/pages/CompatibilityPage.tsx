@@ -9,6 +9,7 @@ import { useApi } from '../surface';
 import { useOrg } from '../org';
 import { formatTime, type PageMeta } from '../api';
 import { Dialog, ErrorBanner, Pagination, usePolling } from '../components';
+import { useI18n } from '../i18n';
 
 interface CompatibilityCell {
   modelId: string;
@@ -70,20 +71,24 @@ function statusBadgeClass(status: string): string {
   }
 }
 
-function statusLabel(status: string): string {
+function statusLabel(
+  status: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   switch (status) {
     case 'supported':
-      return 'Supported';
+      return t('compat.supported');
     case 'experimental':
-      return 'Experimental';
+      return t('compat.experimental');
     default:
-      return 'Unsupported';
+      return t('compat.unsupported');
   }
 }
 
 export default function CompatibilityPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [cells, setCells] = useState<CompatibilityCell[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -134,14 +139,14 @@ export default function CompatibilityPage() {
         setLastUpdated(Math.floor(Date.now() / 1000));
         setStale(false);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'failed to load compatibility matrix');
+        setError(e instanceof Error ? e.message : t('compat.loadFailed'));
         if (cells.length > 0) setStale(true);
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [api, orgId, offset, modelFilter, engineFilter, cardFilter, statusFilter, search, cells.length],
+    [api, orgId, offset, modelFilter, engineFilter, cardFilter, statusFilter, search, cells.length, t],
   );
 
   useEffect(() => {
@@ -206,12 +211,14 @@ export default function CompatibilityPage() {
     <div data-testid="compatibility-page">
       <div className="page-header">
         <div>
-          <h1>Compatibility Matrix</h1>
-          <div className="subtitle">Model × engine × card-type support across the accelerator fleet.</div>
+          <h1>{t('compat.title')}</h1>
+          <div className="subtitle">{t('compat.subtitle')}</div>
         </div>
         <div className="toolbar">
           <span className="muted" data-testid="compatibility-last-updated">
-            Last updated: {lastUpdated ? formatTime(lastUpdated) : '—'}
+            {t('common.lastUpdated', {
+              time: lastUpdated ? formatTime(lastUpdated) : '—',
+            })}
           </span>
           <button
             className="secondary"
@@ -219,7 +226,7 @@ export default function CompatibilityPage() {
             disabled={refreshing}
             onClick={refresh}
           >
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            {refreshing ? t('common.refreshing') : t('common.refresh')}
           </button>
           <button
             className="secondary"
@@ -227,7 +234,9 @@ export default function CompatibilityPage() {
             disabled={selectedCount === 0}
             onClick={() => setBulkOpen(true)}
           >
-            Bulk edit{selectedCount > 0 ? ` (${selectedCount})` : ''}
+            {selectedCount > 0
+              ? t('compat.bulkEdit', { n: selectedCount })
+              : t('compat.bulkEditShort')}
           </button>
         </div>
       </div>
@@ -239,28 +248,28 @@ export default function CompatibilityPage() {
       )}
       {stale && (
         <div className="warning-banner" data-testid="compatibility-stale-banner">
-          Showing stale data — the last poll failed.{' '}
+          {t('common.staleData')}{' '}
           <button className="link" data-testid="compatibility-stale-retry" onClick={refresh}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
 
       <div className="dashboard-cards" data-testid="compatibility-summary-strip">
         <div className="dashboard-card" data-testid="compatibility-supported-count">
-          <div className="label">Supported</div>
+          <div className="label">{t('compat.summarySupported')}</div>
           <div className="value">{counts?.supported || '0'}</div>
         </div>
         <div className="dashboard-card" data-testid="compatibility-experimental-count">
-          <div className="label">Experimental</div>
+          <div className="label">{t('compat.summaryExperimental')}</div>
           <div className="value">{counts?.experimental || '0'}</div>
         </div>
         <div className="dashboard-card" data-testid="compatibility-unsupported-count">
-          <div className="label">Unsupported</div>
+          <div className="label">{t('compat.summaryUnsupported')}</div>
           <div className="value">{counts?.unsupported || '0'}</div>
         </div>
         <div className="dashboard-card" data-testid="compatibility-not-in-fleet-count">
-          <div className="label">Not in fleet</div>
+          <div className="label">{t('compat.summaryNotInFleet')}</div>
           <div className="value">{counts?.notInFleet || '0'}</div>
         </div>
       </div>
@@ -274,7 +283,7 @@ export default function CompatibilityPage() {
             setOffset(0);
           }}
         >
-          <option value="">All models</option>
+          <option value="">{t('common.allModels')}</option>
           {models.map((m) => (
             <option key={m.modelId} value={m.modelId}>
               {m.modelName}
@@ -289,7 +298,7 @@ export default function CompatibilityPage() {
             setOffset(0);
           }}
         >
-          <option value="">All engines</option>
+          <option value="">{t('common.allEngines')}</option>
           {engines.map((e) => (
             <option key={e.engine} value={e.engine}>
               {e.engine}
@@ -304,7 +313,7 @@ export default function CompatibilityPage() {
             setOffset(0);
           }}
         >
-          <option value="">All card types</option>
+          <option value="">{t('common.allCardTypes')}</option>
           {cardTypes.map((c) => (
             <option key={c.cardType} value={c.cardType}>
               {c.cardType}
@@ -319,16 +328,16 @@ export default function CompatibilityPage() {
             setOffset(0);
           }}
         >
-          <option value="">All statuses</option>
+          <option value="">{t('common.allStatuses')}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
-              {statusLabel(s)}
+              {statusLabel(s, t)}
             </option>
           ))}
         </select>
         <input
           data-testid="compatibility-search"
-          placeholder="Search model name"
+          placeholder={t('common.searchByName')}
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -341,21 +350,21 @@ export default function CompatibilityPage() {
             data-testid="compatibility-view-grid"
             onClick={() => setView('grid')}
           >
-            Grid
+            {t('compat.viewGrid')}
           </button>
           <button
             className={view === 'table' ? 'active' : ''}
             data-testid="compatibility-view-table"
             onClick={() => setView('table')}
           >
-            Table
+            {t('compat.viewTable')}
           </button>
         </div>
       </div>
 
       {empty && (
         <div className="empty-state" data-testid="compatibility-empty">
-          No compatibility cells — register a model, an engine image, and an accelerator inventory to seed the matrix.
+          {t('compat.empty')}
         </div>
       )}
 
@@ -368,7 +377,7 @@ export default function CompatibilityPage() {
               onCellClick={(c) => setEditCell(c)}
             />
           ) : (
-            <div className="muted">Select a model to view the grid.</div>
+            <div className="muted">{t('compat.gridEmpty')}</div>
           )}
         </div>
       )}
@@ -379,13 +388,13 @@ export default function CompatibilityPage() {
             <thead>
               <tr>
                 <th />
-                <th>Model</th>
-                <th>Engine</th>
-                <th>Card type</th>
-                <th>Status</th>
-                <th>Note</th>
-                <th>Not in fleet</th>
-                <th>Last updated</th>
+                <th>{t('compat.colModel')}</th>
+                <th>{t('compat.colEngine')}</th>
+                <th>{t('compat.colCardType')}</th>
+                <th>{t('compat.colStatus')}</th>
+                <th>{t('compat.colNote')}</th>
+                <th>{t('compat.colNotInFleet')}</th>
+                <th>{t('compat.colLastUpdated')}</th>
               </tr>
             </thead>
             <tbody>
@@ -407,7 +416,7 @@ export default function CompatibilityPage() {
                       <span className="badge steady">{c.cardVendor}</span> {c.cardType}
                     </td>
                     <td>
-                      <span className={statusBadgeClass(c.status)}>{statusLabel(c.status)}</span>
+                      <span className={statusBadgeClass(c.status)}>{statusLabel(c.status, t)}</span>
                     </td>
                     <td className="muted">{c.note || '—'}</td>
                     <td>{c.notInFleet ? <span className="badge failed">not in fleet</span> : '—'}</td>
@@ -448,6 +457,7 @@ function CompatibilityGrid({
   cardTypes: DimensionCardType[];
   onCellClick: (c: CompatibilityCell) => void;
 }) {
+  const { t } = useI18n();
   // Rows = engines, columns = card types.
   const engines = Array.from(new Set(cells.map((c) => c.engine))).sort();
   const byKey = new Map(cells.map((c) => [`${c.engine}\u0000${c.cardType}`, c]));
@@ -455,7 +465,7 @@ function CompatibilityGrid({
     <table className="data" data-testid="compatibility-grid-table">
       <thead>
         <tr>
-          <th>Engine</th>
+          <th>{t('compat.colEngine')}</th>
           {cardTypes.map((ct) => (
             <th key={ct.cardType}>
               {ct.cardType}
@@ -478,7 +488,7 @@ function CompatibilityGrid({
                   style={{ cursor: 'pointer' }}
                   onClick={() => onCellClick(cell)}
                 >
-                  <span className={statusBadgeClass(cell.status)}>{statusLabel(cell.status)}</span>
+                  <span className={statusBadgeClass(cell.status)}>{statusLabel(cell.status, t)}</span>
                   {cell.notInFleet && (
                     <span
                       className="badge failed"
@@ -506,6 +516,7 @@ function EditCellDialog({
   onClose: () => void;
   onSave: (status: string, note: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState(cell.status);
   const [note, setNote] = useState(cell.note || '');
   const [saving, setSaving] = useState(false);
@@ -517,40 +528,40 @@ function EditCellDialog({
     try {
       await onSave(status, note);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'failed to save');
+      setErr(e instanceof Error ? e.message : t('compat.saveFailed'));
       setSaving(false);
     }
   };
 
   return (
-    <Dialog title="Edit Cell" onClose={onClose} testId="compatibility-edit-dialog">
+    <Dialog title={t('compat.editTitle')} onClose={onClose} testId="compatibility-edit-dialog">
       <div className="detail-grid">
         <div className="detail-item">
-          <div className="label">Model</div>
+          <div className="label">{t('compat.fieldModel')}</div>
           <div className="value">{cell.modelName}</div>
         </div>
         <div className="detail-item">
-          <div className="label">Engine</div>
+          <div className="label">{t('compat.fieldEngine')}</div>
           <div className="value">{cell.engine}</div>
         </div>
         <div className="detail-item">
-          <div className="label">Card type</div>
+          <div className="label">{t('compat.fieldCardType')}</div>
           <div className="value">
             <span className="badge steady">{cell.cardVendor}</span> {cell.cardType}
           </div>
         </div>
       </div>
       <div className="form-field" data-testid="compatibility-edit-status">
-        <label>Status</label>
+        <label>{t('compat.fieldStatus')}</label>
         {STATUSES.map((s) => (
           <label key={s} className="radio">
             <input type="radio" name="status" value={s} checked={status === s} onChange={() => setStatus(s)} />
-            {statusLabel(s)}
+            {statusLabel(s, t)}
           </label>
         ))}
       </div>
       <div className="form-field">
-        <label>Note ({note.length}/512)</label>
+        <label>{t('compat.fieldNote', { n: note.length })}</label>
         <textarea
           data-testid="compatibility-edit-note"
           value={note}
@@ -561,10 +572,10 @@ function EditCellDialog({
       {err && <ErrorBanner message={err} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button className="primary" data-testid="compatibility-edit-save" disabled={saving} onClick={() => void submit()}>
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -580,6 +591,7 @@ function BulkEditDialog({
   onClose: () => void;
   onApply: (status: string, note: string) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState('supported');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -591,25 +603,25 @@ function BulkEditDialog({
     try {
       await onApply(status, note);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'failed to apply');
+      setErr(e instanceof Error ? e.message : t('compat.applyFailed'));
       setSaving(false);
     }
   };
 
   return (
-    <Dialog title="Bulk Edit" onClose={onClose} testId="compatibility-bulk-dialog">
-      <p className="muted">Editing {count} cells. This overwrites the current status of all selected cells.</p>
+    <Dialog title={t('compat.bulkTitle')} onClose={onClose} testId="compatibility-bulk-dialog">
+      <p className="muted">{t('compat.bulkNote', { count })}</p>
       <div className="form-field" data-testid="compatibility-bulk-status">
-        <label>Status</label>
+        <label>{t('compat.fieldStatus')}</label>
         {STATUSES.map((s) => (
           <label key={s} className="radio">
             <input type="radio" name="bulk-status" value={s} checked={status === s} onChange={() => setStatus(s)} />
-            {statusLabel(s)}
+            {statusLabel(s, t)}
           </label>
         ))}
       </div>
       <div className="form-field">
-        <label>Note ({note.length}/512)</label>
+        <label>{t('compat.fieldNote', { n: note.length })}</label>
         <textarea
           data-testid="compatibility-bulk-note"
           value={note}
@@ -620,10 +632,10 @@ function BulkEditDialog({
       {err && <ErrorBanner message={err} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button className="primary" data-testid="compatibility-bulk-apply" disabled={saving} onClick={() => void submit()}>
-          {saving ? 'Applying…' : 'Apply'}
+          {saving ? t('common.applying') : t('common.apply')}
         </button>
       </div>
     </Dialog>

@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type PageMeta, type SSOProvider } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, StateBadge } from '../components';
 
 interface ListResponse {
@@ -17,6 +18,7 @@ const TYPES = ['oidc', 'saml', 'ldap'];
 
 export default function SSOProvidersPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [providers, setProviders] = useState<SSOProvider[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -44,11 +46,11 @@ export default function SSOProvidersPage() {
       setProviders(data.providers || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load providers');
+      setError(e instanceof Error ? e.message : t('sso.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     void load();
@@ -58,13 +60,11 @@ export default function SSOProvidersPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>SSO Providers</h1>
-          <div className="subtitle">
-            Identity providers for federated sign-in (OIDC, SAML, LDAP).
-          </div>
+          <h1>{t('sso.title')}</h1>
+          <div className="subtitle">{t('sso.subtitle')}</div>
         </div>
         <button data-testid="create-sso-provider" onClick={() => setCreateOpen(true)}>
-          Create Provider
+          {t('sso.create')}
         </button>
       </div>
 
@@ -72,21 +72,21 @@ export default function SSOProvidersPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : providers.length === 0 ? (
           <div className="empty-state" data-testid="sso-providers-empty">
-            No SSO providers configured.
+            {t('sso.empty')}
           </div>
         ) : (
           <table className="data" data-testid="sso-providers-table">
             <thead>
               <tr>
-                <th>Provider</th>
-                <th>Type</th>
-                <th>State</th>
-                <th>Default org</th>
-                <th>JIT</th>
-                <th>Actions</th>
+                <th>{t('sso.colProvider')}</th>
+                <th>{t('sso.colType')}</th>
+                <th>{t('sso.colState')}</th>
+                <th>{t('sso.colDefaultOrg')}</th>
+                <th>{t('sso.colJit')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -110,7 +110,7 @@ export default function SSOProvidersPage() {
                       data-testid={`sso-provider-edit-${p.providerId}`}
                       onClick={() => setEditTarget(p)}
                     >
-                      Edit
+                      {t('common.edit')}
                     </button>
                     {p.enabled ? (
                       <button
@@ -118,7 +118,7 @@ export default function SSOProvidersPage() {
                         data-testid={`sso-provider-disable-${p.providerId}`}
                         onClick={() => setConfirmTarget({ provider: p, action: 'disable' })}
                       >
-                        Disable
+                        {t('common.disable')}
                       </button>
                     ) : (
                       <button
@@ -126,7 +126,7 @@ export default function SSOProvidersPage() {
                         data-testid={`sso-provider-enable-${p.providerId}`}
                         onClick={() => setConfirmTarget({ provider: p, action: 'enable' })}
                       >
-                        Enable
+                        {t('common.enable')}
                       </button>
                     )}
                     <button
@@ -134,7 +134,7 @@ export default function SSOProvidersPage() {
                       data-testid={`sso-provider-delete-${p.providerId}`}
                       onClick={() => setConfirmTarget({ provider: p, action: 'delete' })}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>
@@ -193,11 +193,12 @@ function ProviderFields({
   provider: Partial<SSOProvider>;
   setProvider: (p: Partial<SSOProvider>) => void;
 }) {
+  const { t } = useI18n();
   const type = provider.type || 'oidc';
   return (
     <div className="form-grid">
       <div className="form-field">
-        <label htmlFor="sso-provider-type">Type</label>
+        <label htmlFor="sso-provider-type">{t('sso.fieldType')}</label>
         <select
           id="sso-provider-type"
           data-testid="sso-provider-type-select"
@@ -212,7 +213,7 @@ function ProviderFields({
         </select>
       </div>
       <div className="form-field">
-        <label htmlFor="sso-provider-name">Display name</label>
+        <label htmlFor="sso-provider-name">{t('sso.fieldDisplayName')}</label>
         <input
           id="sso-provider-name"
           data-testid="sso-provider-name-input"
@@ -224,7 +225,7 @@ function ProviderFields({
       {type === 'oidc' && (
         <>
           <div className="form-field">
-            <label htmlFor="sso-provider-issuer">Issuer</label>
+            <label htmlFor="sso-provider-issuer">{t('sso.fieldIssuer')}</label>
             <input
               id="sso-provider-issuer"
               data-testid="sso-provider-issuer-input"
@@ -233,7 +234,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-client-id">Client ID</label>
+            <label htmlFor="sso-provider-client-id">{t('sso.fieldClientId')}</label>
             <input
               id="sso-provider-client-id"
               data-testid="sso-provider-client-id-input"
@@ -242,7 +243,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-client-secret">Client secret</label>
+            <label htmlFor="sso-provider-client-secret">{t('sso.fieldClientSecret')}</label>
             <input
               id="sso-provider-client-secret"
               data-testid="sso-provider-client-secret-input"
@@ -252,7 +253,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-redirect-uri">Redirect URI</label>
+            <label htmlFor="sso-provider-redirect-uri">{t('sso.fieldRedirectUri')}</label>
             <input
               id="sso-provider-redirect-uri"
               data-testid="sso-provider-redirect-uri-input"
@@ -265,7 +266,7 @@ function ProviderFields({
       {type === 'saml' && (
         <>
           <div className="form-field">
-            <label htmlFor="sso-provider-metadata-url">Metadata URL</label>
+            <label htmlFor="sso-provider-metadata-url">{t('sso.fieldMetadataUrl')}</label>
             <input
               id="sso-provider-metadata-url"
               data-testid="sso-provider-metadata-url-input"
@@ -274,7 +275,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-entity-id">Entity ID</label>
+            <label htmlFor="sso-provider-entity-id">{t('sso.fieldEntityId')}</label>
             <input
               id="sso-provider-entity-id"
               data-testid="sso-provider-entity-id-input"
@@ -283,7 +284,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-acs-url">ACS URL</label>
+            <label htmlFor="sso-provider-acs-url">{t('sso.fieldAcsUrl')}</label>
             <input
               id="sso-provider-acs-url"
               data-testid="sso-provider-acs-url-input"
@@ -296,7 +297,7 @@ function ProviderFields({
       {type === 'ldap' && (
         <>
           <div className="form-field">
-            <label htmlFor="sso-provider-host">Host</label>
+            <label htmlFor="sso-provider-host">{t('sso.fieldHost')}</label>
             <input
               id="sso-provider-host"
               data-testid="sso-provider-host-input"
@@ -305,7 +306,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-port">Port</label>
+            <label htmlFor="sso-provider-port">{t('sso.fieldPort')}</label>
             <input
               id="sso-provider-port"
               data-testid="sso-provider-port-input"
@@ -315,7 +316,7 @@ function ProviderFields({
             />
           </div>
           <div className="form-field">
-            <label htmlFor="sso-provider-base-dn">Base DN</label>
+            <label htmlFor="sso-provider-base-dn">{t('sso.fieldBaseDn')}</label>
             <input
               id="sso-provider-base-dn"
               data-testid="sso-provider-base-dn-input"
@@ -326,7 +327,7 @@ function ProviderFields({
         </>
       )}
       <div className="form-field">
-        <label htmlFor="sso-provider-default-org">Default org</label>
+        <label htmlFor="sso-provider-default-org">{t('sso.fieldDefaultOrg')}</label>
         <input
           id="sso-provider-default-org"
           data-testid="sso-provider-default-org-input"
@@ -335,7 +336,7 @@ function ProviderFields({
         />
       </div>
       <div className="form-field">
-        <label htmlFor="sso-provider-jit-toggle">Auto-provision (JIT)</label>
+        <label htmlFor="sso-provider-jit-toggle">{t('sso.fieldJit')}</label>
         <input
           id="sso-provider-jit-toggle"
           data-testid="sso-provider-jit-toggle"
@@ -345,14 +346,14 @@ function ProviderFields({
         />
       </div>
       <div className="form-field full">
-        <label htmlFor="sso-provider-mapping">Attribute mapping (JSON)</label>
+        <label htmlFor="sso-provider-mapping">{t('sso.fieldMapping')}</label>
         <textarea
           id="sso-provider-mapping"
           data-testid="sso-provider-mapping-input"
           value={provider.attributeMapping || ''}
           rows={3}
           onChange={(e) => setProvider({ ...provider, attributeMapping: e.target.value })}
-          placeholder='{"username":"preferred_username","email":"email","org":"groups","role":"groups"}'
+          placeholder={t('sso.mappingPlaceholder')}
         />
       </div>
     </div>
@@ -368,6 +369,7 @@ function CreateProviderDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [provider, setProvider] = useState<Partial<SSOProvider>>({ type: 'oidc' });
   const [id, setId] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -375,7 +377,7 @@ function CreateProviderDialog({
 
   const submit = async () => {
     if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(id.trim())) {
-      setError('ID must be 3-64 chars: lowercase letters, digits, hyphens.');
+      setError(t('sso.validationId'));
       return;
     }
     setSubmitting(true);
@@ -386,24 +388,24 @@ function CreateProviderDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to create provider');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('sso.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Create SSO Provider" onClose={onClose} testId="create-sso-provider-dialog">
+    <Dialog title={t('sso.createTitle')} onClose={onClose} testId="create-sso-provider-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="sso-provider-id">Provider ID</label>
+          <label htmlFor="sso-provider-id">{t('sso.fieldProviderId')}</label>
           <input
             id="sso-provider-id"
             data-testid="sso-provider-id-input"
             value={id}
             maxLength={64}
             onChange={(e) => setId(e.target.value)}
-            placeholder="e.g. okta"
+            placeholder={t('sso.placeholderProviderId')}
           />
         </div>
       </div>
@@ -411,10 +413,10 @@ function CreateProviderDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="sso-provider-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Creating…' : 'Create'}
+          {submitting ? t('common.creating') : t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -432,6 +434,7 @@ function EditProviderDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [fields, setFields] = useState<Partial<SSOProvider>>({ ...provider });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -447,22 +450,22 @@ function EditProviderDialog({
       );
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update provider');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('sso.updateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Edit ${provider.providerId}`} onClose={onClose} testId="edit-sso-provider-dialog">
+    <Dialog title={t('sso.editTitle', { providerId: provider.providerId })} onClose={onClose} testId="edit-sso-provider-dialog">
       <ProviderFields provider={fields} setProvider={setFields} />
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="sso-provider-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -482,6 +485,7 @@ function ConfirmDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [blocked, setBlocked] = useState(false);
@@ -503,7 +507,7 @@ function ConfirmDialog({
       if (e instanceof ApiError && e.code === 10026) {
         setBlocked(true);
       } else {
-        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : `failed to ${action}`);
+        setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('sso.actionFailed', { action }));
       }
     } finally {
       setSubmitting(false);
@@ -512,26 +516,32 @@ function ConfirmDialog({
 
   return (
     <Dialog
-      title={`${action === 'delete' ? 'Delete' : action === 'enable' ? 'Enable' : 'Disable'} ${provider.providerId}?`}
+      title={
+        action === 'delete'
+          ? t('sso.deleteTitle', { providerId: provider.providerId })
+          : action === 'enable'
+            ? t('sso.enableTitle', { providerId: provider.providerId })
+            : t('sso.disableTitle', { providerId: provider.providerId })
+      }
       onClose={onClose}
       testId="sso-provider-confirm-dialog"
     >
       {action === 'delete' ? (
-        <p>This removes the provider. Providers with identity bindings cannot be deleted.</p>
+        <p>{t('sso.deleteBody')}</p>
       ) : action === 'enable' ? (
-        <p>Enabling lets users sign in with this provider.</p>
+        <p>{t('sso.enableBody')}</p>
       ) : (
-        <p>Disabling pauses sign-in with this provider. The configuration is kept.</p>
+        <p>{t('sso.disableBody')}</p>
       )}
       {blocked && (
         <div className="muted" data-testid="sso-provider-delete-blocked">
-          This provider has identity bindings and cannot be deleted.
+          {t('sso.blockedNote')}
         </div>
       )}
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className={action === 'disable' || action === 'delete' ? 'danger' : ''}
@@ -539,7 +549,13 @@ function ConfirmDialog({
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Working…' : action === 'delete' ? 'Delete' : action === 'enable' ? 'Enable' : 'Disable'}
+          {submitting
+            ? t('common.working')
+            : action === 'delete'
+              ? t('common.delete')
+              : action === 'enable'
+                ? t('common.enable')
+                : t('common.disable')}
         </button>
       </div>
     </Dialog>

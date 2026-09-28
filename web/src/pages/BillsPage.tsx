@@ -10,6 +10,7 @@ import {
   type PageMeta,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, StateBadge, usePolling } from '../components';
 
 interface BillsResponse {
@@ -34,6 +35,7 @@ function monthLabel(periodStart: string): string {
 
 export default function BillsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [bills, setBills] = useState<BillSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -55,11 +57,11 @@ export default function BillsPage() {
       setBills(data.bills || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load bills');
+      setError(e instanceof Error ? e.message : t('bills.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     setLoading(true);
@@ -72,11 +74,8 @@ export default function BillsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Bills</h1>
-          <div className="subtitle">
-            Monthly bills computed from charge records. Unpriced groups are
-            counted and billed at 0 until a price applies.
-          </div>
+          <h1>{t('bills.title')}</h1>
+          <div className="subtitle">{t('bills.subtitle')}</div>
         </div>
       </div>
 
@@ -84,21 +83,21 @@ export default function BillsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : bills.length === 0 ? (
           <div className="empty-state" data-testid="bills-empty">
-            No bills yet. Bills appear after the first charged usage.
+            {t('bills.empty')}
           </div>
         ) : (
           <table className="data" data-testid="bills-table">
             <thead>
               <tr>
-                <th>Bill</th>
-                <th>Month</th>
-                <th>Amount</th>
-                <th>Charges</th>
-                <th>Unpriced</th>
-                <th>Actions</th>
+                <th>{t('bills.colBill')}</th>
+                <th>{t('bills.colMonth')}</th>
+                <th>{t('bills.colAmount')}</th>
+                <th>{t('bills.colCharges')}</th>
+                <th>{t('bills.colUnpriced')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -126,7 +125,7 @@ export default function BillsPage() {
                       data-testid={`bill-charges-${b.billId}`}
                       onClick={() => setDrillMonth(b)}
                     >
-                      Charges
+                      {t('bills.charges')}
                     </button>
                   </td>
                 </tr>
@@ -165,6 +164,7 @@ function ChargesDialog({
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const { t } = useI18n();
 
   useEffect(() => {
     setLoading(true);
@@ -180,31 +180,35 @@ function ChargesDialog({
         setCharges(data.charges || []);
         setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load charges'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('bills.chargesFailed')))
       .finally(() => setLoading(false));
-  }, [orgId, bill.periodStart, bill.periodEnd, offset]);
+  }, [orgId, bill.periodStart, bill.periodEnd, offset, t]);
 
   return (
-    <Dialog title={`Charges — ${monthLabel(bill.periodStart)}`} onClose={onClose} testId="charges-dialog">
+    <Dialog
+      title={t('bills.chargesTitle', { month: monthLabel(bill.periodStart) })}
+      onClose={onClose}
+      testId="charges-dialog"
+    >
       {error && <ErrorBanner message={error} />}
       {loading ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">{t('common.loading')}</div>
       ) : charges.length === 0 ? (
-        <div className="empty-state">No charges in this month.</div>
+        <div className="empty-state">{t('bills.chargesEmpty')}</div>
       ) : (
         <>
           <table className="data" data-testid="charges-table">
             <thead>
               <tr>
-                <th>Hour</th>
-                <th>API key</th>
-                <th>Model</th>
-                <th>Card</th>
-                <th>In / Out tokens</th>
-                <th>Requests</th>
-                <th>Amount</th>
-                <th>Tier</th>
-                <th>Charged at</th>
+                <th>{t('bills.colHour')}</th>
+                <th>{t('bills.colApiKey')}</th>
+                <th>{t('bills.colModel')}</th>
+                <th>{t('bills.colCard')}</th>
+                <th>{t('bills.colTokens')}</th>
+                <th>{t('bills.colRequests')}</th>
+                <th>{t('bills.colAmount2')}</th>
+                <th>{t('bills.colTier')}</th>
+                <th>{t('bills.colChargedAt')}</th>
               </tr>
             </thead>
             <tbody>
@@ -225,7 +229,7 @@ function ChargesDialog({
                       <StateBadge state="unpriced" />
                     )}
                   </td>
-                  <td>{c.tierIndex >= 0 ? `#${c.tierIndex}` : 'flat'}</td>
+                  <td>{c.tierIndex >= 0 ? `#${c.tierIndex}` : t('common.flat')}</td>
                   <td>{formatTime(c.chargedAt)}</td>
                 </tr>
               ))}

@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Router, Routes, Route, replace, useRoute } from './router';
 import { OrgProvider } from './org';
 import { SurfaceProvider } from './surface';
+import { I18nProvider } from './i18n';
 import { isAdminPath, MOVED_ADMIN_ROUTES, realmHome } from './surface-routes';
 import { UserShell } from './shells/UserShell';
 import { AdminShell } from './shells/AdminShell';
@@ -51,9 +52,11 @@ import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
   return (
-    <Router>
-      <SurfaceRouter />
-    </Router>
+    <I18nProvider>
+      <Router>
+        <SurfaceRouter />
+      </Router>
+    </I18nProvider>
   );
 }
 

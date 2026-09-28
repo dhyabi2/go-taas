@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
-import { navigate } from '../../router';
+import { useI18n } from '../../i18n';
 import { ErrorBanner } from '../../components';
 import {
   type ApiKeySummary,
@@ -72,7 +72,8 @@ console.log(response.choices[0].message.content);`;
 
 // CopyControl is a copy button with a stable data-testid and a transient
 // "Copied!" state.
-function CopyControl({ text, testId, label = 'Copy' }: { text: string; testId: string; label?: string }) {
+function CopyControl({ text, testId, label }: { text: string; testId: string; label?: string }) {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -89,7 +90,7 @@ function CopyControl({ text, testId, label = 'Copy' }: { text: string; testId: s
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? 'Copied!' : label}
+      {copied ? t('common.copied') : label}
     </button>
   );
 }
@@ -97,6 +98,7 @@ function CopyControl({ text, testId, label = 'Copy' }: { text: string; testId: s
 export default function QuickstartPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
 
   // Step 1 — API key.
   const [keys, setKeys] = useState<ApiKeySummary[]>([]);
@@ -138,7 +140,7 @@ export default function QuickstartPage() {
         if ((data.keys || []).length > 0) setSelectedKeyId(data.keys![0].keyId);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'failed to load API keys');
+        if (!cancelled) setError(e instanceof Error ? e.message : t('quickstart.keysFailed'));
       })
       .finally(() => {
         if (!cancelled) setKeysLoaded(true);
@@ -152,7 +154,7 @@ export default function QuickstartPage() {
         if ((data.models || []).length > 0) setSelectedModelId(data.models![0].modelId);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'failed to load models');
+        if (!cancelled) setError(e instanceof Error ? e.message : t('quickstart.modelsFailed'));
       })
       .finally(() => {
         if (!cancelled) setModelsLoaded(true);
@@ -165,7 +167,7 @@ export default function QuickstartPage() {
         setBaseUrl(data.baseUrl || '');
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Could not load the inference endpoint.');
+        if (!cancelled) setError(e instanceof Error ? e.message : t('quickstart.baseUrlFailed'));
       })
       .finally(() => {
         if (!cancelled) setEndpointLoaded(true);
@@ -191,11 +193,11 @@ export default function QuickstartPage() {
 
   const createKey = async () => {
     if (!keyName.trim()) {
-      setError('Enter a key name.');
+      setError(t('quickstart.nameRequired'));
       return;
     }
     if (keyName.trim().length > 64) {
-      setError('Key name must be at most 64 characters.');
+      setError(t('quickstart.nameTooLong'));
       return;
     }
     setCreating(true);
@@ -218,7 +220,7 @@ export default function QuickstartPage() {
       const data = await api.get<{ keys?: ApiKeySummary[] }>('/api/v1/auth/api-keys?page.limit=100', orgId);
       setKeys(data.keys || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to create key');
+      setError(e instanceof Error ? e.message : t('quickstart.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -237,7 +239,7 @@ export default function QuickstartPage() {
       );
       setTestResponse(data);
     } catch (e) {
-      setTestError(e instanceof Error ? e.message : 'test request failed');
+      setTestError(e instanceof Error ? e.message : t('quickstart.testFailed'));
     } finally {
       setTesting(false);
     }
@@ -256,8 +258,8 @@ export default function QuickstartPage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Quickstart</h1>
-          <div className="subtitle">Get your first inference call working in four steps.</div>
+          <h1>{t('quickstart.title')}</h1>
+          <div className="subtitle">{t('quickstart.subtitle')}</div>
         </div>
       </div>
 
@@ -265,52 +267,52 @@ export default function QuickstartPage() {
         <div>
           <ErrorBanner message={error} />
           <button className="secondary" data-testid="quickstart-retry" onClick={retry}>
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
 
       {/* Step 1 — API key */}
       <section className="panel" data-testid="quickstart-step-key">
-        <h2>Step 1 — API key</h2>
+        <h2>{t('quickstart.step1')}</h2>
         {!keysLoaded ? (
-          <div className="loading">Loading keys…</div>
+          <div className="loading">{t('quickstart.loadingKeys')}</div>
         ) : keys.length === 0 && !createdSecret ? (
           <div>
-            <p>No API keys yet. Create one to authenticate Agent calls.</p>
+            <p>{t('quickstart.emptyKeys')}</p>
             <div className="form-row">
-              <label htmlFor="quickstart-key-name">Name</label>
+              <label htmlFor="quickstart-key-name">{t('quickstart.fieldName')}</label>
               <input
                 id="quickstart-key-name"
                 data-testid="quickstart-key-name"
                 value={keyName}
                 maxLength={64}
                 onChange={(e) => setKeyName(e.target.value)}
-                placeholder="e.g. production-agent"
+                placeholder={t('quickstart.placeholderName')}
               />
             </div>
             <div className="form-row">
-              <label htmlFor="quickstart-key-expiry">Expiry</label>
+              <label htmlFor="quickstart-key-expiry">{t('quickstart.fieldExpiry')}</label>
               <select
                 id="quickstart-key-expiry"
                 data-testid="quickstart-key-expiry"
                 value={keyExpiry}
                 onChange={(e) => setKeyExpiry(e.target.value)}
               >
-                <option value="never">Never</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="365">365 days</option>
+                <option value="never">{t('common.never')}</option>
+                <option value="30">{t('common.30days')}</option>
+                <option value="90">{t('common.90days')}</option>
+                <option value="365">{t('common.365days')}</option>
               </select>
             </div>
             <button data-testid="quickstart-key-create-submit" disabled={creating} onClick={() => void createKey()}>
-              {creating ? 'Creating…' : 'Create API key'}
+              {creating ? t('common.creating') : t('quickstart.createKey')}
             </button>
           </div>
         ) : (
           <div>
             <div className="form-row">
-              <label htmlFor="quickstart-key-select">API key</label>
+              <label htmlFor="quickstart-key-select">{t('quickstart.fieldApiKey')}</label>
               <select
                 id="quickstart-key-select"
                 data-testid="quickstart-key-select"
@@ -325,7 +327,7 @@ export default function QuickstartPage() {
               </select>
             </div>
             <button className="link" data-testid="quickstart-key-create" onClick={() => setCreateOpen(true)}>
-              Create new
+              {t('quickstart.createNew')}
             </button>
           </div>
         )}
@@ -333,35 +335,35 @@ export default function QuickstartPage() {
         {createOpen && (
           <div className="panel" data-testid="quickstart-create-form">
             <div className="form-row">
-              <label htmlFor="quickstart-key-name">Name</label>
+              <label htmlFor="quickstart-key-name">{t('quickstart.fieldName')}</label>
               <input
                 id="quickstart-key-name"
                 data-testid="quickstart-key-name"
                 value={keyName}
                 maxLength={64}
                 onChange={(e) => setKeyName(e.target.value)}
-                placeholder="e.g. production-agent"
+                placeholder={t('quickstart.placeholderName')}
               />
             </div>
             <div className="form-row">
-              <label htmlFor="quickstart-key-expiry">Expiry</label>
+              <label htmlFor="quickstart-key-expiry">{t('quickstart.fieldExpiry')}</label>
               <select
                 id="quickstart-key-expiry"
                 data-testid="quickstart-key-expiry"
                 value={keyExpiry}
                 onChange={(e) => setKeyExpiry(e.target.value)}
               >
-                <option value="never">Never</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="365">365 days</option>
+                <option value="never">{t('common.never')}</option>
+                <option value="30">{t('common.30days')}</option>
+                <option value="90">{t('common.90days')}</option>
+                <option value="365">{t('common.365days')}</option>
               </select>
             </div>
             <button data-testid="quickstart-key-create-submit" disabled={creating} onClick={() => void createKey()}>
-              {creating ? 'Creating…' : 'Create API key'}
+              {creating ? t('common.creating') : t('quickstart.createKey')}
             </button>
             <button className="secondary" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         )}
@@ -369,12 +371,12 @@ export default function QuickstartPage() {
         {createdSecret && (
           <div className="panel" data-testid="quickstart-created-secret">
             <p>
-              Copy your key now. <strong>This key will not be shown again.</strong>
+              {t('quickstart.createdBody')} <strong>{t('quickstart.createdWarning')}</strong>
             </p>
             <div className="secret-box" data-testid="quickstart-created-secret-value">
               {createdSecret}
             </div>
-            <CopyControl text={createdSecret} testId="quickstart-created-copy" label="Copy key" />
+            <CopyControl text={createdSecret} testId="quickstart-created-copy" label={t('quickstart.copyKey')} />
             <div style={{ marginTop: 18 }}>
               <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
@@ -383,7 +385,7 @@ export default function QuickstartPage() {
                   checked={createdConfirmed}
                   onChange={(e) => setCreatedConfirmed(e.target.checked)}
                 />
-                I have saved this key
+                {t('quickstart.savedCheckbox')}
               </label>
             </div>
             <button
@@ -391,7 +393,7 @@ export default function QuickstartPage() {
               disabled={!createdConfirmed}
               onClick={() => setCreatedSecret('')}
             >
-              Done
+              {t('common.done')}
             </button>
           </div>
         )}
@@ -399,26 +401,16 @@ export default function QuickstartPage() {
 
       {/* Step 2 — Model */}
       <section className="panel" data-testid="quickstart-step-model">
-        <h2>Step 2 — Model</h2>
+        <h2>{t('quickstart.step2')}</h2>
         {!modelsLoaded ? (
-          <div className="loading">Loading models…</div>
+          <div className="loading">{t('quickstart.loadingModels')}</div>
         ) : models.length === 0 ? (
           <div className="empty-state" data-testid="quickstart-no-models">
-            No models are available to your organization yet. Ask your administrator to grant a model, or try the{' '}
-            <a
-              href="/playground"
-              onClick={(e) => {
-                e.preventDefault();
-                navigate('/playground');
-              }}
-            >
-              Playground
-            </a>
-            .
+            {t('quickstart.emptyModels')}
           </div>
         ) : (
           <div className="form-row">
-            <label htmlFor="quickstart-model-select">Model</label>
+            <label htmlFor="quickstart-model-select">{t('quickstart.fieldModel')}</label>
             <select
               id="quickstart-model-select"
               data-testid="quickstart-model-select"
@@ -437,54 +429,54 @@ export default function QuickstartPage() {
 
       {/* Step 3 — Base URL */}
       <section className="panel" data-testid="quickstart-step-baseurl">
-        <h2>Step 3 — Base URL</h2>
+        <h2>{t('quickstart.step3')}</h2>
         {!endpointLoaded ? (
-          <div className="loading">Loading base URL…</div>
+          <div className="loading">{t('quickstart.loadingBaseUrl')}</div>
         ) : baseUrl ? (
           <div className="endpoint-box">
             <span className="mono" data-testid="quickstart-base-url">
               {baseUrl}
             </span>
-            <CopyControl text={baseUrl} testId="quickstart-base-url-copy" label="Copy" />
+            <CopyControl text={baseUrl} testId="quickstart-base-url-copy" label={t('common.copy')} />
           </div>
         ) : (
-          <div className="error">Could not load the inference endpoint.</div>
+          <div className="error">{t('quickstart.baseUrlFailed')}</div>
         )}
       </section>
 
       {/* Step 4 — Code & test */}
       <section className="panel" data-testid="quickstart-step-code">
-        <h2>Step 4 — Code &amp; test</h2>
+        <h2>{t('quickstart.step4')}</h2>
         <div className="segmented" role="tablist">
           <button
             className={lang === 'python' ? 'active' : ''}
             data-testid="quickstart-lang-python"
             onClick={() => setLang('python')}
           >
-            Python
+            {t('quickstart.langPython')}
           </button>
           <button
             className={lang === 'node' ? 'active' : ''}
             data-testid="quickstart-lang-node"
             onClick={() => setLang('node')}
           >
-            Node
+            {t('quickstart.langNode')}
           </button>
           <button
             className={lang === 'curl' ? 'active' : ''}
             data-testid="quickstart-lang-curl"
             onClick={() => setLang('curl')}
           >
-            curl
+            {t('quickstart.langCurl')}
           </button>
         </div>
         <div className="curl-snippet" data-testid="quickstart-snippet">
           {snippet}
         </div>
-        <CopyControl text={snippet} testId="quickstart-copy" label="Copy snippet" />
+        <CopyControl text={snippet} testId="quickstart-copy" label={t('quickstart.copySnippet')} />
         <div style={{ marginTop: 20 }}>
           <button data-testid="quickstart-test" disabled={!canTest || testing} onClick={() => void runTest()}>
-            {testing ? 'Testing…' : 'Test request'}
+            {testing ? t('quickstart.testing') : t('quickstart.test')}
           </button>
         </div>
         {testError && (
@@ -494,10 +486,13 @@ export default function QuickstartPage() {
         )}
         {testResponse && (
           <div className="response" data-testid="quickstart-test-response">
-            <pre>{testResponse.completion || '(no completion)'}</pre>
+            <pre>{testResponse.completion || t('quickstart.noCompletion')}</pre>
             <div>
-              {testResponse.promptTokens} prompt · {testResponse.completionTokens} completion ·{' '}
-              {testResponse.latencyMs}ms
+              {t('quickstart.response', {
+                prompt: testResponse.promptTokens,
+                completion: testResponse.completionTokens,
+                latency: testResponse.latencyMs,
+              })}
             </div>
           </div>
         )}

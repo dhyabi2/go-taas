@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { navigate } from '../../router';
 import { realmCustomLoginPath } from '../../surface-routes';
+import { useI18n } from '../../i18n';
 import brandLogo from '../../assets/brand/logo.svg';
 
 interface PublicProvider {
@@ -16,6 +17,7 @@ interface PublicProvider {
 
 export default function UserLoginPage() {
   const api = useApi();
+  const { t } = useI18n();
   const [providers, setProviders] = useState<PublicProvider[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,7 @@ export default function UserLoginPage() {
   };
 
   if (loading) {
-    return <div className="login" data-testid="login-loading">Loading…</div>;
+    return <div className="login" data-testid="login-loading">{t('login.loading')}</div>;
   }
 
   return (
@@ -57,11 +59,11 @@ export default function UserLoginPage() {
       <div className="login-brand" aria-hidden="true">
         <img src={brandLogo} alt="" className="login-brand-logo" />
       </div>
-      <h1>Sign in to Go TaaS</h1>
-      <p className="login-subtitle">Access your API keys, usage, request logs and billing.</p>
+      <h1>{t('login.signIn')}</h1>
+      <p className="login-subtitle">{t('login.subtitle')}</p>
       {error && <div className="error" data-testid="login-error">{error}</div>}
       {providers.length === 0 ? (
-        <div data-testid="login-no-providers">No sign-in providers configured.</div>
+        <div data-testid="login-no-providers">{t('login.noProviders')}</div>
       ) : (
         <div className="provider-list">
           {providers.map((p) => (
@@ -71,7 +73,7 @@ export default function UserLoginPage() {
               data-testid={`sso-login-${p.providerId}`}
               onClick={() => void signIn(p.providerId, p.type)}
             >
-              Sign in with {p.displayName}
+              {t('login.signInWith', { name: p.displayName })}
             </button>
           ))}
         </div>

@@ -18,6 +18,7 @@ import {
   StateBadge,
   usePolling,
 } from '../components';
+import { useI18n } from '../i18n';
 
 interface ServiceResponse {
   response: { code: number; message: string };
@@ -29,6 +30,7 @@ interface ServiceResponse {
 
 export default function ServiceDetailPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const id = window.location.pathname.split('/').pop() || '';
   const [data, setData] = useState<ServiceResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,11 +45,11 @@ export default function ServiceDetailPage() {
       );
       setData(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load service');
+      setError(e instanceof Error ? e.message : t('service.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [id, orgId]);
+  }, [id, orgId, t]);
 
   useEffect(() => {
     void load();
@@ -61,11 +63,11 @@ export default function ServiceDetailPage() {
     asState === 'scaling-up' || asState === 'scaling-down' || asState === 'cold-starting';
   usePolling(() => void load(), 3000, active || asActive);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
   if (error)
     return (
       <div>
-        <BackLink to="/admin/inference-services" label="Back to Inference Services" />
+        <BackLink to="/admin/inference-services" label={t('service.back')} />
         <ErrorBanner message={error} />
       </div>
     );
@@ -76,7 +78,7 @@ export default function ServiceDetailPage() {
 
   return (
     <div>
-      <BackLink to="/admin/inference-services" label="Back to Inference Services" />
+      <BackLink to="/admin/inference-services" label={t('service.back')} />
       <div className="page-header">
         <div>
           <h1 data-testid="service-detail-name">{s.name}</h1>
@@ -86,33 +88,33 @@ export default function ServiceDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Specification</h3>
+        <h3 style={{ marginTop: 0 }}>{t('service.spec')}</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <div className="label">Model</div>
+            <div className="label">{t('service.model')}</div>
             <div className="value mono">
               {s.modelId.slice(0, 8)}… @ {s.modelVersion}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Image</div>
+            <div className="label">{t('service.image')}</div>
             <div className="value mono">{s.imageId}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Accelerator</div>
+            <div className="label">{t('service.accelerator')}</div>
             <div className="value">
               {s.accelerator || '—'}
               {s.acceleratorType ? ` (${s.acceleratorType})` : ''}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Replicas</div>
+            <div className="label">{t('service.replicas')}</div>
             <div className="value" data-testid="service-detail-replicas">
               {s.replicas}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Updated</div>
+            <div className="label">{t('service.updated')}</div>
             <div className="value">{formatTime(s.updatedAt)}</div>
           </div>
         </div>
@@ -120,28 +122,28 @@ export default function ServiceDetailPage() {
 
       {data.autoscaling && (
         <div className="panel" style={{ marginBottom: 16 }} data-testid="autoscaling-card">
-          <h3 style={{ marginTop: 0 }}>Autoscaling</h3>
+          <h3 style={{ marginTop: 0 }}>{t('service.autoscaling')}</h3>
           <div className="detail-grid">
             <div className="detail-item">
-              <div className="label">Enabled</div>
+              <div className="label">{t('service.enabled')}</div>
               <div className="value">{data.autoscaling.enabled ? 'On' : 'Off'}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Min / Max</div>
+              <div className="label">{t('service.minMax')}</div>
               <div className="value">
                 {data.autoscaling.minReplicas} / {data.autoscaling.maxReplicas}
               </div>
             </div>
             <div className="detail-item">
-              <div className="label">Target concurrency</div>
+              <div className="label">{t('service.targetConcurrency')}</div>
               <div className="value">{data.autoscaling.targetConcurrency}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Scale to zero</div>
+              <div className="label">{t('service.scaleToZero')}</div>
               <div className="value">{data.autoscaling.scaleToZero ? 'On' : 'Off'}</div>
             </div>
             <div className="detail-item">
-              <div className="label">Cooldown</div>
+              <div className="label">{t('service.cooldown')}</div>
               <div className="value">{data.autoscaling.cooldownSeconds}s</div>
             </div>
           </div>
@@ -153,23 +155,22 @@ export default function ServiceDetailPage() {
 
       {s.state === 'failed' && (
         <div className="error-banner" data-testid="failure-reason">
-          Deployment failed. The service can be deleted and re-created from the
-          Models page.
+          {t('service.deployFailed')}
         </div>
       )}
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Endpoints</h3>
+        <h3 style={{ marginTop: 0 }}>{t('service.endpoints')}</h3>
         {!running && (
           <p className="muted" data-testid="endpoints-placeholder">
             {s.state === 'pending' || s.state === 'deploying'
-              ? 'Endpoints appear when the service reaches the running state…'
-              : 'Endpoints are available only while the service is running.'}
+              ? t('service.endpointsPending')
+              : t('service.endpointsRunningOnly')}
           </p>
         )}
         {running &&
           (data.endpoints.length === 0 ? (
-            <p className="muted">No endpoints registered.</p>
+            <p className="muted">{t('service.endpointsEmpty')}</p>
           ) : (
             data.endpoints.map((ep) => (
               <div key={ep} className="endpoint-box" data-testid="endpoint-box">
@@ -180,13 +181,13 @@ export default function ServiceDetailPage() {
           ))}
         {running && data.endpoints.length > 0 && (
           <>
-            <h3>Try it</h3>
+            <h3>{t('service.tryIt')}</h3>
             <div className="curl-snippet" data-testid="curl-snippet">
               {`curl ${data.endpoints[0]}/v1/chat/completions \\\n  -H "Authorization: Bearer sk-..." \\\n  -H "Content-Type: application/json" \\\n  -d '{"model": "${s.name}", "messages": [{"role": "user", "content": "Hello!"}]}'`}
             </div>
             <CopyButton
               text={`curl ${data.endpoints[0]}/v1/chat/completions -H "Authorization: Bearer sk-..." -H "Content-Type: application/json" -d '{"model": "${s.name}", "messages": [{"role": "user", "content": "Hello!"}]}'`}
-              label="Copy curl"
+              label={t('service.copyCurl')}
             />
           </>
         )}
@@ -198,35 +199,36 @@ export default function ServiceDetailPage() {
 // AutoscalingStatusBlock renders the live autoscaling status (feature
 // #16, FR3.2-FR3.4).
 function AutoscalingStatusBlock({ status }: { status: AutoscalingStatus }) {
+  const { t } = useI18n();
   const state = status.state || 'disabled';
   return (
     <div className="detail-grid" style={{ marginTop: 12 }} data-testid="autoscaling-status-block">
       <div className="detail-item">
-        <div className="label">State</div>
+        <div className="label">{t('service.state')}</div>
         <div className="value">
           <AutoscalingStateBadge state={state} />
         </div>
       </div>
       <div className="detail-item">
-        <div className="label">Current / Desired</div>
+        <div className="label">{t('service.currentDesired')}</div>
         <div className="value">
           {status.currentReplicas} / {status.desiredReplicas}
         </div>
       </div>
       <div className="detail-item">
-        <div className="label">Concurrency</div>
+        <div className="label">{t('service.concurrency')}</div>
         <div className="value">
           {status.currentConcurrency} / {status.targetConcurrency}
         </div>
       </div>
       <div className="detail-item">
-        <div className="label">Last scaling event</div>
+        <div className="label">{t('service.lastScalingEvent')}</div>
         <div className="value">{formatTime(status.lastScalingEventAt)}</div>
       </div>
       {state === 'cold-starting' && (
         <div className="detail-item full">
           <div className="value muted" data-testid="cold-starting-hint">
-            A request arrived — spinning up from zero.
+            {t('service.coldStartHint')}
           </div>
         </div>
       )}
@@ -242,14 +244,15 @@ function AutoscalingStatusBlock({ status }: { status: AutoscalingStatus }) {
 }
 
 function AutoscalingStateBadge({ state }: { state: string }) {
+  const { t } = useI18n();
   const labels: Record<string, string> = {
-    disabled: 'Disabled',
-    steady: 'Steady',
-    'scaling-up': 'Scaling up',
-    'scaling-down': 'Scaling down',
-    'scaled-to-zero': 'Scaled to zero',
-    'cold-starting': 'Cold-starting',
-    error: 'Error',
+    disabled: t('service.asDisabled'),
+    steady: t('service.asSteady'),
+    'scaling-up': t('service.asScalingUp'),
+    'scaling-down': t('service.asScalingDown'),
+    'scaled-to-zero': t('service.asScaledToZero'),
+    'cold-starting': t('service.asColdStarting'),
+    error: t('service.asError'),
   };
   return (
     <span className={`badge ${state}`} data-testid={`autoscaling-state-${state}`}>

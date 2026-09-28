@@ -12,6 +12,7 @@ import {
   type PageMeta,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, usePolling } from '../components';
 
 interface AccountsResponse {
@@ -35,6 +36,7 @@ function modeBadge(mode: string) {
 
 export default function AccountsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [accounts, setAccounts] = useState<BillingAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -49,11 +51,11 @@ export default function AccountsPage() {
       const data = await api.get<AccountsResponse>('/api/v1/admin/billing/accounts', orgId);
       setAccounts(data.accounts || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load accounts');
+      setError(e instanceof Error ? e.message : t('accounts.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     setLoading(true);
@@ -66,14 +68,11 @@ export default function AccountsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Billing Accounts</h1>
-          <div className="subtitle">
-            One account per organization: prepaid balance or postpaid monthly
-            quota, with an append-only transaction ledger.
-          </div>
+          <h1>{t('accounts.title')}</h1>
+          <div className="subtitle">{t('accounts.subtitle')}</div>
         </div>
         <button data-testid="create-account-button" onClick={() => setCreating(true)}>
-          Create Account
+          {t('accounts.create')}
         </button>
       </div>
 
@@ -81,21 +80,21 @@ export default function AccountsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : accounts.length === 0 ? (
           <div className="empty-state" data-testid="accounts-empty">
-            No billing accounts yet — create the first one
+            {t('accounts.empty')}
           </div>
         ) : (
           <table className="data" data-testid="accounts-table">
             <thead>
               <tr>
-                <th>Account</th>
-                <th>Mode</th>
-                <th>Balance / Quota</th>
-                <th>Spend limit</th>
-                <th>Cycle start</th>
-                <th>Actions</th>
+                <th>{t('accounts.colAccount')}</th>
+                <th>{t('accounts.colMode')}</th>
+                <th>{t('accounts.colBalance')}</th>
+                <th>{t('accounts.colSpendLimit')}</th>
+                <th>{t('accounts.colCycleStart')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -139,7 +138,7 @@ export default function AccountsPage() {
                         />
                       </span>
                     ) : (
-                      <span className="muted">No spend limit</span>
+                      <span className="muted">{t('accounts.noSpendLimit')}</span>
                     )}
                   </td>
                   <td>{formatTime(a.cycleStartedAt)}</td>
@@ -149,21 +148,21 @@ export default function AccountsPage() {
                       data-testid={`recharge-button-${a.accountId}`}
                       onClick={() => setRechargeFor(a)}
                     >
-                      Recharge
+                      {t('accounts.recharge')}
                     </button>
                     <button
                       className="link"
                       data-testid={`quota-button-${a.accountId}`}
                       onClick={() => setQuotaFor(a)}
                     >
-                      Set Quota
+                      {t('accounts.setQuota')}
                     </button>
                     <button
                       className="link"
                       data-testid={`detail-button-${a.accountId}`}
                       onClick={() => setDetail(a)}
                     >
-                      Detail
+                      {t('common.detail')}
                     </button>
                   </td>
                 </tr>
@@ -226,6 +225,7 @@ function CreateAccountDialog({
   onClose: () => void;
   onCreated: () => void;
 }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState('prepaid');
   const [initialBalance, setInitialBalance] = useState('');
   const [quota, setQuota] = useState('');
@@ -254,17 +254,17 @@ function CreateAccountDialog({
       await api.post('/api/v1/admin/billing/accounts', orgId, body);
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to create account');
+      setError(e instanceof Error ? e.message : t('accounts.createFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Dialog title="Create Billing Account" onClose={onClose} testId="create-account-dialog">
+    <Dialog title={t('accounts.createTitle')} onClose={onClose} testId="create-account-dialog">
       {error && <ErrorBanner message={error} />}
       <label>
-        Mode
+        {t('accounts.fieldMode')}
         <select
           value={mode}
           data-testid="create-mode-select"
@@ -276,12 +276,12 @@ function CreateAccountDialog({
       </label>
       {mode === 'prepaid' ? (
         <label>
-          Opening balance
+          {t('accounts.fieldOpeningBalance')}
           <input
             type="number"
             min="0"
             step="0.01"
-            placeholder="0.00"
+            placeholder={t('accounts.placeholderAmount')}
             data-testid="create-initial-balance"
             value={initialBalance}
             onChange={(e) => setInitialBalance(e.target.value)}
@@ -290,19 +290,19 @@ function CreateAccountDialog({
       ) : (
         <>
           <label>
-            Monthly quota (0 = unlimited)
+            {t('accounts.fieldMonthlyQuota')}
             <input
               type="number"
               min="0"
               step="0.01"
-              placeholder="0.00"
+              placeholder={t('accounts.placeholderAmount')}
               data-testid="create-quota"
               value={quota}
               onChange={(e) => setQuota(e.target.value)}
             />
           </label>
           <label>
-            Overdraw policy
+            {t('accounts.fieldOverdraw')}
             <select
               value={policy}
               data-testid="create-policy-select"
@@ -315,12 +315,12 @@ function CreateAccountDialog({
         </>
       )}
       <label>
-        Monthly spend limit (0 = unlimited)
+        {t('accounts.fieldSpendLimit')}
         <input
           type="number"
           min="0"
           step="0.01"
-          placeholder="0.00"
+          placeholder={t('accounts.placeholderAmount')}
           data-testid="spend-limit-input"
           value={spendLimit}
           onChange={(e) => setSpendLimit(e.target.value)}
@@ -328,14 +328,14 @@ function CreateAccountDialog({
       </label>
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="create-account-submit"
           disabled={busy}
           onClick={() => void submit()}
         >
-          Create
+          {t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -355,6 +355,7 @@ function RechargeDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
@@ -375,7 +376,7 @@ function RechargeDialog({
       );
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to recharge');
+      setError(e instanceof Error ? e.message : t('accounts.rechargeFailed'));
     } finally {
       setBusy(false);
     }
@@ -383,16 +384,16 @@ function RechargeDialog({
 
   return (
     <Dialog
-      title={`Recharge — ${account.accountId}`}
+      title={t('accounts.rechargeTitle', { accountId: account.accountId })}
       onClose={onClose}
       testId="recharge-dialog"
     >
       {error && <ErrorBanner message={error} />}
       <div className="muted">
-        Current balance: {formatCents(account.balanceCents)} {account.currency}
+        {t('accounts.rechargeBalance', { balance: formatCents(account.balanceCents), currency: account.currency })}
       </div>
       <label>
-        Amount ({account.currency})
+        {t('accounts.fieldAmount', { currency: account.currency })}
         <input
           type="number"
           min="0.01"
@@ -403,11 +404,11 @@ function RechargeDialog({
         />
       </label>
       <label>
-        Note
+        {t('accounts.fieldNote')}
         <input
           type="text"
           maxLength={128}
-          placeholder="optional reference"
+          placeholder={t('accounts.placeholderNote')}
           data-testid="recharge-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -415,14 +416,14 @@ function RechargeDialog({
       </label>
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="recharge-submit"
           disabled={busy}
           onClick={() => void submit()}
         >
-          Recharge
+          {t('accounts.recharge')}
         </button>
       </div>
     </Dialog>
@@ -441,6 +442,7 @@ function QuotaDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState(account.mode);
   const [quota, setQuota] = useState(
     Number(account.monthlyQuotaCents) > 0
@@ -462,17 +464,17 @@ function QuotaDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to update account');
+      setError(e instanceof Error ? e.message : t('accounts.updateFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Dialog title={`Set Quota — ${account.accountId}`} onClose={onClose} testId="quota-dialog">
+    <Dialog title={t('accounts.quotaTitle', { accountId: account.accountId })} onClose={onClose} testId="quota-dialog">
       {error && <ErrorBanner message={error} />}
       <label>
-        Mode
+        {t('accounts.fieldMode')}
         <select
           value={mode}
           data-testid="quota-mode-select"
@@ -483,7 +485,7 @@ function QuotaDialog({
         </select>
       </label>
       <label>
-        Monthly quota ({account.currency}, 0 = unlimited)
+        {t('accounts.fieldMonthlyQuota2', { currency: account.currency })}
         <input
           type="number"
           min="0"
@@ -494,7 +496,7 @@ function QuotaDialog({
         />
       </label>
       <label>
-        Overdraw policy
+        {t('accounts.fieldOverdraw')}
         <select
           value={policy}
           data-testid="quota-policy-select"
@@ -506,10 +508,10 @@ function QuotaDialog({
       </label>
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="quota-submit" disabled={busy} onClick={() => void submit()}>
-          Save
+          {t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -527,6 +529,7 @@ function AccountDetailDialog({
   account: BillingAccount;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [transactions, setTransactions] = useState<BillingTransaction[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -551,9 +554,9 @@ function AccountDetailDialog({
         setTransactions(data.transactions || []);
         setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load transactions'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('accounts.transactionsFailed')))
       .finally(() => setLoading(false));
-  }, [orgId, account.accountId, offset, typeFilter]);
+  }, [orgId, account.accountId, offset, typeFilter, t]);
 
   usePolling(
     () => {
@@ -578,21 +581,21 @@ function AccountDetailDialog({
   );
 
   return (
-    <Dialog title={`Account — ${account.accountId}`} onClose={onClose} testId="account-detail">
+    <Dialog title={t('accounts.detailTitle', { accountId: account.accountId })} onClose={onClose} testId="account-detail">
       {error && <ErrorBanner message={error} />}
       <div className="detail-grid">
         <div>
-          <div className="muted">Mode</div>
+          <div className="muted">{t('accounts.fieldMode')}</div>
           <div>{modeBadge(account.mode)}</div>
         </div>
         <div>
-          <div className="muted">Balance</div>
+          <div className="muted">{t('accounts.balance')}</div>
           <div data-testid="detail-balance">
             {formatCents(account.balanceCents)} {account.currency}
           </div>
         </div>
         <div>
-          <div className="muted">Monthly quota</div>
+          <div className="muted">{t('accounts.monthlyQuota')}</div>
           <div data-testid="detail-quota">
             {Number(account.monthlyQuotaCents) > 0
               ? `${formatCents(account.monthlyQuotaCents)} ${account.currency}`
@@ -600,26 +603,26 @@ function AccountDetailDialog({
           </div>
         </div>
         <div>
-          <div className="muted">Used this cycle</div>
+          <div className="muted">{t('accounts.usedThisCycle')}</div>
           <div data-testid="detail-used">
             {formatCents(account.usedThisCycleCents)} {account.currency}
           </div>
         </div>
         <div>
-          <div className="muted">Remaining</div>
+          <div className="muted">{t('accounts.remaining')}</div>
           <div data-testid="detail-remaining">
             {formatCents(account.remainingCents)} {account.currency}
           </div>
         </div>
         <div>
-          <div className="muted">Cycle start</div>
+          <div className="muted">{t('accounts.cycleStart')}</div>
           <div>{formatTime(account.cycleStartedAt)}</div>
         </div>
       </div>
 
-      <h3>Transactions</h3>
+      <h3>{t('accounts.transactions')}</h3>
       <label>
-        Type
+        {t('accounts.fieldType')}
         <select
           value={typeFilter}
           data-testid="transaction-type-filter"
@@ -635,20 +638,20 @@ function AccountDetailDialog({
         </select>
       </label>
       {loading ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">{t('common.loading')}</div>
       ) : transactions.length === 0 ? (
         <div className="empty-state" data-testid="transactions-empty">
-          No transactions in this range
+          {t('accounts.transactionsEmpty')}
         </div>
       ) : (
         <table className="data" data-testid="transactions-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Balance after</th>
-              <th>Reference</th>
+              <th>{t('accounts.colTime')}</th>
+              <th>{t('accounts.colType')}</th>
+              <th>{t('accounts.colAmount')}</th>
+              <th>{t('accounts.colBalanceAfter')}</th>
+              <th>{t('accounts.colReference')}</th>
             </tr>
           </thead>
           <tbody>
