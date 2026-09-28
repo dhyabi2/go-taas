@@ -89,9 +89,18 @@ message RegisterModelRequest {
   string name = 1;
   string version = 2;
   // weight_path is the object-storage path of the model weights, mounted
-  // by inference pods through the shared filesystem.
+  // by inference pods through the shared filesystem. When source is set,
+  // the weights are downloaded from the hub and weight_path is derived
+  // from the download.
   string weight_path = 3;
   string description = 4;
+  // source names the model hub the weights are downloaded from
+  // ("modelscope" or "huggingface"). Empty means no download: the caller
+  // supplies weight_path directly.
+  string source = 5;
+  // source_model_id is the model id on the hub (e.g.
+  // "Qwen/Qwen2.5-0.5B-Instruct"). Required when source is set.
+  string source_model_id = 6;
 }
 
 message RegisterModelResponse {

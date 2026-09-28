@@ -2,6 +2,9 @@ package model
 
 import (
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,6 +16,7 @@ import (
 	modelv1 "github.com/go-taas/go-taas/proto/taas/model/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/pkg/modelhub"
 )
 
 func newModelTestService(t *testing.T) *Service {
@@ -189,6 +193,122 @@ func TestServiceDeleteModelGuardBlocks(t *testing.T) {
 func TestServiceMigrate(t *testing.T) {
 	svc := newModelTestService(t)
 	require.NoError(t, svc.Migrate(context.Background()))
+}
+
+// fakeDownloader records the download calls and writes a marker file so
+// the test can assert the destination directory.
+type fakeDownloader struct {
+	calls []string
+}
+
+func (f *fakeDownloader) Download(_ context.Context, source modelhub.Source, modelID, destDir string) error {
+	f.calls = append(f.calls, string(source)+"|"+modelID+"|"+destDir)
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(destDir, "config.json"), []byte("{}"), 0o644)
+}
+
+func TestServiceRegisterModelWithDownload(t *testing.T) {
+	svc := newModelTestService(t)
+	weightsDir := t.TempDir()
+	dl := &fakeDownloader{}
+	svc.SetWeightsDir(weightsDir)
+	svc.SetModelDownloader(dl)
+	ctx := context.Background()
+
+	resp, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name:           "qwen-3b",
+		Version:        "v1",
+		Source:         "modelscope",
+		SourceModelId:  "Qwen/Qwen2.5-0.5B",
+		Description:    "Qwen 3B",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.GetModelId())
+
+	// The downloader was invoked with the parsed source and the derived
+	// destination directory.
+	require.Len(t, dl.calls, 1)
+	assert.Equal(t, "modelscope|Qwen/Qwen2.5-0.5B|"+filepath.Join(weightsDir, "Qwen__Qwen2.5-0.5B"), dl.calls[0])
+
+	// The registered weight path is the model's directory relative to the
+	// weights root.
+	got, err := svc.GetModel(ctx, &modelv1.GetModelRequest{ModelId: resp.GetModelId()})
+	require.NoError(t, err)
+	assert.Equal(t, "Qwen__Qwen2.5-0.5B/", got.GetModel().GetWeightPath())
+}
+
+func TestServiceRegisterModelDownloadValidation(t *testing.T) {
+	svc := newModelTestService(t)
+	svc.SetWeightsDir(t.TempDir())
+	svc.SetModelDownloader(&fakeDownloader{})
+	ctx := context.Background()
+
+	// Unsupported source fails fast.
+	_, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "m", Version: "v1", Source: "unknown", SourceModelId: "org/model",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelPathInvalid, ae.Code)
+
+	// Missing source_model_id fails.
+	_, err = svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "m", Version: "v1", Source: "modelscope",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelPathInvalid, ae.Code)
+}
+
+func TestServiceRegisterModelDownloadNotConfigured(t *testing.T) {
+	svc := newModelTestService(t)
+	ctx := context.Background()
+
+	// No downloader wired: source-based registration fails closed.
+	_, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "m", Version: "v1", Source: "modelscope", SourceModelId: "org/model",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelPathInvalid, ae.Code)
+
+	// Downloader wired but no weights dir: still fails closed.
+	svc.SetModelDownloader(&fakeDownloader{})
+	_, err = svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "m", Version: "v1", Source: "modelscope", SourceModelId: "org/model",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelPathInvalid, ae.Code)
+}
+
+func TestServiceRegisterModelDownloadFailure(t *testing.T) {
+	svc := newModelTestService(t)
+	svc.SetWeightsDir(t.TempDir())
+	svc.SetModelDownloader(failingDownloader{})
+	ctx := context.Background()
+
+	_, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "m", Version: "v1", Source: "modelscope", SourceModelId: "org/model",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelPathInvalid, ae.Code)
+	assert.Contains(t, ae.Error(), "download")
+}
+
+// failingDownloader always fails the download.
+type failingDownloader struct{}
+
+func (failingDownloader) Download(context.Context, modelhub.Source, string, string) error {
+	return errors.New("hub unreachable")
 }
 
 // Compile-time guard: the FVT helpers keep their signatures.

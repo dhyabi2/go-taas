@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-taas/go-taas/pkg/config"
 	"github.com/go-taas/go-taas/pkg/logger"
+	"github.com/go-taas/go-taas/pkg/modelhub"
 	"github.com/go-taas/go-taas/pkg/server"
 
 	"github.com/go-taas/go-taas/services/accelerator"
@@ -74,6 +75,14 @@ func main() {
 	srv.RegisterService(authSvc)
 	modelSvc := model.New(srv.Components())
 	srv.RegisterService(modelSvc)
+	// Feature: model download from a model hub (ModelScope/HuggingFace).
+	// The downloader writes into the JuiceFS-mounted weights directory so
+	// inference pods read the same weights. Empty weightsDir disables the
+	// feature.
+	if cfg.Model.WeightsDir != "" {
+		modelSvc.SetWeightsDir(cfg.Model.WeightsDir)
+		modelSvc.SetModelDownloader(modelhub.NewHTTPDownloader(modelhub.Options{}))
+	}
 	imageSvc := image.New(srv.Components())
 	srv.RegisterService(imageSvc)
 	inferSvc := infer.New(srv.Components())

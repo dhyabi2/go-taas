@@ -16,6 +16,7 @@ import (
 	modelv1 "github.com/go-taas/go-taas/proto/taas/model/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/pkg/modelhub"
 	"github.com/go-taas/go-taas/pkg/server"
 	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/tenancy"
@@ -129,9 +130,27 @@ type Service struct {
 	// the summary is omitted.
 	compatibilityProvider CompatibilityProvider
 
+	// downloader downloads model weights from a model hub (ModelScope /
+	// HuggingFace) into the weights directory. Nil until wired: the
+	// source-based registration path is disabled.
+	downloader Downloader
+
+	// weightsDir is the local directory (a JuiceFS mount) where model
+	// weights are downloaded. Empty disables the download feature.
+	weightsDir string
+
 	// auditRecorder is the best-effort audit recorder (feature #15, AD3).
 	// Nil until wired: no audit events are produced.
 	auditRecorder AuditRecorder
+}
+
+// Downloader downloads model weights from a model hub into a local
+// directory. It is implemented by the modelhub package and injected at
+// wiring time, keeping the model module free of a hub dependency.
+type Downloader interface {
+	// Download fetches the model identified by modelID from the hub and
+	// writes its files under destDir, preserving relative paths.
+	Download(ctx context.Context, source modelhub.Source, modelID, destDir string) error
 }
 
 // AuditRecorder is the best-effort, non-fatal audit recorder seam
@@ -192,6 +211,15 @@ func (s *Service) SetAutoscalingProvider(p AutoscalingProvider) { s.autoscalingP
 // provider (feature #19, AD12). Production wires the image module; unit
 // tests may inject a fake.
 func (s *Service) SetCompatibilityProvider(p CompatibilityProvider) { s.compatibilityProvider = p }
+
+// SetModelDownloader injects the model-hub downloader used by the
+// source-based registration path. Production wires the modelhub
+// package; unit tests may inject a fake.
+func (s *Service) SetModelDownloader(d Downloader) { s.downloader = d }
+
+// SetWeightsDir sets the local directory (a JuiceFS mount) where model
+// weights are downloaded. Empty disables the download feature.
+func (s *Service) SetWeightsDir(dir string) { s.weightsDir = dir }
 
 // SetAuditRecorder injects the best-effort audit recorder (feature #15,
 // AD3). Production wires the audit module; unit tests may inject a fake.
@@ -329,6 +357,8 @@ func (s *Service) RegisterModel(ctx context.Context, req *modelv1.RegisterModelR
 	version := strings.TrimSpace(req.GetVersion())
 	weightPath := strings.TrimSpace(req.GetWeightPath())
 	description := strings.TrimSpace(req.GetDescription())
+	source := strings.TrimSpace(req.GetSource())
+	sourceModelID := strings.TrimSpace(req.GetSourceModelId())
 
 	if name == "" || len(name) > 128 {
 		return nil, apierrors.Newf(apierrors.CodeModelPathInvalid, "model: name must be 1-128 characters")
@@ -339,7 +369,16 @@ func (s *Service) RegisterModel(ctx context.Context, req *modelv1.RegisterModelR
 	if len(description) > 1024 {
 		return nil, apierrors.Newf(apierrors.CodeModelPathInvalid, "model: description must be at most 1024 characters")
 	}
-	if err := validateWeightPath(weightPath); err != nil {
+
+	// Source-based registration downloads the weights from a model hub
+	// and derives the weight path from the download. When no source is
+	// given, the caller supplies weight_path directly.
+	if source != "" {
+		weightPath, err = s.downloadModel(ctx, source, sourceModelID)
+		if err != nil {
+			return nil, err
+		}
+	} else if err := validateWeightPath(weightPath); err != nil {
 		return nil, err
 	}
 
@@ -360,6 +399,36 @@ func (s *Service) RegisterModel(ctx context.Context, req *modelv1.RegisterModelR
 		Response: okResponse(),
 		ModelId:  modelID,
 	}, nil
+}
+
+// downloadModel downloads the model weights from a model hub into the
+// weights directory and returns the derived weight path. The weights
+// land under "<weightsDir>/<modelID>/" and the weight path is
+// "<modelID>/" so inference pods mount the same directory from the
+// shared JuiceFS filesystem.
+func (s *Service) downloadModel(ctx context.Context, source, sourceModelID string) (string, error) {
+	if s.downloader == nil {
+		return "", apierrors.Newf(apierrors.CodeModelPathInvalid, "model: model download is not configured")
+	}
+	if s.weightsDir == "" {
+		return "", apierrors.Newf(apierrors.CodeModelPathInvalid, "model: model download is not configured (no weights directory)")
+	}
+	if sourceModelID == "" {
+		return "", apierrors.Newf(apierrors.CodeModelPathInvalid, "model: source_model_id is required when source is set")
+	}
+	// Validate the source before downloading so an unsupported source
+	// fails fast without touching the filesystem.
+	parsedSource, err := modelhub.ParseSource(source)
+	if err != nil {
+		return "", apierrors.Newf(apierrors.CodeModelPathInvalid, "model: %v", err)
+	}
+	destDir := modelhub.JoinPath(s.weightsDir, sourceModelID)
+	if err := s.downloader.Download(ctx, parsedSource, sourceModelID, destDir); err != nil {
+		return "", apierrors.Newf(apierrors.CodeModelPathInvalid, "model: download %s from %s failed: %v", sourceModelID, source, err)
+	}
+	// The weight path is the model's directory relative to the weights
+	// root, so inference pods mount exactly the downloaded files.
+	return modelhub.CleanModelID(sourceModelID) + "/", nil
 }
 
 // validateWeightPath enforces the weight-path syntax rules (FR1.3):
