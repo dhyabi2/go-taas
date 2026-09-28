@@ -132,22 +132,22 @@ compose-up:
 	docker build $(DOCKER_NETWORK) --target controller \
 		$(DOCKER_BUILD_ARGS) \
 		-f $(DOCKERFILE) -t "$(IMAGE_REPO)/controller:$(IMAGE_TAG)" .
-	docker compose -f deploy/compose/docker-compose.yaml up -d
+	docker compose --env-file .env -f deploy/compose/docker-compose.yaml up -d
 	@echo ">> console: http://localhost:9091/  (API: /api/v1/..., gRPC: 9090, metrics: 9092)"
 	@echo ">> keycloak: http://localhost:8080/  (admin / admin)"
 
 ## compose-down: stop and remove the local verification stack
 compose-down:
-	docker compose -f deploy/compose/docker-compose.yaml down -v
+	docker compose --env-file .env -f deploy/compose/docker-compose.yaml down -v
 
 ## compose-ps: show the status of the verification stack
 compose-ps:
-	docker compose -f deploy/compose/docker-compose.yaml ps
+	docker compose --env-file .env -f deploy/compose/docker-compose.yaml ps
 
 ## compose-logs: follow the logs of the verification stack (or one
 ## service: make compose-logs SERVICE=taas-server)
 compose-logs:
-	docker compose -f deploy/compose/docker-compose.yaml logs -f $(SERVICE)
+	docker compose --env-file .env -f deploy/compose/docker-compose.yaml logs -f $(SERVICE)
 
 ## docker-build-multi: build and push multi-arch (amd64/arm64) images
 ## using Docker Buildx (requires 'docker buildx create' once per host)

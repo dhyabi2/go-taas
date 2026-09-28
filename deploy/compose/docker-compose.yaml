@@ -47,6 +47,56 @@ services:
       timeout: 3s
       retries: 30
 
+  # MinIO object store backing the JuiceFS model-weights filesystem. The
+  # "taas" bucket is created by the minio-init job on startup.
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-taas}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-taas-minio-secret}
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - minio-data:/data
+
+  # One-shot job that creates the "taas" bucket (idempotent).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-taas} ${MINIO_ROOT_PASSWORD:-taas-minio-secret}
+        mc mb --ignore-existing local/${MINIO_BUCKET:-taas}
+        echo "minio bucket ${MINIO_BUCKET:-taas} ready"
+
+  # JuiceFS client that mounts the model-weights filesystem (backed by
+  # MinIO + Redis) and shares it with the control plane through the
+  # juicefs-data named volume. The control plane writes downloaded model
+  # weights here; inference pods read the same files through the
+  # JuiceFS-backed StorageClass in the cluster.
+  juicefs:
+    image: juicedata/juicefs:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        juicefs format --storage=${JUICE_FS_STORAGE:-s3} --bucket=${JUICE_FS_BUCKET} --access-key=${MINIO_ROOT_USER:-taas} --secret-key=${MINIO_ROOT_PASSWORD:-taas-minio-secret} ${JUICE_FS_META_URL} ${JUICE_FS_NAME} || true
+        juicefs mount -d ${JUICE_FS_META_URL} /mnt/jfs
+        sleep infinity
+    depends_on:
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - juicefs-data:/mnt/jfs
+
   # Local OIDC identity provider for debugging the SSO flow (feature #7).
   # The realm, a confidential client and a test user are imported from
   # deploy/compose/keycloak/realm-export.json on first start.
@@ -84,6 +134,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      juicefs:
+        condition: service_started
     environment:
       # Configuration overrides via the CONFIG_ env prefix (see
       # configs/config.yaml); service discovery inside the compose
@@ -95,6 +147,17 @@ services:
       # URL. The quickstart page reads it via GET /api/v1/inference-endpoint
       # and derives the OpenAI-compatible base URL (<base>/v1).
       CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+      # Feature: model download. The weights directory is the JuiceFS
+      # mount shared with the inference pods.
+      CONFIG_MODEL_WEIGHTSDIR: /data/weights
+      # Feature: image import. The internal Harbor registry is read from
+      # the .env file.
+      CONFIG_IMAGE_HARBOR_URL: ${HARBOR_URL:-}
+      CONFIG_IMAGE_HARBOR_USERNAME: ${HARBOR_USERNAME:-}
+      CONFIG_IMAGE_HARBOR_PASSWORD: ${HARBOR_PASSWORD:-}
+      CONFIG_IMAGE_HARBOR_PROJECT: taas
+    volumes:
+      - juicefs-data:/data/weights
     ports:
       - "9090:9090" # gRPC
       - "9091:9091" # gateway (HTTP/JSON)
@@ -115,8 +178,13 @@ services:
       CONFIG_MQ_URL: nats://nats:4222
       CONFIG_CONTROLLER_KUBECONFIG: /etc/taas/kubeconfig
       CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+      # Feature: the JuiceFS-backed StorageClass the controller
+      # provisions the model-weights PVC from (read from .env).
+      CONFIG_CONTROLLER_WEIGHTS_STORAGECLASS: ${WEIGHTS_STORAGE_CLASS:-}
     volumes:
       - ${KUBECONFIG:-$HOME/.kube/config}:/etc/taas/kubeconfig:ro
 
 volumes:
   pgdata:
+  minio-data:
+  juicefs-data:
