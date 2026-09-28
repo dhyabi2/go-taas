@@ -694,11 +694,20 @@ func (r *k8sReconciler) buildDeployment(evt changeEvent) *appsv1.Deployment {
 						Name:  "engine",
 						Image: evt.Image.Reference,
 						Ports: []corev1.ContainerPort{{ContainerPort: 8000, Name: "http"}},
+						// The engine container requests the accelerator's
+						// extended resource so the scheduler places it on a
+						// node with free capacity and the device plugin
+						// exposes the device to the container.
+						Resources: engineResources(evt.Accelerator),
+						// The engine command points at the model's weights
+						// directory (the whole JuiceFS filesystem is mounted
+						// at the weights mount path; the model lives in a
+						// subdirectory named by its weight path).
+						Command: engineCommand(evt.Image.Engine, r.weights.MountPath, evt.Model.WeightPath),
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "weights",
 							MountPath: r.weights.MountPath,
 							ReadOnly:  true,
-							SubPath:   evt.Model.WeightPath,
 						}},
 					}},
 					Volumes: []corev1.Volume{{
@@ -714,6 +723,73 @@ func (r *k8sReconciler) buildDeployment(evt changeEvent) *appsv1.Deployment {
 			},
 		},
 	}
+}
+
+// gpuResourceName maps an accelerator to the Kubernetes extended
+// resource name its device plugin publishes. Unknown accelerators map
+// to "" (no resource request).
+func gpuResourceName(accelerator string) string {
+	switch accelerator {
+	case "nvidia":
+		return "nvidia.com/gpu"
+	case "iluvatar":
+		return "iluvatar.ai/vgpu"
+	case "metax":
+		return "metax-tech.com/gpu"
+	default:
+		return ""
+	}
+}
+
+// engineResources returns the container resource requests for an
+// accelerator: one unit of the accelerator's extended resource so the
+// scheduler places the pod on a node with free capacity. Unknown
+// accelerators get no resource request.
+func engineResources(accelerator string) corev1.ResourceRequirements {
+	name := gpuResourceName(accelerator)
+	if name == "" {
+		return corev1.ResourceRequirements{}
+	}
+	return corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceName(name): resource.MustParse("1"),
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceName(name): resource.MustParse("1"),
+		},
+	}
+}
+
+// engineCommand builds the engine container command that serves the
+// model at the weights mount path. The whole JuiceFS filesystem is
+// mounted at mountPath; the model lives in the subdirectory named by
+// weightPath (e.g. "Qwen__Qwen2.5-0.5B-Instruct/"). The command is
+// engine-specific; unknown engines get no command (the image's default
+// entrypoint runs).
+func engineCommand(engine, mountPath, weightPath string) []string {
+	switch engine {
+	case "vllm":
+		return []string{
+			"python3", "-m", "vllm.entrypoints.openai.api_server",
+			"--model", modelDir(mountPath, weightPath),
+			"--port", "8000",
+			"--host", "0.0.0.0",
+		}
+	default:
+		return nil
+	}
+}
+
+// modelDir joins the weights mount path and a model's weight path into
+// the directory the engine serves. The weight path is a relative
+// subdirectory (e.g. "Qwen__Qwen2.5-0.5B-Instruct/"); the result is the
+// absolute path inside the container.
+func modelDir(mountPath, weightPath string) string {
+	wp := strings.Trim(weightPath, "/")
+	if wp == "" {
+		return mountPath
+	}
+	return strings.TrimSuffix(mountPath, "/") + "/" + wp
 }
 
 // buildService composes the ClusterIP Service fronting the pods.

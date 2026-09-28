@@ -12,6 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -67,8 +68,23 @@ func TestBuildDeployment(t *testing.T) {
 	c := dep.Spec.Template.Spec.Containers[0]
 	assert.Equal(t, "ghcr.io/go-taas/vllm:v0.6.3", c.Image)
 	require.Len(t, c.VolumeMounts, 1)
-	assert.Equal(t, "qwen/v1", c.VolumeMounts[0].SubPath)
+	// The whole JuiceFS filesystem is mounted (no SubPath); the model
+	// lives in a subdirectory named by its weight path.
+	assert.Equal(t, "", c.VolumeMounts[0].SubPath)
 	assert.Equal(t, "/data/weights", c.VolumeMounts[0].MountPath)
+
+	// The engine requests the accelerator's extended resource so the
+	// scheduler places it on a node with free capacity.
+	require.NotNil(t, c.Resources.Limits)
+	assert.Equal(t, resource.MustParse("1"), c.Resources.Limits[corev1.ResourceName("nvidia.com/gpu")])
+	require.NotNil(t, c.Resources.Requests)
+	assert.Equal(t, resource.MustParse("1"), c.Resources.Requests[corev1.ResourceName("nvidia.com/gpu")])
+
+	// The engine command points at the model's weights directory.
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v1", "--port", "8000", "--host", "0.0.0.0",
+	}, c.Command)
 
 	// Accelerator node selector.
 	assert.Equal(t, "nvidia", dep.Spec.Template.Spec.NodeSelector["taas.go-taas.github.io/accelerator"])
@@ -454,6 +470,44 @@ func TestAcceleratorNodeSelector(t *testing.T) {
 	selector = acceleratorNodeSelector("metax", "m100")
 	assert.Equal(t, "metax", selector["taas.go-taas.github.io/accelerator"])
 	assert.Equal(t, "m100", selector["taas.go-taas.github.io/accelerator-type"])
+}
+
+func TestGPUResourceName(t *testing.T) {
+	assert.Equal(t, "nvidia.com/gpu", gpuResourceName("nvidia"))
+	assert.Equal(t, "iluvatar.ai/vgpu", gpuResourceName("iluvatar"))
+	assert.Equal(t, "metax-tech.com/gpu", gpuResourceName("metax"))
+	assert.Equal(t, "", gpuResourceName("tpu"))
+	assert.Equal(t, "", gpuResourceName(""))
+}
+
+func TestEngineResources(t *testing.T) {
+	res := engineResources("nvidia")
+	require.NotNil(t, res.Limits)
+	assert.Equal(t, resource.MustParse("1"), res.Limits[corev1.ResourceName("nvidia.com/gpu")])
+	require.NotNil(t, res.Requests)
+	assert.Equal(t, resource.MustParse("1"), res.Requests[corev1.ResourceName("nvidia.com/gpu")])
+
+	// Unknown accelerators get no resource request.
+	assert.Empty(t, engineResources("tpu").Limits)
+	assert.Empty(t, engineResources("").Limits)
+}
+
+func TestEngineCommand(t *testing.T) {
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v1", "--port", "8000", "--host", "0.0.0.0",
+	}, engineCommand("vllm", "/data/weights", "qwen/v1"))
+
+	// Unknown engines get no command (the image's default entrypoint runs).
+	assert.Nil(t, engineCommand("sglang", "/data/weights", "qwen/v1"))
+	assert.Nil(t, engineCommand("", "/data/weights", "qwen/v1"))
+}
+
+func TestModelDir(t *testing.T) {
+	assert.Equal(t, "/data/weights/qwen/v1", modelDir("/data/weights", "qwen/v1"))
+	assert.Equal(t, "/data/weights/qwen/v1", modelDir("/data/weights", "qwen/v1/"))
+	assert.Equal(t, "/data/weights", modelDir("/data/weights", ""))
+	assert.Equal(t, "/data/weights", modelDir("/data/weights", "/"))
 }
 
 func TestDeploymentNameAndServiceName(t *testing.T) {

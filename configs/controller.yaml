@@ -23,6 +23,11 @@ infer:
 controller:
   workers: 4
   maxRetries: 5
+  # namespace is the Kubernetes namespace the controller manages
+  # inference resources in. Empty defaults to "taas-infer". In the
+  # compose stack this is set to the cluster's go-taas namespace
+  # (CONFIG_CONTROLLER_NAMESPACE).
+  namespace: ""
   # kubeconfig is an explicit kubeconfig path the controller uses to reach
   # the Kubernetes cluster. Empty means the in-cluster config is used,
   # falling back to ~/.kube/config for local development. In the compose
