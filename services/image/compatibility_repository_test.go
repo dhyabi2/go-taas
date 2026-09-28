@@ -111,6 +111,58 @@ func TestCompatibilityEnsureCellLazySeed(t *testing.T) {
 	assert.Equal(t, apierrors.CodeCompatibilityDimensionInvalid, ae.Code)
 }
 
+// seedMultiAcceleratorEngine registers one model and one engine (vllm) on
+// two accelerators, inserting the vendor-mismatching accelerator first so
+// a "first match wins" rule would resolve to iluvatar and wrongly mark the
+// nvidia card type unsupported.
+func seedMultiAcceleratorEngine(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	require.NoError(t, db.Create(&ModelRow{ID: "model-qwen", Name: "qwen-3b"}).Error)
+	require.NoError(t, db.Create(&Image{ID: "img-vllm-iluvatar", Name: "ghcr.io/go-taas/vllm-iluvatar", Tag: "v0.6.3", Accelerator: "iluvatar", Engine: "vllm"}).Error)
+	require.NoError(t, db.Create(&Image{ID: "img-vllm-nvidia", Name: "ghcr.io/go-taas/vllm", Tag: "v0.6.3", Accelerator: "nvidia", Engine: "vllm"}).Error)
+}
+
+// TestCompatibilityLazySeedMultiAccelerator pins the vendor-match rule
+// when one engine is registered on several accelerators: the nvidia card
+// type is vendor-matched because vllm runs on nvidia, even though vllm
+// also runs on iluvatar. The derived status must not depend on the row
+// order of the images table.
+func TestCompatibilityLazySeedMultiAccelerator(t *testing.T) {
+	db := newCompatTestDB(t)
+	seedMultiAcceleratorEngine(t, db)
+	repo := NewCompatibilityRepository(db)
+	ctx := context.Background()
+	cardTypes := []CardType{{Vendor: "nvidia", CardType: "A800"}}
+
+	cell, err := repo.EnsureCell(ctx, "model-qwen", "vllm", "A800", cardTypes, StatusExperimental)
+	require.NoError(t, err)
+	require.NotNil(t, cell)
+	assert.Equal(t, StatusExperimental, cell.Status,
+		"vllm runs on nvidia, so the nvidia card type is vendor-matched")
+}
+
+// TestCompatibilitySeedDedupesEngineAccelerators pins that the first-boot
+// seed creates one row per (model, engine, card type), not one per
+// (engine, accelerator) pair, which would collide on the cell unique
+// index.
+func TestCompatibilitySeedDedupesEngineAccelerators(t *testing.T) {
+	db := newCompatTestDB(t)
+	seedMultiAcceleratorEngine(t, db)
+	repo := NewCompatibilityRepository(db)
+	ctx := context.Background()
+	cardTypes := []CardType{{Vendor: "nvidia", CardType: "A800"}}
+
+	// 1 model × 1 distinct engine × 1 card type = 1 cell.
+	seeded, err := repo.SeedIfEmpty(ctx, cardTypes, StatusExperimental)
+	require.NoError(t, err)
+	assert.Equal(t, 1, seeded)
+
+	cell, err := repo.findCell(ctx, "model-qwen", "vllm", "A800")
+	require.NoError(t, err)
+	require.NotNil(t, cell)
+	assert.Equal(t, StatusExperimental, cell.Status)
+}
+
 func TestCompatibilitySetStatus(t *testing.T) {
 	db := newCompatTestDB(t)
 	seedCompatDimensions(t, db)

@@ -103,13 +103,47 @@ func (r *CompatibilityRepository) findCell(ctx context.Context, modelID, engine,
 	return &row, nil
 }
 
-// defaultStatusFor applies the vendor-match default rule (AD3): a
-// vendor-matched combo (engine.accelerator == card_type.vendor) defaults
-// to lazyDefault (the configured lazy-seed default, "experimental" by
-// default), a vendor-mismatched combo to unsupported.
-func defaultStatusFor(engineAccelerator, cardVendor, lazyDefault string) string {
-	if engineAccelerator == cardVendor {
-		return lazyDefault
+// enginesByAccelerator groups the distinct (engine, accelerator) pairs
+// into a map from engine name to the accelerators that engine is
+// registered on. An engine may be registered on several accelerators
+// (e.g. vllm on both nvidia and iluvatar), so the vendor-match rule must
+// consider the whole set rather than one arbitrarily-chosen pair (which
+// would make the derived default status depend on the row order of the
+// images table).
+func enginesByAccelerator(engines []EngineDim) map[string][]string {
+	out := make(map[string][]string, len(engines))
+	for _, e := range engines {
+		out[e.Engine] = append(out[e.Engine], e.Accelerator)
+	}
+	return out
+}
+
+// sortedEngines returns the distinct engine names in ascending order, so
+// derived cells and the first-boot seed never depend on the row order of
+// the images table.
+func sortedEngines(engines []EngineDim) []string {
+	seen := make(map[string]bool, len(engines))
+	out := make([]string, 0, len(engines))
+	for _, e := range engines {
+		if !seen[e.Engine] {
+			seen[e.Engine] = true
+			out = append(out, e.Engine)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// defaultStatusFor applies the vendor-match default rule (AD3): a combo
+// whose engine is registered on any accelerator matching the card type's
+// vendor defaults to lazyDefault (the configured lazy-seed default,
+// "experimental" by default); a vendor-mismatched combo defaults to
+// unsupported.
+func defaultStatusFor(engineAccelerators []string, cardVendor, lazyDefault string) string {
+	for _, acc := range engineAccelerators {
+		if acc == cardVendor {
+			return lazyDefault
+		}
 	}
 	return StatusUnsupported
 }
@@ -137,17 +171,19 @@ func (r *CompatibilityRepository) SeedIfEmpty(ctx context.Context, cardTypes []C
 	if len(models) == 0 || len(engines) == 0 || len(cardTypes) == 0 {
 		return 0, nil
 	}
+	byAcc := enginesByAccelerator(engines)
+	engineNames := sortedEngines(engines)
 	now := time.Now().UTC()
 	var cells []*CompatibilityCell
 	for _, m := range models {
-		for _, e := range engines {
+		for _, engine := range engineNames {
 			for _, ct := range cardTypes {
 				cells = append(cells, &CompatibilityCell{
 					ID:        uuid.NewString(),
 					ModelID:   m.ID,
-					Engine:    e.Engine,
+					Engine:    engine,
 					CardType:  ct.CardType,
-					Status:    defaultStatusFor(e.Accelerator, ct.Vendor, lazyDefault),
+					Status:    defaultStatusFor(byAcc[engine], ct.Vendor, lazyDefault),
 					Note:      "",
 					CreatedAt: now,
 					UpdatedAt: now,
@@ -173,7 +209,7 @@ func (r *CompatibilityRepository) EnsureCell(ctx context.Context, modelID, engin
 		return cell, nil
 	}
 	// Validate the dimensions before materializing a default row.
-	engineAcc, err := r.validateDimensions(ctx, modelID, engine, cardType, cardTypes)
+	engineAccs, err := r.validateDimensions(ctx, modelID, engine, cardType, cardTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +220,7 @@ func (r *CompatibilityRepository) EnsureCell(ctx context.Context, modelID, engin
 		ModelID:   modelID,
 		Engine:    engine,
 		CardType:  cardType,
-		Status:    defaultStatusFor(engineAcc, cardVendor, lazyDefault),
+		Status:    defaultStatusFor(engineAccs, cardVendor, lazyDefault),
 		Note:      "",
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -200,12 +236,14 @@ func (r *CompatibilityRepository) EnsureCell(ctx context.Context, modelID, engin
 }
 
 // validateDimensions checks that modelID, engine, and cardType identify
-// known dimensions. It returns the engine's accelerator. An unknown
-// dimension returns 10211 (AD8).
-func (r *CompatibilityRepository) validateDimensions(ctx context.Context, modelID, engine, cardType string, cardTypes []CardType) (string, error) {
+// known dimensions. It returns the accelerators the engine is registered
+// on (one engine may be registered on several accelerators), so the
+// vendor-match rule can consider the whole set. An unknown dimension
+// returns 10211 (AD8).
+func (r *CompatibilityRepository) validateDimensions(ctx context.Context, modelID, engine, cardType string, cardTypes []CardType) ([]string, error) {
 	models, err := r.listModels(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	modelKnown := false
 	for _, m := range models {
@@ -215,23 +253,22 @@ func (r *CompatibilityRepository) validateDimensions(ctx context.Context, modelI
 		}
 	}
 	if !modelKnown {
-		return "", apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
+		return nil, apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
 	}
 	engines, err := r.listEngines(ctx)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	engineAcc := ""
+	var engineAccs []string
 	engineKnown := false
 	for _, e := range engines {
 		if e.Engine == engine {
 			engineKnown = true
-			engineAcc = e.Accelerator
-			break
+			engineAccs = append(engineAccs, e.Accelerator)
 		}
 	}
 	if !engineKnown {
-		return "", apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
+		return nil, apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
 	}
 	cardKnown := false
 	for _, ct := range cardTypes {
@@ -241,9 +278,9 @@ func (r *CompatibilityRepository) validateDimensions(ctx context.Context, modelI
 		}
 	}
 	if !cardKnown {
-		return "", apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
+		return nil, apierrors.New(apierrors.CodeCompatibilityDimensionInvalid)
 	}
-	return engineAcc, nil
+	return engineAccs, nil
 }
 
 // cardVendorFor returns the vendor of a card type, or "" when unknown.
@@ -371,27 +408,21 @@ func (r *CompatibilityRepository) ListCells(ctx context.Context, modelID, engine
 	for _, m := range models {
 		modelName[m.ID] = m.Name
 	}
-	engineAcc := map[string]string{}
-	for _, e := range engines {
-		engineAcc[e.Engine] = e.Accelerator
-	}
-	cardVendor := map[string]string{}
-	for _, ct := range cardTypes {
-		cardVendor[ct.CardType] = ct.Vendor
-	}
+	byAcc := enginesByAccelerator(engines)
+	engineNames := sortedEngines(engines)
 	// Derived cells carry the default status (vendor-match rule).
 	for _, m := range models {
-		for _, e := range engines {
+		for _, engine := range engineNames {
 			for _, ct := range cardTypes {
-				key := m.ID + "\x00" + e.Engine + "\x00" + ct.CardType
+				key := m.ID + "\x00" + engine + "\x00" + ct.CardType
 				if _, ok := byKey[key]; ok {
 					continue
 				}
 				byKey[key] = &CompatibilityCell{
 					ModelID:   m.ID,
-					Engine:    e.Engine,
+					Engine:    engine,
 					CardType:  ct.CardType,
-					Status:    defaultStatusFor(e.Accelerator, ct.Vendor, lazyDefault),
+					Status:    defaultStatusFor(byAcc[engine], ct.Vendor, lazyDefault),
 					Note:      "",
 					UpdatedAt: time.Time{},
 				}
@@ -511,17 +542,19 @@ func (r *CompatibilityRepository) ListDimensions(ctx context.Context, cardTypes 
 	for _, c := range stored {
 		byKey[c.ModelID+"\x00"+c.Engine+"\x00"+c.CardType] = c
 	}
+	byAcc := enginesByAccelerator(engines)
+	engineNames := sortedEngines(engines)
 	for _, m := range models {
-		for _, e := range engines {
+		for _, engine := range engineNames {
 			for _, ct := range axis {
-				key := m.ID + "\x00" + e.Engine + "\x00" + ct.CardType
+				key := m.ID + "\x00" + engine + "\x00" + ct.CardType
 				cell, ok := byKey[key]
 				if !ok {
 					if !inFleet[ct.CardType] {
 						continue
 					}
 					cell = &CompatibilityCell{
-						Status:   defaultStatusFor(e.Accelerator, ct.Vendor, lazyDefault),
+						Status:   defaultStatusFor(byAcc[engine], ct.Vendor, lazyDefault),
 						CardType: ct.CardType,
 					}
 				}
