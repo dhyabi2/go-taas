@@ -93,26 +93,50 @@ type k8sReconciler struct {
 	// namespace is the namespace the controller manages resources in.
 	// Defaults to "taas-infer" when empty (backward compatible).
 	namespace string
+	// weights configures the shared model-weights filesystem mounted
+	// into inference pods (feature: JuiceFS-backed weights).
+	weights WeightsConfig
+}
+
+// WeightsConfig holds the model-weights storage settings used by the
+// controller when it mounts model weights into inference pods.
+type WeightsConfig struct {
+	// StorageClass is the JuiceFS-backed StorageClass used to provision
+	// the weights PVC. Empty falls back to the cluster default.
+	StorageClass string
+	// PVCName is the name of the PersistentVolumeClaim that backs the
+	// shared model-weights filesystem. Defaults to "model-weights".
+	PVCName string
+	// MountPath is the path the weights volume is mounted at inside
+	// inference pods. Defaults to "/data/weights".
+	MountPath string
 }
 
 // NewK8sReconciler builds the default Kubernetes-backed reconciler.
 // statusPublisher is the MQ client used to publish observed-state
 // reports; endpointBaseURL composes endpoint URLs ("" = in-cluster DNS).
-func NewK8sReconciler(client *k8s.Client, statusPublisher mq.Client, endpointBaseURL, namespace string) Reconciler {
-	return newReconcilerWithClientset(client.Clientset(), statusPublisher, endpointBaseURL, namespace)
+func NewK8sReconciler(client *k8s.Client, statusPublisher mq.Client, endpointBaseURL, namespace string, weights WeightsConfig) Reconciler {
+	return newReconcilerWithClientset(client.Clientset(), statusPublisher, endpointBaseURL, namespace, weights)
 }
 
 // newReconcilerWithClientset builds a reconciler over an arbitrary
 // clientset (the fake clientset in tests).
-func newReconcilerWithClientset(clientset kubernetes.Interface, statusPublisher mq.Client, endpointBaseURL, namespace string) Reconciler {
+func newReconcilerWithClientset(clientset kubernetes.Interface, statusPublisher mq.Client, endpointBaseURL, namespace string, weights WeightsConfig) Reconciler {
 	if namespace == "" {
 		namespace = "taas-infer"
+	}
+	if weights.PVCName == "" {
+		weights.PVCName = "model-weights"
+	}
+	if weights.MountPath == "" {
+		weights.MountPath = "/data/weights"
 	}
 	return &k8sReconciler{
 		clientset:       clientset,
 		statusPublisher: statusPublisher,
 		endpointBaseURL: endpointBaseURL,
 		namespace:       namespace,
+		weights:         weights,
 	}
 }
 
@@ -432,6 +456,14 @@ func (r *k8sReconciler) applyUpsert(ctx context.Context, evt changeEvent) error 
 			"service_id", evt.ServiceID, "err", err)
 	}
 
+	// Ensure the shared model-weights PVC exists before the Deployment
+	// references it. The PVC is provisioned from the configured
+	// JuiceFS-backed StorageClass so every inference pod reads the same
+	// model weights the control plane downloads.
+	if err := r.ensureWeightsPVC(ctx); err != nil {
+		return r.reportFailure(ctx, evt, err)
+	}
+
 	deployment := r.buildDeployment(evt)
 	if err := r.createOrUpdateDeployment(ctx, deployment); err != nil {
 		return r.reportFailure(ctx, evt, err)
@@ -600,6 +632,48 @@ func (r *k8sReconciler) createOrUpdateService(ctx context.Context, svc *corev1.S
 	return err
 }
 
+// ensureWeightsPVC creates the shared model-weights PVC if it does not
+// exist, provisioning it from the configured JuiceFS-backed
+// StorageClass. A pre-existing PVC is left untouched (idempotent).
+func (r *k8sReconciler) ensureWeightsPVC(ctx context.Context) error {
+	_, err := r.clientset.CoreV1().PersistentVolumeClaims(r.namespace).
+		Get(ctx, r.weights.PVCName, metav1.GetOptions{})
+	if err == nil {
+		return nil
+	}
+	if !apierrors.IsNotFound(err) {
+		return fmt.Errorf("controller: get weights pvc %s: %w", r.weights.PVCName, err)
+	}
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      r.weights.PVCName,
+			Namespace: r.namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/managed-by": "taas-controller",
+				"taas.go-taas.github.io/role":  "model-weights",
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("100Gi"),
+				},
+			},
+		},
+	}
+	if r.weights.StorageClass != "" {
+		pvc.Spec.StorageClassName = &r.weights.StorageClass
+	}
+	if _, err := r.clientset.CoreV1().PersistentVolumeClaims(r.namespace).
+		Create(ctx, pvc, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return fmt.Errorf("controller: create weights pvc %s: %w", r.weights.PVCName, err)
+	}
+	logger.S().Infow("controller: ensured model-weights PVC",
+		"pvc", r.weights.PVCName, "storage_class", r.weights.StorageClass)
+	return nil
+}
+
 // buildDeployment composes the Deployment for a change event: engine
 // image, replicas, weight-volume mount and accelerator node selector.
 func (r *k8sReconciler) buildDeployment(evt changeEvent) *appsv1.Deployment {
@@ -622,7 +696,7 @@ func (r *k8sReconciler) buildDeployment(evt changeEvent) *appsv1.Deployment {
 						Ports: []corev1.ContainerPort{{ContainerPort: 8000, Name: "http"}},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "weights",
-							MountPath: "/data/weights",
+							MountPath: r.weights.MountPath,
 							ReadOnly:  true,
 							SubPath:   evt.Model.WeightPath,
 						}},
@@ -631,7 +705,7 @@ func (r *k8sReconciler) buildDeployment(evt changeEvent) *appsv1.Deployment {
 						Name: "weights",
 						VolumeSource: corev1.VolumeSource{
 							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-								ClaimName: "model-weights",
+								ClaimName: r.weights.PVCName,
 							},
 						},
 					}},

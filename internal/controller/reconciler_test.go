@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -27,7 +28,11 @@ const reconcileNamespace = "taas-infer"
 // testReconciler returns a reconciler over a fake clientset for the
 // build-function tests.
 func testReconciler() *k8sReconciler {
-	return &k8sReconciler{clientset: fake.NewSimpleClientset(), namespace: reconcileNamespace}
+	return &k8sReconciler{
+		clientset: fake.NewSimpleClientset(),
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", MountPath: "/data/weights"},
+	}
 }
 
 func testChangeEvent(eventType, name string) changeEvent {
@@ -229,7 +234,7 @@ func newFakeReconciler(publisher mq.Client) (Reconciler, *fake.Clientset) {
 		pod.Status.Phase = corev1.PodRunning
 		return true, pod, nil
 	})
-	return newReconcilerWithClientset(clientset, publisher, "https://infer.example.com/", ""), clientset
+	return newReconcilerWithClientset(clientset, publisher, "https://infer.example.com/", "", WeightsConfig{}), clientset
 }
 
 // markReady sets the Deployment's ready replicas so awaitReadiness
@@ -297,7 +302,7 @@ func TestApplyUpsertIdempotent(t *testing.T) {
 func TestApplyUpsertFailureReportsFailed(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	// Plain clientset: the Deployment never becomes ready.
-	reconciler := newReconcilerWithClientset(fake.NewSimpleClientset(), publisher, "", "")
+	reconciler := newReconcilerWithClientset(fake.NewSimpleClientset(), publisher, "", "", WeightsConfig{})
 
 	// Cancel the context so awaitReadiness fails after the first poll.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -396,7 +401,7 @@ func TestAwaitReadinessPolls(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	// Plain clientset: readiness only appears once markReady runs.
 	clientset := fake.NewSimpleClientset()
-	reconciler := newReconcilerWithClientset(clientset, publisher, "", "")
+	reconciler := newReconcilerWithClientset(clientset, publisher, "", "", WeightsConfig{})
 
 	evt := testChangeEvent("upsert", "demo")
 	dep := testReconciler().buildDeployment(evt)
@@ -417,7 +422,7 @@ func TestAwaitReadinessPolls(t *testing.T) {
 
 func TestApplyUpsertWithNilPublisher(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
-	reconciler := newReconcilerWithClientset(clientset, nil, "", "")
+	reconciler := newReconcilerWithClientset(clientset, nil, "", "", WeightsConfig{})
 
 	// The deployment never becomes ready; with a cancelled context the
 	// reconcile fails but must not panic on the nil publisher.
@@ -463,11 +468,86 @@ func TestBuildDeploymentDefaults(t *testing.T) {
 	assert.Equal(t, int32(0), *dep.Spec.Replicas)
 }
 
+func TestBuildDeploymentCustomWeights(t *testing.T) {
+	evt := testChangeEvent("upsert", "demo")
+	r := &k8sReconciler{
+		clientset: fake.NewSimpleClientset(),
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "my-weights", MountPath: "/models"},
+	}
+	dep := r.buildDeployment(evt)
+	c := dep.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, "/models", c.VolumeMounts[0].MountPath)
+	assert.Equal(t, "my-weights", dep.Spec.Template.Spec.Volumes[0].PersistentVolumeClaim.ClaimName)
+}
+
+func TestEnsureWeightsPVCCreates(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	r := &k8sReconciler{
+		clientset: clientset,
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", StorageClass: "juicefs-taas-models", MountPath: "/data/weights"},
+	}
+	ctx := context.Background()
+
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+
+	pvc, err := clientset.CoreV1().PersistentVolumeClaims(reconcileNamespace).
+		Get(ctx, "model-weights", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, pvc.Spec.StorageClassName)
+	assert.Equal(t, "juicefs-taas-models", *pvc.Spec.StorageClassName)
+	assert.Equal(t, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, pvc.Spec.AccessModes)
+
+	// Idempotent: a second call does not error.
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+}
+
+func TestEnsureWeightsPVCNoStorageClass(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	r := &k8sReconciler{
+		clientset: clientset,
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", MountPath: "/data/weights"},
+	}
+	ctx := context.Background()
+
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+	pvc, err := clientset.CoreV1().PersistentVolumeClaims(reconcileNamespace).
+		Get(ctx, "model-weights", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Nil(t, pvc.Spec.StorageClassName)
+}
+
 func TestNewK8sReconciler(t *testing.T) {
 	// The constructor wires the clientset through; reconcile paths are
 	// covered by the fake-clientset tests above.
-	reconciler := NewK8sReconciler(&k8s.Client{}, mq.NewFake(), "https://infer.example.com", "")
+	reconciler := NewK8sReconciler(&k8s.Client{}, mq.NewFake(), "https://infer.example.com", "", WeightsConfig{})
 	assert.NotNil(t, reconciler)
+}
+
+func TestPodFailureMessage(t *testing.T) {
+	// Waiting container with a reason.
+	pod := &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{
+		State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ErrImagePull", Message: "pull failed"}},
+	}}}}
+	assert.Equal(t, "ErrImagePull: pull failed", podFailureMessage(pod))
+
+	// Terminated container.
+	pod = &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{
+		State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Reason: "OOMKilled", Message: "out of memory"}},
+	}}}}
+	assert.Equal(t, "OOMKilled: out of memory", podFailureMessage(pod))
+
+	// No container statuses.
+	assert.Equal(t, "pod failed", podFailureMessage(&corev1.Pod{}))
+}
+
+func TestClampReplicas(t *testing.T) {
+	assert.Equal(t, int32(0), clampReplicas(-5))
+	assert.Equal(t, int32(1), clampReplicas(1))
+	assert.Equal(t, int32(100), clampReplicas(100))
+	assert.Equal(t, int32(math.MaxInt32), clampReplicas(math.MaxInt32+1))
 }
 
 func TestControllerRunSubscribes(t *testing.T) {
