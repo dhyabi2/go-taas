@@ -1,3 +1,10 @@
+# [1.29.0](https://github.com/go-taas/go-taas/compare/v1.28.0...v1.29.0) (2026-09-28)
+
+
+### Features
+
+* **compose:** create and clean up cluster resources on up/down ([f38b4d1](https://github.com/go-taas/go-taas/commit/f38b4d1a11402be7084984a887a450e1df4c5954))
+
 # [1.28.0](https://github.com/go-taas/go-taas/compare/v1.27.0...v1.28.0) (2026-09-28)
 
 
