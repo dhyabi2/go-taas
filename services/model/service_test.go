@@ -218,11 +218,11 @@ func TestServiceRegisterModelWithDownload(t *testing.T) {
 	ctx := context.Background()
 
 	resp, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
-		Name:           "qwen-3b",
-		Version:        "v1",
-		Source:         "modelscope",
-		SourceModelId:  "Qwen/Qwen2.5-0.5B",
-		Description:    "Qwen 3B",
+		Name:          "qwen-3b",
+		Version:       "v1",
+		Source:        "modelscope",
+		SourceModelId: "Qwen/Qwen2.5-0.5B",
+		Description:   "Qwen 3B",
 	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.GetModelId())

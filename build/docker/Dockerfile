@@ -99,7 +99,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
     -o /out/controller ./apps/controller
 
 # ---- taas-server ------------------------------------------------------
-FROM gcr.io/distroless/static-debian12:nonroot AS taas-server
+# The runtime image carries skopeo (used by the image-import flow to copy
+# engine images into the internal Harbor project) and runs as a non-root
+# user. Debian-slim is used because distroless has no package manager to
+# install skopeo.
+FROM debian:bookworm-slim AS taas-server
 ARG VERSION
 ARG COMMIT
 ARG BUILD_TIME
@@ -107,6 +111,10 @@ LABEL org.opencontainers.image.title="taas-server" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.created="${BUILD_TIME}"
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends skopeo ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 65532 --create-home nonroot
 COPY --from=builder /out/taas-server /usr/local/bin/taas-server
 COPY configs /etc/taas/configs
 WORKDIR /etc/taas
