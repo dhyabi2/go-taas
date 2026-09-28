@@ -125,7 +125,7 @@ module.exports = {
           method: 'POST',
           path: '/api/v1/admin/inference-services',
           org: orgB,
-          body: {name: `svc-${browser.globals.testSeq}`, model_id: modelId, model_version: 'v1', image_id: 'img-vllm-nvidia-v063', replicas: 1, accelerator: 'nvidia'}
+          body: {name: `svc-${browser.globals.testSeq}`, model_id: modelId, model_version: 'v1', image_id: 'img-vllm-nvidia-v063', replicas: 1, accelerator: 'nvidia', accelerator_type: 'gpu'}
         }, (res3) => {
           api.assertBusinessError(browser, res3, 10105, 'AC5: non-granted org blocked');
 
@@ -134,7 +134,7 @@ module.exports = {
             method: 'POST',
             path: '/api/v1/admin/inference-services',
             org: orgA,
-            body: {name: `svc-ok-${browser.globals.testSeq}`, model_id: modelId, model_version: 'v1', image_id: 'img-vllm-nvidia-v063', replicas: 1, accelerator: 'nvidia'}
+            body: {name: `svc-ok-${browser.globals.testSeq}`, model_id: modelId, model_version: 'v1', image_id: 'img-vllm-nvidia-v063', replicas: 1, accelerator: 'nvidia', accelerator_type: 'gpu'}
           }, (res4) => {
             api.assertOk(browser, res4, 'AC6: granted org deploys');
           });
