@@ -28,3 +28,17 @@ controller:
   # falling back to ~/.kube/config for local development. In the compose
   # stack this is set to the mounted host kubeconfig (CONFIG_CONTROLLER_KUBECONFIG).
   kubeconfig: ""
+  # weights configures the shared model-weights filesystem the controller
+  # mounts into inference pods. It is backed by a JuiceFS-backed
+  # StorageClass so every inference pod reads the same model weights the
+  # control plane downloads.
+  weights:
+    # storageClass is the JuiceFS-backed StorageClass used to provision
+    # the weights PVC. Empty falls back to the cluster default.
+    storageClass: ""
+    # pvcName is the name of the PersistentVolumeClaim that backs the
+    # shared model-weights filesystem. Defaults to "model-weights".
+    pvcName: "model-weights"
+    # mountPath is the path the weights volume is mounted at inside
+    # inference pods. Defaults to "/data/weights".
+    mountPath: "/data/weights"

@@ -257,6 +257,25 @@ type ControllerConfig struct {
 	// reach the Kubernetes cluster. Empty means the in-cluster config is
 	// used, falling back to ~/.kube/config for local development.
 	Kubeconfig string `mapstructure:"kubeconfig"`
+	// Weights configures the shared model-weights filesystem the
+	// controller mounts into inference pods. It is backed by a
+	// JuiceFS-backed StorageClass so every inference pod reads the same
+	// model weights the control plane downloads.
+	Weights WeightsConfig `mapstructure:"weights"`
+}
+
+// WeightsConfig holds the model-weights storage settings used by the
+// controller when it mounts model weights into inference pods.
+type WeightsConfig struct {
+	// StorageClass is the JuiceFS-backed StorageClass used to provision
+	// the weights PVC. Empty falls back to the cluster default.
+	StorageClass string `mapstructure:"storageClass"`
+	// PVCName is the name of the PersistentVolumeClaim that backs the
+	// shared model-weights filesystem. Defaults to "model-weights".
+	PVCName string `mapstructure:"pvcName"`
+	// MountPath is the path the weights volume is mounted at inside
+	// inference pods. Defaults to "/data/weights".
+	MountPath string `mapstructure:"mountPath"`
 }
 
 // InferConfig holds infer-module specific settings.
@@ -331,7 +350,8 @@ type ImageWarmupStatusConsumerConfig struct {
 }
 
 // ImageConfig holds the image module settings: the deprecated
-// first-boot registry seed and the warmup status consumer.
+// first-boot registry seed, the warmup status consumer and the internal
+// Harbor registry used by the image import flow.
 type ImageConfig struct {
 	// Registry is the seed list of engine images (first-boot only).
 	Registry []ImageRegistryEntry `mapstructure:"registry"`
@@ -340,6 +360,25 @@ type ImageConfig struct {
 	// Compatibility configures the model × engine × card-type
 	// compatibility matrix (feature #19, AD3).
 	Compatibility CompatibilityConfig `mapstructure:"compatibility"`
+	// Harbor configures the internal container registry (Harbor) that
+	// imported images are pushed to. Imported images always land in the
+	// configured project (default "taas").
+	Harbor HarborConfig `mapstructure:"harbor"`
+}
+
+// HarborConfig holds the internal container registry (Harbor) settings
+// used by the image import flow.
+type HarborConfig struct {
+	// URL is the internal Harbor registry host (e.g.
+	// hub.sudoinfotech.com). Empty disables the image import flow.
+	URL string `mapstructure:"url"`
+	// Username is the Harbor account used to push imported images.
+	Username string `mapstructure:"username"`
+	// Password is the Harbor account password.
+	Password string `mapstructure:"password"`
+	// Project is the Harbor project imported images are pushed to.
+	// Defaults to "taas".
+	Project string `mapstructure:"project"`
 }
 
 // CompatibilityConfig holds the compatibility matrix settings (feature
@@ -391,6 +430,10 @@ type ModelAuthConfig struct {
 type ModelConfig struct {
 	// Auth configures the data-plane model authorization gate.
 	Auth ModelAuthConfig `mapstructure:"auth"`
+	// WeightsDir is the local directory (a JuiceFS mount) where model
+	// weights downloaded from a model hub are written. Empty disables
+	// the model-download feature.
+	WeightsDir string `mapstructure:"weightsDir"`
 }
 
 // LogConfig holds logging settings loaded from configuration files.
@@ -505,6 +548,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Infer.StatusConsumer.Workers < 0 {
 		return &FieldError{Field: "infer.statusConsumer.workers", Reason: "must not be negative"}
+	}
+	if c.Controller.Weights.MountPath != "" && !strings.HasPrefix(c.Controller.Weights.MountPath, "/") {
+		return &FieldError{Field: "controller.weights.mountPath", Reason: "must be an absolute path"}
 	}
 	if c.Infer.Autoscaling.ConcurrencyConsumer.Workers < 0 {
 		return &FieldError{Field: "infer.autoscaling.concurrencyConsumer.workers", Reason: "must not be negative"}

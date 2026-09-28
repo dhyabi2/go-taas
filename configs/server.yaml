@@ -148,6 +148,22 @@ image:
   warmupStatusConsumer:
     enabled: true
     workers: 2
+  # harbor configures the internal container registry (Harbor) that
+  # imported images are pushed to. Imported images always land in the
+  # configured project (default "taas"). In the compose stack these are
+  # read from the .env file (HARBOR_URL / HARBOR_USERNAME /
+  # HARBOR_PASSWORD).
+  harbor:
+    url: ""
+    username: ""
+    password: ""
+    project: "taas"
+
+model:
+  # weightsDir is the local directory (a JuiceFS mount) where model
+  # weights downloaded from a model hub are written. Empty disables the
+  # model-download feature.
+  weightsDir: ""
 
 # Feature #20: inference load testing. The runner persists a live
 # progress snapshot every progressInterval, keeps terminal runs for

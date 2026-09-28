@@ -216,6 +216,18 @@ func (c *Configuration) applyDefaults() {
 	if c.Audit.ExportMaxRows == 0 {
 		c.Audit.ExportMaxRows = 10000
 	}
+	// The image-import Harbor project defaults to "taas" so imported
+	// images always land in the platform's own project.
+	if c.Image.Harbor.Project == "" {
+		c.Image.Harbor.Project = "taas"
+	}
+	// The controller's weights PVC and mount path defaults.
+	if c.Controller.Weights.PVCName == "" {
+		c.Controller.Weights.PVCName = "model-weights"
+	}
+	if c.Controller.Weights.MountPath == "" {
+		c.Controller.Weights.MountPath = "/data/weights"
+	}
 }
 
 // String returns a string representation of the configuration for logging.

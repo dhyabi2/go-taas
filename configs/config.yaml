@@ -146,6 +146,11 @@ model:
   # may keep calling a restricted model before the gate rejects it again.
   auth:
     cacheTTL: 5s
+  # weightsDir is the local directory (a JuiceFS mount) where model
+  # weights downloaded from a model hub are written. Empty disables the
+  # model-download feature. In the compose stack this is the JuiceFS
+  # mount shared with the inference pods.
+  weightsDir: ""
 
 image:
   # registry is the first-boot seed of the images table (feature #3:
@@ -182,6 +187,16 @@ image:
     # cell. It is overridden by the vendor-match rule: vendor-matched
     # combos default to experimental, vendor-mismatched to unsupported.
     lazySeedDefault: "experimental"
+  # harbor configures the internal container registry (Harbor) that
+  # imported images are pushed to. Imported images always land in the
+  # configured project (default "taas"). In the compose stack these are
+  # read from the .env file (HARBOR_URL / HARBOR_USERNAME /
+  # HARBOR_PASSWORD).
+  harbor:
+    url: ""
+    username: ""
+    password: ""
+    project: "taas"
 
 accelerator:
   # collectInterval is the Controller's node/GPU collection period; the
