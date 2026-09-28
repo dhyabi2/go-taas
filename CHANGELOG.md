@@ -1,3 +1,22 @@
+# [1.28.0](https://github.com/go-taas/go-taas/compare/v1.27.0...v1.28.0) (2026-09-28)
+
+
+### Bug Fixes
+
+* **compose:** share the JuiceFS FUSE mount with the control plane ([9d131f8](https://github.com/go-taas/go-taas/commit/9d131f81f0bbff990f27ad770e9f99c5c7043a2e))
+* **controller:** request accelerator resources and serve model from weights FS ([bea8e71](https://github.com/go-taas/go-taas/commit/bea8e7103edd58b73b5c7a388685695f51634358))
+* **image:** apply the vendor-match rule across all engine accelerators ([b1c8aa0](https://github.com/go-taas/go-taas/commit/b1c8aa0a1153b96d0f9ba6826d2641ebd7c995c9))
+
+
+### Features
+
+* **compose:** mount JuiceFS weights and wire Harbor config from .env ([209de32](https://github.com/go-taas/go-taas/commit/209de32160c1ed61007fe2d13a398b6df062f3bd))
+* **config:** add harbor, model weightsDir and controller weights config ([87e9525](https://github.com/go-taas/go-taas/commit/87e9525deee8ae3c4914df11dce4d7b6ab7505f5))
+* **console:** redesign UI and add English/Chinese i18n ([3a48d82](https://github.com/go-taas/go-taas/commit/3a48d82d237ca6bce49999b6104fb1c32758fba4))
+* **controller:** provision JuiceFS-backed weights PVC for inference pods ([8fad31d](https://github.com/go-taas/go-taas/commit/8fad31d354b33b09e89cfd36741e2b9934b64660))
+* **image:** import engine images into internal Harbor project ([e6c752b](https://github.com/go-taas/go-taas/commit/e6c752bad8cceee50b7139003639f93d1bb680e0))
+* **model:** download weights from ModelScope and HuggingFace hubs ([3771400](https://github.com/go-taas/go-taas/commit/37714004d676f947465366ce97b9697bed767697))
+
 # [1.27.0](https://github.com/go-taas/go-taas/compare/v1.26.2...v1.27.0) (2026-09-27)
 
 
