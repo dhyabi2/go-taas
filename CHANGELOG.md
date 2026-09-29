@@ -1,3 +1,10 @@
+# [1.30.0](https://github.com/go-taas/go-taas/compare/v1.29.0...v1.30.0) (2026-09-29)
+
+
+### Features
+
+* **webhook:** webhook notifications and event subscriptions (feature 23) ([f612da2](https://github.com/go-taas/go-taas/commit/f612da25f5918c0fb27ce32faacb15bfc8ebd8f5))
+
 # [1.29.0](https://github.com/go-taas/go-taas/compare/v1.28.0...v1.29.0) (2026-09-28)
 
 
