@@ -47,6 +47,10 @@ import AcceleratorNodeDetailPage from './pages/AcceleratorNodeDetailPage';
 import CompatibilityPage from './pages/CompatibilityPage';
 import LoadTestsPage from './pages/LoadTestsPage';
 import LoadTestDetailPage from './pages/LoadTestDetailPage';
+import WebhooksPage from './pages/WebhooksPage';
+import WebhookDetailPage from './pages/WebhookDetailPage';
+import UserWebhooksPage from './pages/user/UserWebhooksPage';
+import UserWebhookDetailPage from './pages/user/UserWebhookDetailPage';
 import ActivityPage from './pages/user/ActivityPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -94,6 +98,8 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/playground" element={<UserPlaygroundPage />} />
               <Route path="/billing" element={<UserBillsPage />} />
               <Route path="/activity" element={<ActivityPage />} />
+              <Route path="/webhooks" element={<UserWebhooksPage />} />
+              <Route path="/webhooks/:webhookId" element={<UserWebhookDetailPage />} />
               <Route path="/models" element={<UserModelsPage />} />
               <Route path="/models/:id" element={<UserModelDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
@@ -141,6 +147,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/compatibility" element={<CompatibilityPage />} />
               <Route path="/admin/load-tests" element={<LoadTestsPage />} />
               <Route path="/admin/load-tests/:loadTestId" element={<LoadTestDetailPage />} />
+              <Route path="/admin/webhooks" element={<WebhooksPage />} />
+              <Route path="/admin/webhooks/:webhookId" element={<WebhookDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

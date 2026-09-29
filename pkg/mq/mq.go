@@ -89,6 +89,12 @@ type Subjects struct {
 	MeteringEvents string
 	// Settlements carries settlement events from metering to billing.
 	Settlements string
+	// WebhookEvents carries the platform event catalog (feature #23,
+	// AD10). The producing modules (infer for the admin events, billing
+	// for the end-user events) publish a canonical WebhookEvent envelope;
+	// the webhook module subscribes and routes each event to the matching
+	// enabled webhooks.
+	WebhookEvents string
 }
 
 // DefaultSubjects returns the canonical subject names.
@@ -102,6 +108,7 @@ func DefaultSubjects() Subjects {
 		AcceleratorInventory:    "accelerator.inventory",
 		MeteringEvents:          "metering.events",
 		Settlements:             "billing.settlements",
+		WebhookEvents:           "webhook.events",
 	}
 }
 

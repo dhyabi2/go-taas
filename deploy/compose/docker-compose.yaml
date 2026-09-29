@@ -142,6 +142,9 @@ services:
       CONFIG_IMAGE_HARBOR_USERNAME: ${HARBOR_USERNAME:-}
       CONFIG_IMAGE_HARBOR_PASSWORD: ${HARBOR_PASSWORD:-}
       CONFIG_IMAGE_HARBOR_PROJECT: taas
+      # Feature #23: the webhook secret-at-rest encryption key (AD3).
+      # Read from the .env file; empty falls back to a dev-only key.
+      CONFIG_WEBHOOK_SECRETENCRYPTIONKEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-}
     volumes:
       - type: bind
         source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}

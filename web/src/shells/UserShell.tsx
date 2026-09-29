@@ -12,6 +12,7 @@ import {
   Pulse,
   Cube,
   Rocket,
+  LinkSimple,
   type Icon,
 } from '@phosphor-icons/react';
 import { Router, navigate } from '../router';
@@ -35,6 +36,7 @@ export const USER_NAV_ITEMS: { path: string; labelKey: string; testid: string; i
   { path: '/playground', labelKey: 'nav.playground', testid: 'user-nav-playground', icon: Play },
   { path: '/billing', labelKey: 'nav.billing', testid: 'user-nav-billing', icon: Receipt },
   { path: '/activity', labelKey: 'nav.activity', testid: 'user-nav-activity', icon: Pulse },
+  { path: '/webhooks', labelKey: 'nav.webhooks', testid: 'user-nav-webhooks', icon: LinkSimple },
   { path: '/models', labelKey: 'nav.models', testid: 'user-nav-models', icon: Cube },
 ];
 

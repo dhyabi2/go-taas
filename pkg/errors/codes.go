@@ -158,3 +158,12 @@ const (
 	CodeAuditExportInvalid Code = 10602 // AUDIT_EXPORT_INVALID
 	CodeAuditRangeInvalid  Code = 10603 // AUDIT_RANGE_INVALID
 )
+
+// webhook module error codes (feature #23, AD2).
+const (
+	CodeWebhookNotFound         Code = 10701 // WEBHOOK_NOT_FOUND
+	CodeWebhookConfigInvalid    Code = 10702 // WEBHOOK_CONFIG_INVALID
+	CodeWebhookStateInvalid     Code = 10703 // WEBHOOK_STATE_INVALID
+	CodeWebhookDeliveryNotFound Code = 10704 // WEBHOOK_DELIVERY_NOT_FOUND
+	CodeWebhookEventTypeInvalid Code = 10705 // WEBHOOK_EVENT_TYPE_INVALID
+)

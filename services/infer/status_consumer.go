@@ -12,6 +12,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // statusReport is the observed-state report published by the controller
@@ -47,6 +48,9 @@ type StatusConsumer struct {
 	client  mq.Client
 	repo    *InferenceServiceRepository
 	workers int
+	// publisher publishes the deployment.status_changed webhook event
+	// (feature #23, AD10). Nil until wired: no webhook event is emitted.
+	publisher mq.Client
 }
 
 // NewStatusConsumer constructs a StatusConsumer. workers <= 0 falls back
@@ -57,6 +61,10 @@ func NewStatusConsumer(client mq.Client, repo *InferenceServiceRepository, worke
 	}
 	return &StatusConsumer{client: client, repo: repo, workers: workers}
 }
+
+// SetWebhookPublisher injects the MQ client used to publish the
+// deployment.status_changed webhook event (feature #23, AD10).
+func (c *StatusConsumer) SetWebhookPublisher(client mq.Client) { c.publisher = client }
 
 // NewStatusConsumerRunner builds the StatusConsumer from the shared
 // server components. It returns nil when the consumer is disabled or
@@ -88,7 +96,11 @@ func NewStatusConsumerRunner(components server.Components) *StatusConsumer {
 		return nil
 	}
 	repo := NewInferenceServiceRepository(db)
-	return NewStatusConsumer(client, repo, cfg.Infer.StatusConsumer.Workers)
+	consumer := NewStatusConsumer(client, repo, cfg.Infer.StatusConsumer.Workers)
+	// Feature #23 (AD10): the status consumer publishes the
+	// deployment.status_changed webhook event on the same MQ client.
+	consumer.SetWebhookPublisher(client)
+	return consumer
 }
 
 // Run implements server.Runner: it subscribes to the status subject and
@@ -125,6 +137,20 @@ func (c *StatusConsumer) handle(ctx context.Context, msg mq.Message) error {
 		// Transient database failure: return the error so the broker
 		// retries the delivery.
 		return err
+	}
+	// Feature #23 (AD10): publish the deployment.status_changed webhook
+	// event best-effort. A publish failure is logged and never fails the
+	// status application.
+	if c.publisher != nil {
+		if svc, err := c.repo.FindByID(ctx, report.ServiceID); err == nil && svc != nil {
+			webhook.PublishEvent(ctx, c.publisher, svc.OrganizationID,
+				webhook.EventDeploymentStatusChanged, "deploy-"+report.ServiceID,
+				map[string]any{
+					"service_id": report.ServiceID,
+					"state":      report.State,
+					"endpoints":  report.Endpoints,
+				})
+		}
 	}
 	logger.S().Infow("infer: status applied",
 		"service_id", report.ServiceID, "state", report.State)

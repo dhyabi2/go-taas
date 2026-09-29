@@ -1,0 +1,269 @@
+syntax = "proto3";
+
+package taas.webhook.v1;
+
+import "google/api/annotations.proto";
+import "taas/common/v1/common.proto";
+
+option go_package = "github.com/go-taas/go-taas/proto/taas/webhook/v1;webhookv1";
+
+// WebhookService manages outbound webhooks and their delivery log. Every
+// RPC is dual-bound: an admin binding under /api/v1/admin/webhooks/* and
+// a user binding under /api/v1/webhooks/*. The surface is derived from
+// the request path (console-surface-separation §3.3).
+service WebhookService {
+  // CreateWebhook registers an endpoint + event subscription and returns
+  // the webhook with the plaintext signing secret shown once.
+  rpc CreateWebhook(CreateWebhookRequest) returns (CreateWebhookResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/webhooks"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/webhooks"
+        body: "*"
+      }
+    };
+  }
+
+  // ListWebhooks returns the surface's webhooks, searchable by name,
+  // filterable by enabled state, and paginated.
+  rpc ListWebhooks(ListWebhooksRequest) returns (ListWebhooksResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/webhooks"
+      additional_bindings: {get: "/api/v1/webhooks"}
+    };
+  }
+
+  // GetWebhook returns the full config of one webhook.
+  rpc GetWebhook(GetWebhookRequest) returns (GetWebhookResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/webhooks/{webhook_id}"
+      additional_bindings: {get: "/api/v1/webhooks/{webhook_id}"}
+    };
+  }
+
+  // UpdateWebhook updates name/url/events/retry.
+  rpc UpdateWebhook(UpdateWebhookRequest) returns (UpdateWebhookResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/admin/webhooks/{webhook_id}"
+      body: "*"
+      additional_bindings: {
+        patch: "/api/v1/webhooks/{webhook_id}"
+        body: "*"
+      }
+    };
+  }
+
+  // DeleteWebhook deletes the webhook and its delivery log.
+  rpc DeleteWebhook(DeleteWebhookRequest) returns (DeleteWebhookResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/webhooks/{webhook_id}"
+      additional_bindings: {delete: "/api/v1/webhooks/{webhook_id}"}
+    };
+  }
+
+  // SetWebhookEnabled enables or disables (pauses) a webhook.
+  rpc SetWebhookEnabled(SetWebhookEnabledRequest) returns (SetWebhookEnabledResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/webhooks/{webhook_id}:set-enabled"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/webhooks/{webhook_id}:set-enabled"
+        body: "*"
+      }
+    };
+  }
+
+  // RollWebhookSecret regenerates the signing secret and returns the new
+  // plaintext once.
+  rpc RollWebhookSecret(RollWebhookSecretRequest) returns (RollWebhookSecretResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/webhooks/{webhook_id}:roll-secret"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/webhooks/{webhook_id}:roll-secret"
+        body: "*"
+      }
+    };
+  }
+
+  // TestWebhook sends a synthetic webhook.ping event and records it in
+  // the delivery log.
+  rpc TestWebhook(TestWebhookRequest) returns (TestWebhookResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/webhooks/{webhook_id}:test"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/webhooks/{webhook_id}:test"
+        body: "*"
+      }
+    };
+  }
+
+  // ListWebhookDeliveries returns the delivery log, filterable by status
+  // and event type, and paginated.
+  rpc ListWebhookDeliveries(ListWebhookDeliveriesRequest) returns (ListWebhookDeliveriesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/webhooks/{webhook_id}/deliveries"
+      additional_bindings: {get: "/api/v1/webhooks/{webhook_id}/deliveries"}
+    };
+  }
+
+  // ResendWebhookDelivery resends a failed or delivered delivery.
+  rpc ResendWebhookDelivery(ResendWebhookDeliveryRequest) returns (ResendWebhookDeliveryResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/webhooks/{webhook_id}/deliveries/{delivery_id}:resend"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/webhooks/{webhook_id}/deliveries/{delivery_id}:resend"
+        body: "*"
+      }
+    };
+  }
+}
+
+enum WebhookDeliveryStatus {
+  WEBHOOK_DELIVERY_STATUS_UNSPECIFIED = 0;
+  WEBHOOK_DELIVERY_STATUS_DELIVERED = 1;
+  WEBHOOK_DELIVERY_STATUS_FAILED = 2;
+  WEBHOOK_DELIVERY_STATUS_PENDING = 3;
+}
+
+message Webhook {
+  string webhook_id = 1;
+  string organization_id = 2;
+  string surface = 3; // "admin" / "user"
+  string name = 4;
+  string url = 5;
+  bool enabled = 6;
+  repeated string enabled_event_types = 7;
+  int32 max_attempts = 8;
+  int32 backoff_seconds = 9;
+  int64 created_at = 10; // unix seconds
+  int64 updated_at = 11; // unix seconds
+  int64 total_deliveries = 12;
+  int64 delivered_count = 13;
+  int64 failed_count = 14;
+}
+
+message WebhookDelivery {
+  string delivery_id = 1;
+  string webhook_id = 2;
+  string event_id = 3;
+  string event_type = 4;
+  WebhookDeliveryStatus status = 5;
+  int32 http_status_code = 6;
+  int32 attempt_count = 7;
+  string failure_reason = 8;
+  int64 created_at = 9; // unix seconds
+  int64 last_attempt_at = 10; // unix seconds
+}
+
+message CreateWebhookRequest {
+  string name = 1;
+  string url = 2;
+  repeated string enabled_event_types = 3;
+  int32 max_attempts = 4; // 0 = default 5
+  int32 backoff_seconds = 5; // 0 = default 60
+}
+
+message CreateWebhookResponse {
+  taas.common.v1.Response response = 1;
+  Webhook webhook = 2;
+  string plaintext_secret = 3; // shown once
+}
+
+message ListWebhooksRequest {
+  taas.common.v1.PageRequest page = 1;
+  string name = 2; // search
+  bool enabled_filter = 3; // set to filter by enabled state
+  bool enabled = 4; // the enabled state to filter by
+}
+
+message ListWebhooksResponse {
+  taas.common.v1.Response response = 1;
+  repeated Webhook webhooks = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message GetWebhookRequest {
+  string webhook_id = 1;
+}
+
+message GetWebhookResponse {
+  taas.common.v1.Response response = 1;
+  Webhook webhook = 2;
+}
+
+message UpdateWebhookRequest {
+  string webhook_id = 1;
+  string name = 2;
+  string url = 3;
+  repeated string enabled_event_types = 4;
+  int32 max_attempts = 5;
+  int32 backoff_seconds = 6;
+}
+
+message UpdateWebhookResponse {
+  taas.common.v1.Response response = 1;
+  Webhook webhook = 2;
+}
+
+message DeleteWebhookRequest {
+  string webhook_id = 1;
+}
+
+message DeleteWebhookResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message SetWebhookEnabledRequest {
+  string webhook_id = 1;
+  bool enabled = 2;
+}
+
+message SetWebhookEnabledResponse {
+  taas.common.v1.Response response = 1;
+  Webhook webhook = 2;
+}
+
+message RollWebhookSecretRequest {
+  string webhook_id = 1;
+}
+
+message RollWebhookSecretResponse {
+  taas.common.v1.Response response = 1;
+  string plaintext_secret = 2; // shown once
+}
+
+message TestWebhookRequest {
+  string webhook_id = 1;
+}
+
+message TestWebhookResponse {
+  taas.common.v1.Response response = 1;
+  WebhookDelivery delivery = 2;
+}
+
+message ListWebhookDeliveriesRequest {
+  string webhook_id = 1;
+  taas.common.v1.PageRequest page = 2;
+  WebhookDeliveryStatus status = 3; // filter; UNSPECIFIED = all
+  string event_type = 4; // filter
+}
+
+message ListWebhookDeliveriesResponse {
+  taas.common.v1.Response response = 1;
+  repeated WebhookDelivery deliveries = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message ResendWebhookDeliveryRequest {
+  string webhook_id = 1;
+  string delivery_id = 2;
+}
+
+message ResendWebhookDeliveryResponse {
+  taas.common.v1.Response response = 1;
+  WebhookDelivery delivery = 2;
+}

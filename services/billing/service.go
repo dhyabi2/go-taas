@@ -21,6 +21,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
 	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/webhook"
 
 	"github.com/go-taas/go-taas/services/infer"
 	"github.com/go-taas/go-taas/services/tenancy"
@@ -120,6 +121,7 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // by the user-realm reads (feature-17 AD6). Production and FVT wire the
 // auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
 // SetAuditRecorder injects the best-effort audit recorder (feature #15,
 // AD3). Production wires the audit module; unit tests may inject a fake.
 func (s *Service) SetAuditRecorder(r AuditRecorder) { s.auditRecorder = r }
@@ -133,6 +135,15 @@ func (s *Service) recordAudit(ctx context.Context, ev *audit.AuditEvent) {
 	s.auditRecorder.Record(ctx, ev)
 }
 
+// publishWebhookEvent publishes a billing webhook event best-effort
+// (feature #23, AD10). A publish failure is logged and never fails the
+// producing mutation.
+func (s *Service) publishWebhookEvent(ctx context.Context, orgID, eventType, eventID string, data any) {
+	if s.publisher == nil {
+		return
+	}
+	webhook.PublishEvent(ctx, s.publisher, orgID, eventType, eventID, data)
+}
 
 // resolveOrg returns the organization context for a user-realm read
 // (feature-17 AD6): the session's active org when a session is present,

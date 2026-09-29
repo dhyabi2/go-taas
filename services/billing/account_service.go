@@ -11,6 +11,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/config"
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // Account field limits (architecture Section 5.1).
@@ -285,6 +286,18 @@ func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int
 		ResourceID:     accountID,
 		Result:         "success",
 	})
+	// Feature #23 (AD10): publish the billing.balance_low webhook event
+	// best-effort when the balance is below a low threshold (e.g. one
+	// recharge unit). A publish failure is logged and never fails the
+	// mutation.
+	if updated.BalanceCents < 10000 {
+		s.publishWebhookEvent(ctx, orgID, webhook.EventBalanceLow, "bal-"+accountID,
+			map[string]any{
+				"account_id":      accountID,
+				"organization_id": orgID,
+				"balance_cents":   updated.BalanceCents,
+			})
+	}
 	return &billingv1.RechargeResponse{
 		Response:    okResponse(),
 		Account:     summarizeAccount(updated),

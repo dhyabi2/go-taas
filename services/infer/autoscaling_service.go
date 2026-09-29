@@ -9,6 +9,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/image"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // Autoscaling policy bounds (feature #16, §5.3).
@@ -238,6 +239,23 @@ func (s *Service) UpdateInferenceServiceAutoscaling(ctx context.Context, req *in
 		logger.S().Errorw("infer: publish autoscaling change failed",
 			"service_id", req.GetServiceId(), "err", err)
 		return nil, apierrors.Newf(apierrors.CodeInternal, "infer: publish change failed")
+	}
+
+	// Feature #23 (AD10): publish the autoscaling webhook event
+	// best-effort. A publish failure is logged and never fails the
+	// mutation.
+	if policy.Enabled {
+		eventType := webhook.EventAutoscalingScaled
+		if policy.ScaleToZero {
+			eventType = webhook.EventAutoscalingScaleToZero
+		}
+		webhook.PublishEvent(ctx, client, orgID, eventType, "auto-"+req.GetServiceId(),
+			map[string]any{
+				"service_id":    req.GetServiceId(),
+				"min_replicas":  policy.MinReplicas,
+				"max_replicas":  policy.MaxReplicas,
+				"scale_to_zero": policy.ScaleToZero,
+			})
 	}
 
 	// Feature #15: record the successful update best-effort.

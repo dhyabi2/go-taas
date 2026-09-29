@@ -63,7 +63,7 @@ flowchart TD
         subgraph cp["控制面（常规网络）"]
             direction TB
             CGW["控制面 Gateway（HTTP）<br/>平台管理 API"]
-            GRPC["gRPC Server（单 Deployment）<br/>微服务：auth · model · image · infer · billing · metering"]
+            GRPC["gRPC Server（单 Deployment）<br/>微服务：auth · model · image · infer · billing · metering · webhook"]
             MQ["消息队列（Kafka / NATS）"]
             CTRL["Controller<br/>（K8s 资源调谐）"]
             CGW --> GRPC
@@ -119,7 +119,7 @@ flowchart TD
 
 - 流量按受众分流：管理员经**控制面 Gateway**（HTTP，由 `grpc-gateway` 从 Protobuf 契约生成）进入，智能体与 SDK 调用**推理 Gateway**（Envoy + Wasm）。
 - 两个网关作为独立工作负载部署，控制面 API 与推理 API 的扩缩容、升级与故障域完全隔离。
-- 各微服务 gRPC server（`auth`、`model`、`image`、`infer`、`billing`、`metering`）运行在**单一 Deployment** 内，经**消息队列**（Kafka / NATS）把工作交给 Controller，API 服务与 Kubernetes 调谐解耦。
+- 各微服务 gRPC server（`auth`、`model`、`image`、`infer`、`billing`、`metering`、`webhook`）运行在**单一 Deployment** 内，经**消息队列**（Kafka / NATS）把工作交给 Controller，API 服务与 Kubernetes 调谐解耦。
 - 鉴权、计量与路由运行在推理 Gateway 的 **Wasm 插件**中，推理流量不经过业务进程。
 - 推理 Gateway 通过 **gRPC 调用 `auth` 模块**校验每个 API Key，两级缓存（Wasm 本地 TTL 缓存 → Redis）支撑；超时或 `auth` 不可用时按 fail-closed 拒绝。
 - 推理服务与控制面共享**同一个 Kubernetes 集群**，通过 Namespace、节点标签与污点/容忍度隔离。

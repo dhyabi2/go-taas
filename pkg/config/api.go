@@ -481,6 +481,45 @@ type AuditRetentionConfig struct {
 	Interval time.Duration `mapstructure:"interval"`
 }
 
+// WebhookConfig holds webhook-module specific settings (feature #23).
+type WebhookConfig struct {
+	// Delivery configures the delivery runner.
+	Delivery WebhookDeliveryConfig `mapstructure:"delivery"`
+	// Retention configures the delivery-log retention runner (AD8).
+	Retention WebhookRetentionConfig `mapstructure:"retention"`
+	// SecretEncryptionKey is the AES-256-GCM master key for secret-at-rest
+	// encryption (AD3). Empty falls back to a dev-only key derived from
+	// the MQ namespace; production must set it.
+	SecretEncryptionKey string `mapstructure:"secretEncryptionKey"`
+}
+
+// WebhookDeliveryConfig holds the webhook delivery runner settings
+// (feature #23, AD11).
+type WebhookDeliveryConfig struct {
+	// Workers is the number of concurrent delivery attempts.
+	Workers int `mapstructure:"workers"`
+	// PollInterval is how often the delivery runner polls for due pending
+	// deliveries.
+	PollInterval time.Duration `mapstructure:"pollInterval"`
+	// Timeout is the per-attempt HTTP client timeout.
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+// WebhookRetentionConfig holds the webhook delivery-log retention runner
+// settings (feature #23, AD8).
+type WebhookRetentionConfig struct {
+	// Enabled turns the delivery-log retention runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// DeliveryTTL is how long deliveries are kept before deletion;
+	// default 2160h (90 days).
+	DeliveryTTL time.Duration `mapstructure:"deliveryTTL"`
+	// BatchSize is the number of rows deleted per retention pass.
+	BatchSize int `mapstructure:"batchSize"`
+	// Interval is the ticker period between retention passes.
+	Interval time.Duration `mapstructure:"interval"`
+}
+
 // Configuration is the root of the merged configuration tree.
 type Configuration struct {
 	Databases   Databases         `mapstructure:"db"`
@@ -497,6 +536,7 @@ type Configuration struct {
 	Audit       AuditConfig       `mapstructure:"audit"`
 	Accelerator AcceleratorConfig `mapstructure:"accelerator"`
 	LoadTest    LoadTestConfig    `mapstructure:"loadtest"`
+	Webhook     WebhookConfig     `mapstructure:"webhook"`
 	Log         LogConfig         `mapstructure:"log"`
 }
 
@@ -644,6 +684,24 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Audit.ExportMaxRows < 0 {
 		return &FieldError{Field: "audit.exportMaxRows", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.Workers < 0 {
+		return &FieldError{Field: "webhook.delivery.workers", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.PollInterval < 0 {
+		return &FieldError{Field: "webhook.delivery.pollInterval", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.Timeout < 0 {
+		return &FieldError{Field: "webhook.delivery.timeout", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.DeliveryTTL < 0 {
+		return &FieldError{Field: "webhook.retention.deliveryTTL", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.BatchSize < 0 {
+		return &FieldError{Field: "webhook.retention.batchSize", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.Interval < 0 {
+		return &FieldError{Field: "webhook.retention.interval", Reason: "must not be negative"}
 	}
 	return nil
 }

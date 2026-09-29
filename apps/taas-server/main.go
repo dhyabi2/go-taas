@@ -23,6 +23,7 @@ import (
 	"github.com/go-taas/go-taas/services/metering"
 	"github.com/go-taas/go-taas/services/model"
 	"github.com/go-taas/go-taas/services/tenancy"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 var (
@@ -100,6 +101,10 @@ func main() {
 	srv.RegisterService(billingSvc)
 	auditSvc := audit.New(srv.Components())
 	srv.RegisterService(auditSvc)
+	// Feature #23: the webhook service owns outbound webhook endpoints,
+	// event subscription, HMAC signing, retry and the delivery log.
+	webhookSvc := webhook.New(srv.Components())
+	srv.RegisterService(webhookSvc)
 	// Feature #18: the accelerator inventory service serves the read-only
 	// fleet view from its in-memory projection cache. The cache is
 	// constructed once and shared with the snapshot consumer so the
@@ -163,6 +168,13 @@ func main() {
 			auditSvc.SetSessionOrgResolver(authSvc)
 			auditSvc.SetSessionUserResolver(authSvc)
 			auditSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			// Feature #23: the webhook service resolves the session's
+			// active org and caller, gates the admin webhook RPCs by the
+			// caller's role, and records webhook mutations into the audit
+			// trail (AD12).
+			webhookSvc.SetSessionOrgResolver(authSvc)
+			webhookSvc.SetSessionUserResolver(authSvc)
+			webhookSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// The auth service records key revokes and logins into the
 			// audit trail best-effort (feature #15, AC1/AC3).
 			auditRecorder := audit.NewRecorder(audit.NewRepository(gormDB))
@@ -175,6 +187,7 @@ func main() {
 			billingSvc.SetAuditRecorder(auditRecorder)
 			imageSvc.SetAuditRecorder(auditRecorder)
 			tenancySvc.SetAuditRecorder(auditRecorder)
+			webhookSvc.SetAuditRecorder(auditRecorder)
 			// The auth session derives roles/accessible orgs from
 			// org_members (feature #10, AD2/AD11).
 			authSvc.SetMembershipResolver(tenancy.NewMembershipResolver(gormDB))
@@ -256,6 +269,17 @@ func main() {
 		srv.AddRunner(runner)
 	}
 	if runner := audit.NewAuditRetentionRunnerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	// Feature #23: the webhook event consumer, delivery runner and
+	// retention runner.
+	if runner := webhook.NewEventConsumerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	if runner := webhook.NewDeliveryRunnerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	if runner := webhook.NewWebhookRetentionRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
 	if runner := billing.NewEventConsumerRunner(srv.Components()); runner != nil {

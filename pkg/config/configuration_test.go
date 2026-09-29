@@ -312,3 +312,89 @@ func TestLoadDotEnv(t *testing.T) {
 		t.Fatalf("missing .env should not error: %v", err)
 	}
 }
+
+func TestWebhookDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Webhook.Delivery.Workers != 4 {
+		t.Fatalf("webhook delivery workers default = %d, want 4", cfg.Webhook.Delivery.Workers)
+	}
+	if cfg.Webhook.Delivery.PollInterval != 5*time.Second {
+		t.Fatalf("webhook poll interval default = %v, want 5s", cfg.Webhook.Delivery.PollInterval)
+	}
+	if cfg.Webhook.Delivery.Timeout != 10*time.Second {
+		t.Fatalf("webhook timeout default = %v, want 10s", cfg.Webhook.Delivery.Timeout)
+	}
+	if cfg.Webhook.Retention.DeliveryTTL != 2160*time.Hour {
+		t.Fatalf("webhook delivery TTL default = %v, want 2160h", cfg.Webhook.Retention.DeliveryTTL)
+	}
+	if cfg.Webhook.Retention.BatchSize != 1000 {
+		t.Fatalf("webhook retention batch size default = %d, want 1000", cfg.Webhook.Retention.BatchSize)
+	}
+	if cfg.Webhook.Retention.Interval != time.Hour {
+		t.Fatalf("webhook retention interval default = %v, want 1h", cfg.Webhook.Retention.Interval)
+	}
+}
+
+func TestValidateWebhookConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative delivery workers fails.
+	cfg.Webhook.Delivery.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative webhook delivery workers should fail validation")
+	}
+	cfg.Webhook.Delivery.Workers = 4
+	// Negative retention TTL fails.
+	cfg.Webhook.Retention.DeliveryTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative webhook retention TTL should fail validation")
+	}
+	cfg.Webhook.Retention.DeliveryTTL = 2160 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid webhook config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsWebhookSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+webhook:
+  delivery:
+    workers: 8
+    pollInterval: 10s
+    timeout: 15s
+  retention:
+    enabled: false
+    deliveryTTL: 720h
+    batchSize: 500
+    interval: 30m
+  secretEncryptionKey: "test-key"
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Webhook.Delivery.Workers != 8 {
+		t.Fatalf("webhook delivery workers = %d, want 8", cfg.Webhook.Delivery.Workers)
+	}
+	if cfg.Webhook.Delivery.PollInterval != 10*time.Second {
+		t.Fatalf("webhook poll interval = %v, want 10s", cfg.Webhook.Delivery.PollInterval)
+	}
+	if cfg.Webhook.Retention.Enabled {
+		t.Fatal("webhook retention should be disabled from the file")
+	}
+	if cfg.Webhook.Retention.DeliveryTTL != 720*time.Hour {
+		t.Fatalf("webhook delivery TTL = %v, want 720h", cfg.Webhook.Retention.DeliveryTTL)
+	}
+	if cfg.Webhook.SecretEncryptionKey != "test-key" {
+		t.Fatalf("webhook secret key = %q, want test-key", cfg.Webhook.SecretEncryptionKey)
+	}
+}

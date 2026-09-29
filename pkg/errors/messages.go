@@ -113,6 +113,13 @@ var messages = map[Code]string{
 	CodeAuditEventNotFound: "audit event not found",
 	CodeAuditExportInvalid: "invalid export format",
 	CodeAuditRangeInvalid:  "invalid time range",
+
+	// webhook (feature #23, AD2)
+	CodeWebhookNotFound:         "webhook not found",
+	CodeWebhookConfigInvalid:    "invalid webhook config",
+	CodeWebhookStateInvalid:     "invalid webhook state",
+	CodeWebhookDeliveryNotFound: "webhook delivery not found",
+	CodeWebhookEventTypeInvalid: "invalid event type",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a

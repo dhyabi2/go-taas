@@ -216,6 +216,25 @@ func (c *Configuration) applyDefaults() {
 	if c.Audit.ExportMaxRows == 0 {
 		c.Audit.ExportMaxRows = 10000
 	}
+	// Feature #23: webhook module defaults (AD4, AD8, AD11).
+	if c.Webhook.Delivery.Workers == 0 {
+		c.Webhook.Delivery.Workers = 4
+	}
+	if c.Webhook.Delivery.PollInterval == 0 {
+		c.Webhook.Delivery.PollInterval = 5 * time.Second
+	}
+	if c.Webhook.Delivery.Timeout == 0 {
+		c.Webhook.Delivery.Timeout = 10 * time.Second
+	}
+	if c.Webhook.Retention.DeliveryTTL == 0 {
+		c.Webhook.Retention.DeliveryTTL = 2160 * time.Hour
+	}
+	if c.Webhook.Retention.BatchSize == 0 {
+		c.Webhook.Retention.BatchSize = 1000
+	}
+	if c.Webhook.Retention.Interval == 0 {
+		c.Webhook.Retention.Interval = time.Hour
+	}
 	// The image-import Harbor project defaults to "taas" so imported
 	// images always land in the platform's own project.
 	if c.Image.Harbor.Project == "" {
