@@ -24,8 +24,9 @@ against the local docker compose stack.
 | Webhook notifications & event subscriptions | feature-23 `webhook-notifications` | `tests/webhookNotifications.js` |
 
 Cases are derived from the acceptance criteria in
-`docs/design/api-key-management.md` and
-`docs/design/model-catalog-deployment.md` (test names reference the AC
+`docs/design/api-key-management.md`,
+`docs/design/model-catalog-deployment.md` and
+`docs/design/webhook-notifications.md` (test names reference the AC
 numbers). Console-dialog criteria (copy buttons, badge colors, polling) are
 manual/E2E-UI scope and not automated here.
 
@@ -67,6 +68,7 @@ npm test                 # all suites
 npm run test:auth        # feature-01 only
 npm run test:model       # feature-02 model cases (tag)
 npm run test:infer       # feature-02 inference-service cases (tag)
+npm run test:webhook-notifications  # feature-23 only
 ```
 
 Environment overrides:

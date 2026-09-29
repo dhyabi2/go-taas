@@ -24,6 +24,13 @@
 // frontend sends it as `Authorization: Bearer <token>`, which the realm
 // guard validates against this Redis session.
 //
+// The seeded user is also added to the org's org_members table (role
+// admin for the admin realm, member for the user realm) so that
+// RoleGuard-gated admin RPCs (feature #10, #23) resolve the caller as a
+// valid member. The user_id defaults to a deterministic UUID so the
+// RoleGuard's org_members lookup (a UUID-typed column) never fails on a
+// malformed id.
+//
 // Usage:
 //
 //	go run ./test/e2e/seed/session -redis "redis:6379" -realm user -org org-default
@@ -34,6 +41,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -41,24 +49,42 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 )
 
 const sessionKeyPrefix = "taas:auth:session:"
 
+// deterministicUserID returns a stable UUID for a realm so repeated seeds
+// for the same realm reuse the same org_members row (idempotent).
+func deterministicUserID(realm string) string {
+	if realm == "admin" {
+		return "11111111-1111-1111-1111-111111111111"
+	}
+	return "22222222-2222-2222-2222-222222222222"
+}
+
 func main() {
 	redisAddr := flag.String("redis", "redis:6379", "Redis address (host:port)")
 	realm := flag.String("realm", "user", "session realm: user or admin")
 	org := flag.String("org", "org-default", "active organization id")
-	userID := flag.String("user", "e2e-user", "user id")
+	userID := flag.String("user", "", "user id (default: deterministic UUID per realm)")
 	username := flag.String("username", "e2e-user", "username")
 	email := flag.String("email", "e2e@example.com", "email")
 	roles := flag.String("roles", "admin", "comma-separated session roles")
 	ttl := flag.Duration("ttl", 24*time.Hour, "session TTL")
+	pgAddr := flag.String("pg", "postgres:5432", "PostgreSQL address (host:port)")
+	pgUser := flag.String("pg-user", "taas", "PostgreSQL user")
+	pgPass := flag.String("pg-pass", "taas", "PostgreSQL password")
+	pgDB := flag.String("pg-db", "taas", "PostgreSQL database")
+	noMember := flag.Bool("no-member", false, "skip adding the user to org_members (for permission-denied cases)")
 	flag.Parse()
 
 	if *realm != "user" && *realm != "admin" {
 		log.Fatalf("realm must be 'user' or 'admin', got %q", *realm)
+	}
+	if *userID == "" {
+		*userID = deterministicUserID(*realm)
 	}
 
 	ctx := context.Background()
@@ -66,6 +92,31 @@ func main() {
 	defer func() { _ = client.Close() }()
 	if err := client.Ping(ctx).Err(); err != nil {
 		log.Fatalf("redis ping: %v", err)
+	}
+
+	// Add the user to the org's org_members so RoleGuard-gated admin RPCs
+	// resolve the caller as a valid member (feature #10, #23). Idempotent.
+	// Skipped with -no-member so a suite can seed a permission-denied
+	// (non-member) session.
+	if !*noMember {
+		pgDSN := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", *pgUser, *pgPass, *pgAddr, *pgDB)
+		if db, err := sql.Open("pgx", pgDSN); err == nil {
+			memberRole := "member"
+			if *realm == "admin" {
+				memberRole = "admin"
+			}
+			_, err = db.ExecContext(ctx,
+				`INSERT INTO org_members (organization_id, user_id, role, joined_at)
+				 VALUES ($1, $2, $3, now())
+				 ON CONFLICT (organization_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+				*org, *userID, memberRole)
+			if err != nil {
+				log.Printf("warn: add org member: %v", err)
+			}
+			_ = db.Close()
+		} else {
+			log.Printf("warn: open postgres: %v", err)
+		}
 	}
 
 	sessionID := fmt.Sprintf("e2e-session-%d", time.Now().UnixNano())
@@ -104,6 +155,6 @@ func main() {
 		log.Fatalf("set token: %v", err)
 	}
 
-	log.Printf("seeded %s-realm session %s (org %s, ttl %s)", *realm, sessionID, *org, *ttl)
+	log.Printf("seeded %s-realm session %s (org %s, user %s, ttl %s)", *realm, sessionID, *org, *userID, *ttl)
 	fmt.Println(sessionID)
 }

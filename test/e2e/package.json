@@ -26,7 +26,8 @@
     "test:compatibility-matrix": "nightwatch --tag compatibility-matrix",
     "test:load-testing": "nightwatch --tag load-testing",
     "test:sdk-quickstart": "nightwatch --tag sdk-quickstart",
-    "test:unified-login": "nightwatch --tag unified-login"
+    "test:unified-login": "nightwatch --tag unified-login",
+    "test:webhook-notifications": "nightwatch --tag webhook-notifications"
   },
   "license": "Apache-2.0",
   "devDependencies": {
