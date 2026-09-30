@@ -1,3 +1,10 @@
+## [1.31.1](https://github.com/go-taas/go-taas/compare/v1.31.0...v1.31.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **observability:** extract model id from second-to-last path segment ([8bc05ca](https://github.com/go-taas/go-taas/commit/8bc05cac8a5078fedcf419f31f90effc705016cb))
+
 # [1.31.0](https://github.com/go-taas/go-taas/compare/v1.30.0...v1.31.0) (2026-09-30)
 
 
