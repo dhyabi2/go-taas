@@ -48,7 +48,10 @@ export default function UserModelObservabilityPage() {
   const api = useApi();
   const { orgId } = useOrg();
   const { t } = useI18n();
-  const modelId = window.location.pathname.split('/').pop() || '';
+  // Route is /models/:modelId/observability — the model id is the
+  // second-to-last path segment, not the last one (which is 'observability').
+  const pathParts = window.location.pathname.split('/');
+  const modelId = pathParts[pathParts.length - 2] || '';
   const [preset, setPreset] = useState('24h');
   const [customSince, setCustomSince] = useState('');
   const [customUntil, setCustomUntil] = useState('');

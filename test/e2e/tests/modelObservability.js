@@ -44,7 +44,7 @@
 // suites authenticate with a seeded server-side session (see
 // page-objects/api.js seedSession) and drive the real UI served by the
 // compose stack. Request logs are seeded directly into PostgreSQL by
-// test/e2e/seed/seed_observability.go (the observability module is a
+// test/e2e/seed/observability/seed_observability.go (the observability module is a
 // read-only aggregation over request_logs).
 
 const api = require('../page-objects/api.js');
@@ -69,7 +69,7 @@ function seedObservability(browser, org) {
     '-v go-taas-go-mod-cache:/go/pkg/mod',
     '-v go-taas-go-build-cache:/root/.cache/go-build',
     `-v "${repoRoot}":/app`,
-    '-w /app/test/e2e/seed',
+    '-w /app/test/e2e/seed/observability',
     'golang:1.26-alpine',
     `sh -c "go run seed_observability.go -dsn 'postgres://taas:taas@postgres:5432/taas?sslmode=disable' -org '${org}' -model '${MODEL_A}' -key '${KEY_A}' -other-org 'org-e2e-obs-other' -other-key '44444444-4444-4444-4444-444444444444'"`
   ].join(' ');

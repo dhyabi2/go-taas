@@ -28,7 +28,7 @@
 //
 // Usage:
 //
-//	go run ./test/e2e/seed/seed_observability.go -dsn "postgres://taas:taas@postgres:5432/taas?sslmode=disable" -org "org-e2e-obs-..." -model "11111111-1111-1111-1111-111111111111" -key "33333333-3333-3333-3333-333333333333"
+//	go run ./test/e2e/seed/observability/seed_observability.go -dsn "postgres://taas:taas@postgres:5432/taas?sslmode=disable" -org "org-e2e-obs-..." -model "11111111-1111-1111-1111-111111111111" -key "33333333-3333-3333-3333-333333333333"
 //
 // The default DSN targets the compose network (service name "postgres").
 package main
