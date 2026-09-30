@@ -22,6 +22,7 @@ import (
 	"github.com/go-taas/go-taas/services/infer"
 	"github.com/go-taas/go-taas/services/metering"
 	"github.com/go-taas/go-taas/services/model"
+	"github.com/go-taas/go-taas/services/observability"
 	"github.com/go-taas/go-taas/services/tenancy"
 	"github.com/go-taas/go-taas/services/webhook"
 )
@@ -105,6 +106,12 @@ func main() {
 	// event subscription, HMAC signing, retry and the delivery log.
 	webhookSvc := webhook.New(srv.Components())
 	srv.RegisterService(webhookSvc)
+	// Feature #24: the observability service serves the read-only model
+	// performance aggregation over request_logs (admin fleet view and
+	// dual-bound single-model drill-down).
+	observabilitySvc := observability.New(srv.Components())
+	observabilitySvc.SetMaxRangeSeconds(cfg.Observability.MaxRangeSeconds)
+	srv.RegisterService(observabilitySvc)
 	// Feature #18: the accelerator inventory service serves the read-only
 	// fleet view from its in-memory projection cache. The cache is
 	// constructed once and shared with the snapshot consumer so the
@@ -175,6 +182,12 @@ func main() {
 			webhookSvc.SetSessionOrgResolver(authSvc)
 			webhookSvc.SetSessionUserResolver(authSvc)
 			webhookSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			// Feature #24: the observability service resolves the
+			// session's active org and caller, and gates the admin
+			// observability RPCs by the caller's role (AD4).
+			observabilitySvc.SetSessionOrgResolver(authSvc)
+			observabilitySvc.SetSessionUserResolver(authSvc)
+			observabilitySvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// The auth service records key revokes and logins into the
 			// audit trail best-effort (feature #15, AC1/AC3).
 			auditRecorder := audit.NewRecorder(audit.NewRepository(gormDB))

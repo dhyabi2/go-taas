@@ -520,24 +520,34 @@ type WebhookRetentionConfig struct {
 	Interval time.Duration `mapstructure:"interval"`
 }
 
+// ObservabilityConfig holds observability-module specific settings
+// (feature #24, AD7).
+type ObservabilityConfig struct {
+	// MaxRangeSeconds is the maximum range accepted by the observability
+	// RPCs (AD7). Default 7948800 (92 days), mirroring the metering
+	// maxRangeSeconds constant; kept configurable for operational tuning.
+	MaxRangeSeconds int64 `mapstructure:"maxRangeSeconds"`
+}
+
 // Configuration is the root of the merged configuration tree.
 type Configuration struct {
-	Databases   Databases         `mapstructure:"db"`
-	Redis       Redis             `mapstructure:"redis"`
-	MQ          MQConfig          `mapstructure:"mq"`
-	Auth        AuthConfig        `mapstructure:"auth"`
-	Metering    MeteringConfig    `mapstructure:"metering"`
-	Billing     BillingConfig     `mapstructure:"billing"`
-	Controller  ControllerConfig  `mapstructure:"controller"`
-	Infer       InferConfig       `mapstructure:"infer"`
-	Image       ImageConfig       `mapstructure:"image"`
-	Model       ModelConfig       `mapstructure:"model"`
-	Tenancy     TenancyConfig     `mapstructure:"tenancy"`
-	Audit       AuditConfig       `mapstructure:"audit"`
-	Accelerator AcceleratorConfig `mapstructure:"accelerator"`
-	LoadTest    LoadTestConfig    `mapstructure:"loadtest"`
-	Webhook     WebhookConfig     `mapstructure:"webhook"`
-	Log         LogConfig         `mapstructure:"log"`
+	Databases     Databases           `mapstructure:"db"`
+	Redis         Redis               `mapstructure:"redis"`
+	MQ            MQConfig            `mapstructure:"mq"`
+	Auth          AuthConfig          `mapstructure:"auth"`
+	Metering      MeteringConfig      `mapstructure:"metering"`
+	Billing       BillingConfig       `mapstructure:"billing"`
+	Controller    ControllerConfig    `mapstructure:"controller"`
+	Infer         InferConfig         `mapstructure:"infer"`
+	Image         ImageConfig         `mapstructure:"image"`
+	Model         ModelConfig         `mapstructure:"model"`
+	Tenancy       TenancyConfig       `mapstructure:"tenancy"`
+	Audit         AuditConfig         `mapstructure:"audit"`
+	Accelerator   AcceleratorConfig   `mapstructure:"accelerator"`
+	LoadTest      LoadTestConfig      `mapstructure:"loadtest"`
+	Webhook       WebhookConfig       `mapstructure:"webhook"`
+	Observability ObservabilityConfig `mapstructure:"observability"`
+	Log           LogConfig           `mapstructure:"log"`
 }
 
 // LoadTestConfig holds the feature-20 load-testing settings.
@@ -702,6 +712,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Webhook.Retention.Interval < 0 {
 		return &FieldError{Field: "webhook.retention.interval", Reason: "must not be negative"}
+	}
+	if c.Observability.MaxRangeSeconds < 0 {
+		return &FieldError{Field: "observability.maxRangeSeconds", Reason: "must not be negative"}
 	}
 	return nil
 }

@@ -235,6 +235,11 @@ func (c *Configuration) applyDefaults() {
 	if c.Webhook.Retention.Interval == 0 {
 		c.Webhook.Retention.Interval = time.Hour
 	}
+	// Feature #24: the observability max range defaults to 92 days
+	// (AD7), mirroring the metering maxRangeSeconds constant.
+	if c.Observability.MaxRangeSeconds == 0 {
+		c.Observability.MaxRangeSeconds = 92 * 24 * 3600
+	}
 	// The image-import Harbor project defaults to "taas" so imported
 	// images always land in the platform's own project.
 	if c.Image.Harbor.Project == "" {

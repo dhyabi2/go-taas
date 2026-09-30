@@ -398,3 +398,47 @@ webhook:
 		t.Fatalf("webhook secret key = %q, want test-key", cfg.Webhook.SecretEncryptionKey)
 	}
 }
+
+func TestObservabilityDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Observability.MaxRangeSeconds != 92*24*3600 {
+		t.Fatalf("observability max range default = %d, want %d", cfg.Observability.MaxRangeSeconds, 92*24*3600)
+	}
+}
+
+func TestValidateObservabilityConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative max range fails.
+	cfg.Observability.MaxRangeSeconds = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative observability max range should fail validation")
+	}
+	cfg.Observability.MaxRangeSeconds = 92 * 24 * 3600
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid observability config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsObservabilitySection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+observability:
+  maxRangeSeconds: 604800
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Observability.MaxRangeSeconds != 604800 {
+		t.Fatalf("observability max range = %d, want 604800", cfg.Observability.MaxRangeSeconds)
+	}
+}

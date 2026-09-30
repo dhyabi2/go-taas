@@ -51,7 +51,10 @@ import WebhooksPage from './pages/WebhooksPage';
 import WebhookDetailPage from './pages/WebhookDetailPage';
 import UserWebhooksPage from './pages/user/UserWebhooksPage';
 import UserWebhookDetailPage from './pages/user/UserWebhookDetailPage';
+import UserModelObservabilityPage from './pages/user/UserModelObservabilityPage';
 import ActivityPage from './pages/user/ActivityPage';
+import ObservabilityPage from './pages/ObservabilityPage';
+import ModelObservabilityPage from './pages/ModelObservabilityPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -102,6 +105,7 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/webhooks/:webhookId" element={<UserWebhookDetailPage />} />
               <Route path="/models" element={<UserModelsPage />} />
               <Route path="/models/:id" element={<UserModelDetailPage />} />
+              <Route path="/models/:id/observability" element={<UserModelObservabilityPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
             </Routes>
           </UserShell>
@@ -149,6 +153,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/load-tests/:loadTestId" element={<LoadTestDetailPage />} />
               <Route path="/admin/webhooks" element={<WebhooksPage />} />
               <Route path="/admin/webhooks/:webhookId" element={<WebhookDetailPage />} />
+              <Route path="/admin/observability" element={<ObservabilityPage />} />
+              <Route path="/admin/observability/models/:modelId" element={<ModelObservabilityPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

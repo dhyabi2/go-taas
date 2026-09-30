@@ -145,6 +145,9 @@ services:
       # Feature #23: the webhook secret-at-rest encryption key (AD3).
       # Read from the .env file; empty falls back to a dev-only key.
       CONFIG_WEBHOOK_SECRETENCRYPTIONKEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-}
+      # Feature #24: the observability max range (92 days by default,
+      # AD7). Read from the .env file; empty falls back to the default.
+      CONFIG_OBSERVABILITY_MAXRANGESECONDS: ${OBSERVABILITY_MAX_RANGE_SECONDS:-7948800}
     volumes:
       - type: bind
         source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}

@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
 import { useI18n } from '../../i18n';
+import { navigate } from '../../router';
 import { BackLink } from '../../components';
 import { formatTime, type GetAvailableModelResponse } from '../../api';
 
@@ -184,6 +185,18 @@ export default function ModelDetailPage() {
 
       <div className="panel" data-testid="model-detail-performance">
         <h3 style={{ marginTop: 0 }}>{t('umodeldetail.performance')}</h3>
+        <p className="muted">
+          <a
+            href={`/models/${id}/observability`}
+            data-testid="user-model-observability-link"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(`/models/${id}/observability`);
+            }}
+          >
+            {t('umodeldetail.observabilityLink')}
+          </a>
+        </p>
         {perfError ? (
           <div className="error" data-testid="model-detail-performance-error">{perfError}</div>
         ) : (perf?.results || []).length === 0 ? (

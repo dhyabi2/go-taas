@@ -377,6 +377,63 @@ export interface UsageDashboardResponse {
   dailyBuckets?: DailyBucket[];
 }
 
+// ---- model observability (feature #24) ----
+
+export interface ObservabilityCard {
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  inputTokensPerSec: string;
+  dataThrough: string;
+}
+
+export interface ModelObservabilityRow {
+  modelId: string;
+  modelName: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  dataThrough: string;
+}
+
+export interface ObservabilitySeriesPoint {
+  bucket: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  inputTokensPerSec: string;
+}
+
+export interface ObservabilityKeyRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+}
+
+export interface GetObservabilityOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: ObservabilityCard;
+  models?: ModelObservabilityRow[];
+  series?: ObservabilitySeriesPoint[];
+}
+
+export interface GetModelObservabilityResponse {
+  response: ResponseEnvelope;
+  cards?: ObservabilityCard;
+  series?: ObservabilitySeriesPoint[];
+  keys?: ObservabilityKeyRow[];
+}
+
 // ---- per-tenant model authorization (feature #13) ----
 
 export interface ModelAuthorization {

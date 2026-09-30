@@ -55,6 +55,7 @@ export const ADMIN_NAV_ITEMS: { path: string; labelKey: string; testid: string; 
   { path: '/admin/compatibility', labelKey: 'nav.compatibility', testid: 'nav-compatibility', icon: PuzzlePiece },
   { path: '/admin/load-tests', labelKey: 'nav.loadTests', testid: 'nav-load-tests', icon: Gauge },
   { path: '/admin/webhooks', labelKey: 'nav.webhooks', testid: 'nav-webhooks', icon: LinkSimple },
+  { path: '/admin/observability', labelKey: 'nav.observability', testid: 'nav-observability', icon: ChartLine },
 ];
 
 function isActive(path: string, current: string): boolean {

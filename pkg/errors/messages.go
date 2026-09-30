@@ -120,6 +120,9 @@ var messages = map[Code]string{
 	CodeWebhookStateInvalid:     "invalid webhook state",
 	CodeWebhookDeliveryNotFound: "webhook delivery not found",
 	CodeWebhookEventTypeInvalid: "invalid event type",
+
+	// observability (feature #24, AD2)
+	CodeObservabilityModelNotFound: "model not found",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a

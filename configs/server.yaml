@@ -191,3 +191,9 @@ loadtest:
   progressInterval: 5s
   retention: 2160h
   systemCredentialEnabled: true
+
+# Feature #24: model observability. The read-only aggregation over
+# request_logs accepts a range up to maxRangeSeconds (92 days by
+# default, AD7); a longer range returns 10404.
+observability:
+  maxRangeSeconds: 7948800

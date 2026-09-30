@@ -167,3 +167,9 @@ const (
 	CodeWebhookDeliveryNotFound Code = 10704 // WEBHOOK_DELIVERY_NOT_FOUND
 	CodeWebhookEventTypeInvalid Code = 10705 // WEBHOOK_EVENT_TYPE_INVALID
 )
+
+// observability module error codes (feature #24, AD2). The block is
+// 10801-10899, the next free block after webhook's 107xx.
+const (
+	CodeObservabilityModelNotFound Code = 10801 // OBSERVABILITY_MODEL_NOT_FOUND
+)
