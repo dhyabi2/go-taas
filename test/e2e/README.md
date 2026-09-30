@@ -22,6 +22,7 @@ against the local docker compose stack.
 | SDK / Quickstart | feature-21 `sdk-quickstart` | `tests/sdkQuickstart.js` |
 | Unified login & role-based routing | feature-22 `unified-login-role-routing` | `tests/unifiedLogin.js` |
 | Webhook notifications & event subscriptions | feature-23 `webhook-notifications` | `tests/webhookNotifications.js` |
+| Model observability dashboard | feature-24 `model-observability` | `tests/modelObservability.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md`,
