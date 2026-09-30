@@ -6,8 +6,8 @@
 // docs/architecture/billing-reports.md §6.5.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useApi } from '../../surface';
 import {
-  api,
   formatTime,
   type CreateReportResponse,
   type CreateScheduleResponse,
@@ -101,6 +101,7 @@ function rangeLabel(r: Report): string {
 }
 
 export default function UserBillingReportsPage() {
+  const api = useApi();
   const { orgId } = useOrg();
   const { t } = useI18n();
   const [tab, setTab] = useState<'reports' | 'schedules'>('reports');
