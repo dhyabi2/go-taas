@@ -1,3 +1,10 @@
+## [1.32.1](https://github.com/go-taas/go-taas/compare/v1.32.0...v1.32.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **billing:** use realm-scoped api client on user billing reports page ([7c66c49](https://github.com/go-taas/go-taas/commit/7c66c493c36c8c8c99d3c8ae6168fbecc49d18ce))
+
 # [1.32.0](https://github.com/go-taas/go-taas/compare/v1.31.1...v1.32.0) (2026-09-30)
 
 
