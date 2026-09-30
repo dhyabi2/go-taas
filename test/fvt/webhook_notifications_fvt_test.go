@@ -224,7 +224,7 @@ func TestFVTWebhookEventDelivery(t *testing.T) {
 	code, body := env.call(t, http.MethodPost, "/api/v1/admin/webhooks", map[string]any{
 		"name": "ops", "url": endpoint.URL,
 		"enabledEventTypes": []string{"deployment.status_changed"},
-		"backoffSeconds": 1,
+		"backoffSeconds":    1,
 	}, "org-fvt")
 	require.Equal(t, http.StatusOK, code, "body: %v", body)
 	webhookID := body["webhook"].(map[string]any)["webhookId"].(string)
