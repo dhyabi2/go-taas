@@ -1,3 +1,10 @@
+# [1.31.0](https://github.com/go-taas/go-taas/compare/v1.30.0...v1.31.0) (2026-09-30)
+
+
+### Features
+
+* **observability:** model observability dashboard (feature 24) ([b32643f](https://github.com/go-taas/go-taas/commit/b32643f6237c5ab24861665c19f68dcb609a5670))
+
 # [1.30.0](https://github.com/go-taas/go-taas/compare/v1.29.0...v1.30.0) (2026-09-29)
 
 
