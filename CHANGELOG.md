@@ -1,3 +1,10 @@
+# [1.32.0](https://github.com/go-taas/go-taas/compare/v1.31.1...v1.32.0) (2026-09-30)
+
+
+### Features
+
+* **billing:** billing reports and CSV export (feature 25) ([c62a916](https://github.com/go-taas/go-taas/commit/c62a916cea73c4be3b25446976133b3ceb42a5fe))
+
 ## [1.31.1](https://github.com/go-taas/go-taas/compare/v1.31.0...v1.31.1) (2026-09-30)
 
 
