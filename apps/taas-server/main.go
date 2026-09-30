@@ -312,6 +312,13 @@ func main() {
 	if cfg.Billing.AutoRecharge.Enabled {
 		srv.AddRunner(billing.NewAutoRechargeRunner(billingSvc, cfg.Billing.AutoRecharge.Interval))
 	}
+	// Feature-25 billing-reports runners: the generator picks up pending
+	// reports and renders their CSV; the schedule runner materializes due
+	// schedules into pending report runs.
+	if cfg.Billing.Reports.Enabled {
+		srv.AddRunner(billing.NewReportGeneratorRunner(billingSvc, cfg.Billing.Reports.GeneratorInterval))
+		srv.AddRunner(billing.NewScheduleRunner(billingSvc, cfg.Billing.Reports.ScheduleInterval))
+	}
 
 	srv.Serve()
 }

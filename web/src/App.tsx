@@ -19,6 +19,7 @@ import UserApiKeysPage from './pages/user/ApiKeysPage';
 import UserRequestLogsPage from './pages/user/RequestLogsPage';
 import UserPlaygroundPage from './pages/user/PlaygroundPage';
 import UserBillsPage from './pages/user/BillsPage';
+import UserBillingReportsPage from './pages/user/UserBillingReportsPage';
 import UserModelsPage from './pages/user/ModelsPage';
 import UserModelDetailPage from './pages/user/ModelDetailPage';
 import AdminLoginPage from './pages/AdminLoginPage';
@@ -40,6 +41,7 @@ import BillsPage from './pages/BillsPage';
 import AccountsPage from './pages/AccountsPage';
 import BillingPaymentsPage from './pages/BillingPaymentsPage';
 import BillingInvoicesPage from './pages/BillingInvoicesPage';
+import BillingReportsPage from './pages/BillingReportsPage';
 import AuditLogsPage from './pages/AuditLogsPage';
 import AutoscalingPage from './pages/AutoscalingPage';
 import AcceleratorsPage from './pages/AcceleratorsPage';
@@ -100,6 +102,7 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/request-logs" element={<UserRequestLogsPage />} />
               <Route path="/playground" element={<UserPlaygroundPage />} />
               <Route path="/billing" element={<UserBillsPage />} />
+              <Route path="/billing/reports" element={<UserBillingReportsPage />} />
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/webhooks" element={<UserWebhooksPage />} />
               <Route path="/webhooks/:webhookId" element={<UserWebhookDetailPage />} />
@@ -144,6 +147,7 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/billing/accounts" element={<AccountsPage />} />
               <Route path="/admin/billing/payments" element={<BillingPaymentsPage />} />
               <Route path="/admin/billing/invoices" element={<BillingInvoicesPage />} />
+              <Route path="/admin/billing/reports" element={<BillingReportsPage />} />
               <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
               <Route path="/admin/autoscaling" element={<AutoscalingPage />} />
               <Route path="/admin/accelerators" element={<AcceleratorsPage />} />

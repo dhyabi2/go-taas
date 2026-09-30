@@ -148,6 +148,12 @@ services:
       # Feature #24: the observability max range (92 days by default,
       # AD7). Read from the .env file; empty falls back to the default.
       CONFIG_OBSERVABILITY_MAXRANGESECONDS: ${OBSERVABILITY_MAX_RANGE_SECONDS:-7948800}
+      # Feature-25: the billing-reports runners. The generator picks up
+      # pending reports and renders their CSV; the schedule runner
+      # materializes due schedules into pending report runs.
+      CONFIG_BILLING_REPORTS_ENABLED: "true"
+      CONFIG_BILLING_REPORTS_GENERATORINTERVAL: ${BILLING_REPORTS_GENERATOR_INTERVAL:-5s}
+      CONFIG_BILLING_REPORTS_SCHEDULEINTERVAL: ${BILLING_REPORTS_SCHEDULE_INTERVAL:-1m}
     volumes:
       - type: bind
         source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}

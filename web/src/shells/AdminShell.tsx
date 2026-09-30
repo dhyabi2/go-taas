@@ -49,6 +49,7 @@ export const ADMIN_NAV_ITEMS: { path: string; labelKey: string; testid: string; 
   { path: '/admin/billing/accounts', labelKey: 'nav.accounts', testid: 'nav-accounts', icon: UserCircle },
   { path: '/admin/billing/payments', labelKey: 'nav.payments', testid: 'nav-payments', icon: CreditCard },
   { path: '/admin/billing/invoices', labelKey: 'nav.invoices', testid: 'nav-invoices', icon: FileText },
+  { path: '/admin/billing/reports', labelKey: 'nav.billingReports', testid: 'nav-billing-reports', icon: FileText },
   { path: '/admin/audit-logs', labelKey: 'nav.auditLogs', testid: 'nav-audit-logs', icon: Scroll },
   { path: '/admin/autoscaling', labelKey: 'nav.autoscaling', testid: 'nav-autoscaling', icon: Gauge },
   { path: '/admin/accelerators', labelKey: 'nav.accelerators', testid: 'nav-accelerators', icon: Cpu },

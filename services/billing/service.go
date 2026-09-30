@@ -179,10 +179,11 @@ func NewForFVT(db *gorm.DB, publisher mq.Client) *Service {
 }
 
 // MigrateSchemaForFVT applies the billing schema (price_entries,
-// usage_lines, charge_records, accounts, transactions) onto a
+// usage_lines, charge_records, accounts, transactions, and the
+// feature-25 billing_reports / billing_report_schedules tables) onto a
 // caller-provided database for full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{})
+	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}, &Report{}, &ReportSchedule{})
 }
 
 // AttachToServer implements server.Service.
@@ -199,14 +200,15 @@ func (s *Service) GetServiceHandlerRegisterFn() server.ServiceHandlerRegisterFn 
 }
 
 // Migrate implements server.Migrator: it creates/updates the
-// price_entries, usage_lines, charge_records, accounts and
-// transactions tables via GORM AutoMigrate. There is nothing to seed.
+// price_entries, usage_lines, charge_records, accounts, transactions
+// and the feature-25 billing_reports / billing_report_schedules tables
+// via GORM AutoMigrate. There is nothing to seed.
 func (s *Service) Migrate(ctx context.Context) error {
 	db, err := s.gormDB()
 	if err != nil {
 		return err
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}, &Report{}, &ReportSchedule{}); err != nil {
 		return err
 	}
 	// Seed the mock payment channel (feature-14 AD1).

@@ -219,6 +219,116 @@ service BillingService {
   rpc DownloadInvoice(DownloadInvoiceRequest) returns (DownloadInvoiceResponse) {
     option (google.api.http) = {get: "/api/v1/admin/billing/invoices/{invoice_id}:download"};
   }
+
+  // ---- Billing reports & CSV export (feature-25) ----
+  //
+  // The billing-report RPCs are dual-bound: the user binding is
+  // tenant-scoped under /api/v1/billing/reports/*, the admin binding is
+  // fleet-wide under /api/v1/admin/billing/reports/*.
+
+  // CreateReport creates an on-demand report job (status = pending).
+  // User-surface API: tenant-scoped under /api/v1/billing/reports.
+  // Admin-surface API: fleet-wide under /api/v1/admin/billing/reports.
+  rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/billing/reports"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/admin/billing/reports"
+        body: "*"
+      }
+    };
+  }
+
+  // GetReport returns a report's status, definition, row count and
+  // data_through.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc GetReport(GetReportRequest) returns (GetReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/{report_id}"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/{report_id}"}
+    };
+  }
+
+  // ListReports returns the report history, newest first.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports"
+      additional_bindings: {get: "/api/v1/admin/billing/reports"}
+    };
+  }
+
+  // DownloadReport returns the CSV when status = ready.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc DownloadReport(DownloadReportRequest) returns (DownloadReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/{report_id}/download"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/{report_id}/download"}
+    };
+  }
+
+  // CreateSchedule creates a scheduled report (status = active).
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/billing/reports/schedules"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/admin/billing/reports/schedules"
+        body: "*"
+      }
+    };
+  }
+
+  // ListSchedules returns the caller's schedules.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/schedules"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/schedules"}
+    };
+  }
+
+  // UpdateSchedule updates a schedule's name, frequency or relative
+  // range.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/billing/reports/schedules/{schedule_id}"
+      body: "*"
+      additional_bindings: {
+        patch: "/api/v1/admin/billing/reports/schedules/{schedule_id}"
+        body: "*"
+      }
+    };
+  }
+
+  // DeleteSchedule deletes a schedule.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/billing/reports/schedules/{schedule_id}"
+      additional_bindings: {delete: "/api/v1/admin/billing/reports/schedules/{schedule_id}"}
+    };
+  }
+
+  // ListScheduleRuns returns the runs a schedule has produced.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListScheduleRuns(ListScheduleRunsRequest) returns (ListScheduleRunsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/schedules/{schedule_id}/runs"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/schedules/{schedule_id}/runs"}
+    };
+  }
 }
 
 message SetPriceRequest {
@@ -686,4 +796,186 @@ message DownloadInvoiceResponse {
   // content is a presentable JSON/HTML rendering of the invoice.
   string content = 2;
   string content_type = 3;
+}
+
+// ---- Billing reports & CSV export (feature-25) ----
+
+// ReportDimension is the aggregation dimension of a report.
+enum ReportDimension {
+  REPORT_DIMENSION_UNSPECIFIED = 0;
+  REPORT_DIMENSION_ORGANIZATION = 1;
+  REPORT_DIMENSION_API_KEY = 2;
+  REPORT_DIMENSION_MODEL = 3;
+}
+
+// ReportGranularity is the bucket size of a report.
+enum ReportGranularity {
+  REPORT_GRANULARITY_UNSPECIFIED = 0;
+  REPORT_GRANULARITY_DAILY = 1;
+  REPORT_GRANULARITY_HOURLY = 2;
+}
+
+// ReportFrequency is the cadence of a scheduled report.
+enum ReportFrequency {
+  REPORT_FREQUENCY_UNSPECIFIED = 0;
+  REPORT_FREQUENCY_DAILY = 1;
+  REPORT_FREQUENCY_WEEKLY = 2;
+  REPORT_FREQUENCY_MONTHLY = 3;
+}
+
+// RelativeRange is the relative time range of a scheduled report.
+enum RelativeRange {
+  RELATIVE_RANGE_UNSPECIFIED = 0;
+  RELATIVE_RANGE_LAST_7_DAYS = 1;
+  RELATIVE_RANGE_LAST_30_DAYS = 2;
+  RELATIVE_RANGE_LAST_MONTH = 3;
+}
+
+message CreateReportRequest {
+  // name is the report name.
+  string name = 1;
+  // dimension is organization / api_key / model.
+  ReportDimension dimension = 2;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 30d. A range > 366 days is rejected (10404).
+  int64 since = 3;
+  int64 until = 4;
+  // granularity is daily or hourly.
+  ReportGranularity granularity = 5;
+  // timezone is an IANA name, default UTC.
+  string timezone = 6;
+  // organization_id is an optional fleet filter on the admin surface;
+  // absent means all orgs. On the user surface it is ignored (the
+  // caller's org is implicit).
+  string organization_id = 7;
+}
+
+message CreateReportResponse {
+  taas.common.v1.Response response = 1;
+  Report report = 2;
+}
+
+message GetReportRequest {
+  string report_id = 1;
+}
+
+message GetReportResponse {
+  taas.common.v1.Response response = 1;
+  Report report = 2;
+}
+
+message ListReportsRequest {
+  taas.common.v1.PageRequest page = 1;
+  // dimension/status are optional filters.
+  ReportDimension dimension = 2;
+  string status = 3;
+}
+
+message ListReportsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Report reports = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message DownloadReportRequest {
+  string report_id = 1;
+}
+
+message DownloadReportResponse {
+  taas.common.v1.Response response = 1;
+  // csv is the UTF-8-BOM CSV content when status = ready.
+  string csv = 2;
+  // filename is the Content-Disposition filename.
+  string filename = 3;
+}
+
+message CreateScheduleRequest {
+  string name = 1;
+  ReportDimension dimension = 2;
+  RelativeRange relative_range = 3;
+  ReportGranularity granularity = 4;
+  ReportFrequency frequency = 5;
+  string timezone = 6;
+  // organization_id is an optional fleet filter on the admin surface;
+  // absent means all orgs. On the user surface it is ignored.
+  string organization_id = 7;
+}
+
+message CreateScheduleResponse {
+  taas.common.v1.Response response = 1;
+  ReportSchedule schedule = 2;
+}
+
+message ListSchedulesRequest {
+  taas.common.v1.PageRequest page = 1;
+  // organization_id is an optional admin filter.
+  string organization_id = 2;
+}
+
+message ListSchedulesResponse {
+  taas.common.v1.Response response = 1;
+  repeated ReportSchedule schedules = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message UpdateScheduleRequest {
+  string schedule_id = 1;
+  string name = 2;
+  ReportFrequency frequency = 3;
+  RelativeRange relative_range = 4;
+}
+
+message UpdateScheduleResponse {
+  taas.common.v1.Response response = 1;
+  ReportSchedule schedule = 2;
+}
+
+message DeleteScheduleRequest {
+  string schedule_id = 1;
+}
+
+message DeleteScheduleResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message ListScheduleRunsRequest {
+  taas.common.v1.PageRequest page = 1;
+  string schedule_id = 2;
+}
+
+message ListScheduleRunsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Report runs = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+// Report is one report (on-demand or a scheduled run).
+message Report {
+  string report_id = 1;
+  string name = 2;
+  ReportDimension dimension = 3;
+  int64 since = 4;
+  int64 until = 5;
+  ReportGranularity granularity = 6;
+  string timezone = 7;
+  string status = 8; // pending / ready / failed
+  int64 row_count = 9;
+  int64 data_through = 10;
+  int64 created_at = 11;
+  // schedule_id is set when the report is a scheduled run.
+  string schedule_id = 12;
+}
+
+// ReportSchedule is one scheduled report definition.
+message ReportSchedule {
+  string schedule_id = 1;
+  string name = 2;
+  ReportDimension dimension = 3;
+  RelativeRange relative_range = 4;
+  ReportGranularity granularity = 5;
+  ReportFrequency frequency = 6;
+  string timezone = 7;
+  string status = 8; // active
+  int64 last_run_at = 9;
+  int64 created_at = 10;
 }

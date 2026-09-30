@@ -803,6 +803,88 @@ export interface GetModelLoadTestsResponse {
   results: ModelLoadTestResult[];
 }
 
+// ---- billing reports & CSV export (feature-25) ----
+// Admin surface: /api/v1/admin/billing/reports/*. User surface (masked,
+// tenant-scoped): /api/v1/billing/reports/*. int64 fields arrive as
+// strings.
+
+export type ReportDimension = 'organization' | 'api_key' | 'model';
+export type ReportGranularity = 'daily' | 'hourly';
+export type ReportFrequency = 'daily' | 'weekly' | 'monthly';
+export type RelativeRange = 'last_7_days' | 'last_30_days' | 'last_month';
+
+export interface Report {
+  reportId: string;
+  name: string;
+  dimension: string;
+  since: string;
+  until: string;
+  granularity: string;
+  timezone: string;
+  status: string; // pending | ready | failed
+  rowCount: string;
+  dataThrough: string;
+  createdAt: string;
+  scheduleId?: string;
+}
+
+export interface ReportSchedule {
+  scheduleId: string;
+  name: string;
+  dimension: string;
+  relativeRange: string;
+  granularity: string;
+  frequency: string;
+  timezone: string;
+  status: string; // active
+  lastRunAt: string;
+  createdAt: string;
+}
+
+export interface CreateReportResponse {
+  response: ResponseEnvelope;
+  report: Report;
+}
+
+export interface GetReportResponse {
+  response: ResponseEnvelope;
+  report: Report;
+}
+
+export interface ListReportsResponse {
+  response: ResponseEnvelope;
+  reports: Report[];
+  pageMeta?: PageMeta;
+}
+
+export interface DownloadReportResponse {
+  response: ResponseEnvelope;
+  csv: string;
+  filename: string;
+}
+
+export interface CreateScheduleResponse {
+  response: ResponseEnvelope;
+  schedule: ReportSchedule;
+}
+
+export interface ListSchedulesResponse {
+  response: ResponseEnvelope;
+  schedules: ReportSchedule[];
+  pageMeta?: PageMeta;
+}
+
+export interface UpdateScheduleResponse {
+  response: ResponseEnvelope;
+  schedule: ReportSchedule;
+}
+
+export interface ListScheduleRunsResponse {
+  response: ResponseEnvelope;
+  runs: Report[];
+  pageMeta?: PageMeta;
+}
+
 // formatPercent renders a 0..1 ratio as a percentage string.
 export function formatPercent(ratio: number | undefined): string {
   if (ratio === undefined || ratio === null || !isFinite(ratio)) return '0.0%';

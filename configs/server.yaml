@@ -97,6 +97,13 @@ billing:
     interval: 60s
     gracePeriod: 5m
     workers: 2
+  # reports (feature-25): the billing-reports runners. The generator
+  # picks up pending reports and renders their CSV; the schedule runner
+  # materializes due schedules into pending report runs.
+  reports:
+    enabled: true
+    generatorInterval: 5s
+    scheduleInterval: 1m
 
 infer:
   endpointBaseURL: ""

@@ -20,7 +20,7 @@ func newBillingTestDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}))
+	require.NoError(t, db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &Report{}, &ReportSchedule{}))
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
 		_ = sqlDB.Close()

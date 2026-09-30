@@ -28,7 +28,8 @@
     "test:sdk-quickstart": "nightwatch --tag sdk-quickstart",
     "test:unified-login": "nightwatch --tag unified-login",
     "test:webhook-notifications": "nightwatch --tag webhook-notifications",
-    "test:model-observability": "nightwatch --tag model-observability"
+    "test:model-observability": "nightwatch --tag model-observability",
+    "test:billing-reports": "nightwatch --tag billing-reports"
   },
   "license": "Apache-2.0",
   "devDependencies": {

@@ -119,6 +119,45 @@ func TestParseConfigsModelAuthSectionDefault(t *testing.T) {
 	}
 }
 
+// TestParseConfigsBillingReportsSection proves the feature-25
+// billing.reports keys reach the loaded configuration: a key that is
+// absent from the shipped YAML is silently ignored by the env override,
+// so it must be parsed from a file as well.
+func TestParseConfigsBillingReportsSection(t *testing.T) {
+	path := writeTempConfig(t, `
+billing:
+  reports:
+    enabled: true
+    generatorInterval: 7s
+    scheduleInterval: 2m
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if !cfg.Billing.Reports.Enabled {
+		t.Fatal("billing.reports.enabled should be true")
+	}
+	if cfg.Billing.Reports.GeneratorInterval != 7*time.Second {
+		t.Fatalf("billing.reports.generatorInterval: %v", cfg.Billing.Reports.GeneratorInterval)
+	}
+	if cfg.Billing.Reports.ScheduleInterval != 2*time.Minute {
+		t.Fatalf("billing.reports.scheduleInterval: %v", cfg.Billing.Reports.ScheduleInterval)
+	}
+}
+
+// TestParseConfigsBillingReportsSectionDefault pins the feature-25
+// defaults: an omitted key gets 5s / 1m, not 0.
+func TestParseConfigsBillingReportsSectionDefault(t *testing.T) {
+	path := writeTempConfig(t, "log:\n  level: info\n")
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Billing.Reports.GeneratorInterval != 5*time.Second {
+		t.Fatalf("default billing.reports.generatorInterval: %v", cfg.Billing.Reports.GeneratorInterval)
+	}
+	if cfg.Billing.Reports.ScheduleInterval != time.Minute {
+		t.Fatalf("default billing.reports.scheduleInterval: %v", cfg.Billing.Reports.ScheduleInterval)
+	}
+}
+
 // TestShippedConfigModelAuth pins the shipped configuration file itself:
 // the key must be present with a valid, non-zero duration, because a
 // malformed value breaks config loading and a zero value silently falls

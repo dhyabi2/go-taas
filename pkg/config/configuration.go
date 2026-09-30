@@ -204,6 +204,13 @@ func (c *Configuration) applyDefaults() {
 	if c.Billing.CycleReset.Interval == 0 {
 		c.Billing.CycleReset.Interval = time.Minute
 	}
+	// Feature-25: the billing-reports runner defaults (AD1, AD4).
+	if c.Billing.Reports.GeneratorInterval == 0 {
+		c.Billing.Reports.GeneratorInterval = 5 * time.Second
+	}
+	if c.Billing.Reports.ScheduleInterval == 0 {
+		c.Billing.Reports.ScheduleInterval = time.Minute
+	}
 	if c.Audit.Retention.EventTTL == 0 {
 		c.Audit.Retention.EventTTL = 365 * 24 * time.Hour
 	}

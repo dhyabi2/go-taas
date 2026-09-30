@@ -123,6 +123,15 @@ var messages = map[Code]string{
 
 	// observability (feature #24, AD2)
 	CodeObservabilityModelNotFound: "model not found",
+
+	// billing-reports (feature-25, AD7)
+	CodeReportNotFound:           "report not found",
+	CodeScheduleNotFound:         "schedule not found",
+	CodeReportInvalidDimension:   "invalid report dimension",
+	CodeReportInvalidGranularity: "invalid report granularity",
+	CodeReportInvalidFrequency:   "invalid report frequency",
+	CodeReportNameConflict:       "schedule name already exists",
+	CodeReportNotReady:           "report not ready",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a

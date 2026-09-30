@@ -197,6 +197,20 @@ type BillingConfig struct {
 	CycleReset BillingCycleResetConfig `mapstructure:"cycleReset"`
 	// AutoRecharge configures the feature-14 auto-recharge runner.
 	AutoRecharge BillingAutoRechargeConfig `mapstructure:"autoRecharge"`
+	// Reports configures the feature-25 billing-reports runners.
+	Reports BillingReportsConfig `mapstructure:"reports"`
+}
+
+// BillingReportsConfig holds the feature-25 billing-reports runner
+// settings (AD1, AD4).
+type BillingReportsConfig struct {
+	// Enabled turns the report generator and schedule runners on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// GeneratorInterval is the report-generator runner's tick interval.
+	GeneratorInterval time.Duration `mapstructure:"generatorInterval"`
+	// ScheduleInterval is the schedule runner's tick interval.
+	ScheduleInterval time.Duration `mapstructure:"scheduleInterval"`
 }
 
 // BillingAutoRechargeConfig holds the auto-recharge runner settings
