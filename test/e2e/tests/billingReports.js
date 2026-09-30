@@ -451,10 +451,13 @@ module.exports = {
   },
 
   'AC9: empty states render for a fresh org': function (browser) {
-    // Use orgB, which has no reports or schedules.
-    api.seedSession(browser, 'admin', browser.globals.orgB);
-    browser.execute(`localStorage.setItem('go-taas.admin.org-id', '${browser.globals.orgB}')`);
-    browser.url(browser.globals.baseUrl + '/admin/billing/reports');
+    // The admin surface is fleet-wide (its report history spans all
+    // orgs), so the empty state is reliably observable only on the
+    // org-scoped end-user surface. Use orgB, which has no reports or
+    // schedules, on the end-user page.
+    api.seedSession(browser, 'user', browser.globals.orgB);
+    browser.execute(`localStorage.setItem('go-taas.user.org-id', '${browser.globals.orgB}')`);
+    browser.url(browser.globals.baseUrl + '/billing/reports');
 
     browser.waitForElementPresent('[data-testid="billing-reports-page"]', 15000, 'AC9: page renders');
     browser.waitForElementPresent('[data-testid="reports-empty"]', 15000, 'AC9: reports empty state');
@@ -475,24 +478,81 @@ module.exports = {
     browser.click('[data-testid="schedule-frequency-weekly"]');
     browser.click('[data-testid="create-schedule"]');
 
-    // The schedule appears in the list.
+    // The schedule appears in the list. Capture its id from the row
+    // testid so we can assert this specific schedule is removed after
+    // deletion (the admin schedule list is fleet-wide, so the whole list
+    // is not empty even after deleting this schedule).
     browser.waitForElementPresent('[data-testid^="schedule-row-"]', 15000, 'AC10: schedule row appears');
+    browser.getAttribute('[data-testid^="schedule-row-"]', 'data-testid', (result) => {
+      const rowTestId = result.value;
+      const scheduleId = rowTestId.replace('schedule-row-', '');
+      browser.globals.ac10ScheduleId = scheduleId;
+    });
 
     // View runs opens the drawer.
     browser.click('[data-testid^="schedule-runs-"]');
     browser.waitForElementPresent('[data-testid="schedule-runs-drawer"]', 10000, 'AC10: runs drawer');
     browser.waitForElementPresent('[data-testid="runs-empty"]', 10000, 'AC10: runs empty state');
 
-    // Close the drawer and delete the schedule.
-    browser.click('[data-testid="schedule-delete-"]');
+    // Close the runs drawer (click the backdrop near its edge, away from
+    // the dialog panel) so it no longer covers the schedule row's delete
+    // button.
+    browser.moveToElement('.dialog-backdrop', 5, 5).mouseButtonClick(0);
+    browser.waitForElementNotPresent('[data-testid="schedule-runs-drawer"]', 10000, 'AC10: runs drawer closed');
+
+    // Delete the schedule.
+    browser.click('[data-testid^="schedule-delete-"]');
     browser.waitForElementPresent('[data-testid="delete-schedule-dialog"]', 10000, 'AC10: delete dialog');
     browser.click('[data-testid="confirm-delete-schedule"]');
-    browser.waitForElementPresent('[data-testid="schedules-empty"]', 15000, 'AC10: schedule removed');
+    // The specific schedule row is removed (the fleet-wide admin list may
+    // still show other orgs' schedules).
+    browser.waitForElementNotPresent(`[data-testid="schedule-row-${browser.globals.ac10ScheduleId}"]`, 15000, 'AC10: schedule removed');
   },
 
   // ---- Console pages: end-user (AC11) ----
 
   'AC11: end-user page renders tenant-scoped builder/history/schedules with no org dropdown': function (browser) {
+    // Re-seed the user session for orgA: AC9 re-seeded it for orgB, and
+    // the user surface resolves the org from the session (not the
+    // X-Organization-Id header), so without this the page would be scoped
+    // to orgB.
+    api.seedSession(browser, 'user', browser.globals.orgA);
+
+    // Create a report for orgA on the user surface and block until it is
+    // ready (single executeAsync that polls), so the tenant-scoped
+    // history table renders when the page loads.
+    const now = Math.floor(Date.now() / 1000);
+    browser.executeAsync(function (org, since, until, done) {
+      const token = localStorage.getItem('go-taas.user.session-token');
+      const headers = { 'Content-Type': 'application/json', 'X-Organization-Id': org, Authorization: 'Bearer ' + token };
+      fetch('/api/v1/billing/reports', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: 'AC11 report',
+          dimension: 'REPORT_DIMENSION_MODEL',
+          granularity: 'REPORT_GRANULARITY_DAILY',
+          since: String(since),
+          until: String(until)
+        })
+      }).then((r) => r.json()).then((body) => {
+        const reportId = body.report && body.report.reportId;
+        const poll = (attempts) => {
+          fetch('/api/v1/billing/reports/' + reportId, { headers: { 'X-Organization-Id': org, Authorization: 'Bearer ' + token } })
+            .then((r) => r.json())
+            .then((g) => {
+              if (g.report && g.report.status === 'ready') done({ ok: true });
+              else if (attempts > 0) setTimeout(() => poll(attempts - 1), 3000);
+              else done({ ok: false, status: g.report && g.report.status });
+            })
+            .catch((e) => done({ err: String(e) }));
+        };
+        poll(10);
+      }).catch((e) => done({ err: String(e) }));
+    }, [browser.globals.orgA, now - 7 * 24 * 3600, now], (result) => {
+      browser.assert.ok(result.value && result.value.ok, 'AC11: report ready before page load');
+    });
+
     browser.execute(`localStorage.setItem('go-taas.user.org-id', '${browser.globals.orgA}')`);
     browser.url(browser.globals.baseUrl + '/billing/reports');
 
