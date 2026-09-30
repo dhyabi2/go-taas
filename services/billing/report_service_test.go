@@ -335,3 +335,119 @@ func TestCreateReportAdminOrgScoping(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, apierrors.CodeOrganizationNotFound, apierrors.CodeOf(err))
 }
+
+// fakeSessionUserResolver returns a fixed user id for the admin role
+// check.
+type fakeSessionUserResolver struct{ user string }
+
+func (f fakeSessionUserResolver) SessionUserID(context.Context) (string, error) {
+	return f.user, nil
+}
+
+// errSessionUserResolver returns an error from SessionUserID.
+type errSessionUserResolver struct{}
+
+func (errSessionUserResolver) SessionUserID(context.Context) (string, error) {
+	return "", apierrors.New(apierrors.CodeInternal)
+}
+
+// invalidSessionUserResolver returns a session-invalid error, which the
+// role check treats as "no session".
+type invalidSessionUserResolver struct{}
+
+func (invalidSessionUserResolver) SessionUserID(context.Context) (string, error) {
+	return "", apierrors.New(apierrors.CodeSessionInvalid)
+}
+
+// fakeSessionOrgResolver returns a fixed org for the user binding.
+type fakeSessionOrgResolver struct{ org string }
+
+func (f fakeSessionOrgResolver) SessionActiveOrg(context.Context) (string, error) {
+	return f.org, nil
+}
+
+// fakeRoleGuard enforces a minimum role; it returns CodeForbidden when
+// the caller is not allowed.
+type fakeRoleGuard struct {
+	allowed bool
+}
+
+func (f fakeRoleGuard) RequireRole(_ context.Context, _, _, _ string) error {
+	if !f.allowed {
+		return apierrors.New(apierrors.CodeForbidden)
+	}
+	return nil
+}
+
+// AC14: the admin billing-report RPCs are gated by the caller's org
+// role. A non-member session receives 10036; a member succeeds. The
+// user surface is tenant-scoped and never role-gated.
+func TestAdminReportRoleGuard(t *testing.T) {
+	svc := newBillingTestService(t)
+	svc.SetSessionUserResolver(fakeSessionUserResolver{user: "user-1"})
+	svc.SetSessionOrgResolver(fakeSessionOrgResolver{org: "org-a"})
+
+	// Non-member: the role guard denies the admin RPCs with 10036.
+	svc.SetRoleGuard(fakeRoleGuard{allowed: false})
+	_, err := svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.Error(t, err)
+	assert.Equal(t, apierrors.CodeForbidden, apierrors.CodeOf(err))
+
+	_, err = svc.CreateReport(adminCtx(), &billingv1.CreateReportRequest{
+		Name: "r", Dimension: billingv1.ReportDimension_REPORT_DIMENSION_MODEL,
+		Granularity: billingv1.ReportGranularity_REPORT_GRANULARITY_DAILY,
+	})
+	require.Error(t, err)
+	assert.Equal(t, apierrors.CodeForbidden, apierrors.CodeOf(err))
+
+	_, err = svc.ListSchedules(adminCtx(), &billingv1.ListSchedulesRequest{})
+	require.Error(t, err)
+	assert.Equal(t, apierrors.CodeForbidden, apierrors.CodeOf(err))
+
+	// Member: the admin RPCs succeed.
+	svc.SetRoleGuard(fakeRoleGuard{allowed: true})
+	resp, err := svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// The user surface is never role-gated: a non-member caller on the
+	// user prefix is not denied by the role guard.
+	svc.SetRoleGuard(fakeRoleGuard{allowed: false})
+	_, err = svc.ListReports(userCtx("org-a"), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+}
+
+// AC14: the admin role check is a no-op when the guard is not wired, the
+// org context is empty, or no session is present (transitional path).
+func TestAdminReportRoleGuardNoop(t *testing.T) {
+	svc := newBillingTestService(t)
+
+	// No role guard wired: the admin RPCs are not role-gated.
+	_, err := svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+
+	// Role guard wired but no session user resolver: no session, so the
+	// check is skipped.
+	svc.SetRoleGuard(fakeRoleGuard{allowed: false})
+	_, err = svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+
+	// Session user resolver wired but no session org: the org context is
+	// empty, so the check is skipped.
+	svc.SetSessionUserResolver(fakeSessionUserResolver{user: "user-1"})
+	_, err = svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+
+	// A session-user resolver error propagates.
+	svc.SetSessionUserResolver(errSessionUserResolver{})
+	svc.SetSessionOrgResolver(fakeSessionOrgResolver{org: "org-a"})
+	_, err = svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.Error(t, err)
+	assert.Equal(t, apierrors.CodeInternal, apierrors.CodeOf(err))
+
+	// A session-invalid error is treated as "no session": the check is
+	// skipped.
+	svc.SetSessionUserResolver(invalidSessionUserResolver{})
+	_, err = svc.ListReports(adminCtx(), &billingv1.ListReportsRequest{})
+	require.NoError(t, err)
+}

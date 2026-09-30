@@ -67,6 +67,22 @@ func isAdminSurface(ctx context.Context) bool {
 	return false
 }
 
+// requireAdminReportRole enforces the admin role on the admin
+// billing-report RPCs (feature-25 AD6). The org context is the requested
+// org filter, else the session/header org; a fleet-wide request with no
+// org context is gated by the caller's role in the session org when one
+// is present. The user surface is tenant-scoped and never role-gated.
+func (s *Service) requireAdminReportRole(ctx context.Context, requestedOrg string) error {
+	if !isAdminSurface(ctx) {
+		return nil
+	}
+	orgID := strings.TrimSpace(requestedOrg)
+	if orgID == "" {
+		orgID, _ = s.resolveOrg(ctx)
+	}
+	return s.requireAdminRole(ctx, orgID)
+}
+
 // validateReportRange checks and defaults the since/until pair for a
 // report: until defaults to now, since to until - 30d; since > until or
 // a range > 366 days returns 10404 (AD7).
@@ -123,6 +139,9 @@ func (s *Service) CreateReport(ctx context.Context, req *billingv1.CreateReportR
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAdminReportRole(ctx, req.GetOrganizationId()); err != nil {
+		return nil, err
+	}
 	if orgID != "" {
 		if err := s.checkOrg(ctx, orgID, false); err != nil {
 			return nil, err
@@ -166,6 +185,9 @@ func (s *Service) CreateReport(ctx context.Context, req *billingv1.CreateReportR
 // GetReport returns a report's status, definition, row count and
 // data_through (feature-25 FR2.1). An unknown report_id returns 10901.
 func (s *Service) GetReport(ctx context.Context, req *billingv1.GetReportRequest) (*billingv1.GetReportResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	repo, err := s.reportRepository()
 	if err != nil {
 		return nil, err
@@ -197,6 +219,9 @@ func (s *Service) GetReport(ctx context.Context, req *billingv1.GetReportRequest
 // ListReports returns the report history, newest first (feature-25
 // FR2.2).
 func (s *Service) ListReports(ctx context.Context, req *billingv1.ListReportsRequest) (*billingv1.ListReportsResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	offset, limit := normalizePagination(req.GetPage())
 	orgFilter := ""
 	if !isAdminSurface(ctx) {
@@ -229,6 +254,9 @@ func (s *Service) ListReports(ctx context.Context, req *billingv1.ListReportsReq
 // DownloadReport returns the CSV when status = ready (feature-25
 // FR2.3). A download before ready returns 10907.
 func (s *Service) DownloadReport(ctx context.Context, req *billingv1.DownloadReportRequest) (*billingv1.DownloadReportResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	repo, err := s.reportRepository()
 	if err != nil {
 		return nil, err
@@ -295,6 +323,9 @@ func (s *Service) CreateSchedule(ctx context.Context, req *billingv1.CreateSched
 	if err != nil {
 		return nil, err
 	}
+	if err := s.requireAdminReportRole(ctx, req.GetOrganizationId()); err != nil {
+		return nil, err
+	}
 	if orgID != "" {
 		if err := s.checkOrg(ctx, orgID, false); err != nil {
 			return nil, err
@@ -343,6 +374,9 @@ func (s *Service) CreateSchedule(ctx context.Context, req *billingv1.CreateSched
 
 // ListSchedules returns the caller's schedules (feature-25 FR3.2).
 func (s *Service) ListSchedules(ctx context.Context, req *billingv1.ListSchedulesRequest) (*billingv1.ListSchedulesResponse, error) {
+	if err := s.requireAdminReportRole(ctx, req.GetOrganizationId()); err != nil {
+		return nil, err
+	}
 	offset, limit := normalizePagination(req.GetPage())
 	orgFilter := ""
 	if !isAdminSurface(ctx) {
@@ -376,6 +410,9 @@ func (s *Service) ListSchedules(ctx context.Context, req *billingv1.ListSchedule
 // UpdateSchedule updates a schedule's name, frequency or relative range
 // (feature-25 FR3.3). An unknown schedule_id returns 10902.
 func (s *Service) UpdateSchedule(ctx context.Context, req *billingv1.UpdateScheduleRequest) (*billingv1.UpdateScheduleResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	repo, err := s.reportRepository()
 	if err != nil {
 		return nil, err
@@ -449,6 +486,9 @@ func (s *Service) UpdateSchedule(ctx context.Context, req *billingv1.UpdateSched
 // DeleteSchedule deletes a schedule (feature-25 FR3.4). An unknown
 // schedule_id returns 10902.
 func (s *Service) DeleteSchedule(ctx context.Context, req *billingv1.DeleteScheduleRequest) (*billingv1.DeleteScheduleResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	repo, err := s.reportRepository()
 	if err != nil {
 		return nil, err
@@ -487,6 +527,9 @@ func (s *Service) DeleteSchedule(ctx context.Context, req *billingv1.DeleteSched
 // ListScheduleRuns returns the runs a schedule has produced (feature-25
 // FR3.5). An unknown schedule_id returns 10902.
 func (s *Service) ListScheduleRuns(ctx context.Context, req *billingv1.ListScheduleRunsRequest) (*billingv1.ListScheduleRunsResponse, error) {
+	if err := s.requireAdminReportRole(ctx, ""); err != nil {
+		return nil, err
+	}
 	repo, err := s.reportRepository()
 	if err != nil {
 		return nil, err

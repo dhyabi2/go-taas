@@ -60,6 +60,24 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// SessionUserResolver resolves the authenticated caller's user id from
+// the session (feature #10). It is implemented by the auth module and
+// injected at wiring time.
+type SessionUserResolver interface {
+	// SessionUserID returns the authenticated caller's user id.
+	SessionUserID(ctx context.Context) (string, error)
+}
+
+// RoleGuard enforces the minimum org role on the admin billing-report
+// RPCs (feature-25 AD6). It is implemented by tenancy.RoleGuard.
+type RoleGuard interface {
+	RequireRole(ctx context.Context, orgID, userID, minRole string) error
+}
+
+// roleAdmin is the minimum org role for the admin billing-report RPCs
+// (feature-25 AD6): the fleet view is operator-scoped.
+const roleAdmin = "admin"
+
 // Service implements the billing gRPC service.
 type Service struct {
 	billingv1.UnimplementedBillingServiceServer
@@ -83,6 +101,15 @@ type Service struct {
 	// the user-realm reads (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// sessionUserResolver resolves the caller's user id for the admin
+	// role check (feature #10). Nil until wired: no role check.
+	sessionUserResolver SessionUserResolver
+
+	// roleGuard gates the admin billing-report RPCs by the caller's role
+	// in the resolved org context (feature-25 AD6). Nil until wired: no
+	// role check (unit tests).
+	roleGuard RoleGuard
 
 	// paymentRepo and invoiceRepo are the feature-14 repositories,
 	// wired lazily from the shared database.
@@ -121,6 +148,14 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // by the user-realm reads (feature-17 AD6). Production and FVT wire the
 // auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// SetSessionUserResolver injects the session-user resolver used by the
+// admin role check (feature #10).
+func (s *Service) SetSessionUserResolver(r SessionUserResolver) { s.sessionUserResolver = r }
+
+// SetRoleGuard injects the org role guard that gates the admin
+// billing-report RPCs by the caller's role (feature-25 AD6).
+func (s *Service) SetRoleGuard(g RoleGuard) { s.roleGuard = g }
 
 // SetAuditRecorder injects the best-effort audit recorder (feature #15,
 // AD3). Production wires the audit module; unit tests may inject a fake.
@@ -169,6 +204,41 @@ func (s *Service) checkOrg(ctx context.Context, orgID string, requireActive bool
 		return s.orgGuard.RequireActive(ctx, orgID)
 	}
 	return s.orgGuard.RequireExists(ctx, orgID)
+}
+
+// resolveSessionActor returns the caller's user id and whether a session
+// is present.
+func (s *Service) resolveSessionActor(ctx context.Context) (string, bool, error) {
+	if s.sessionUserResolver == nil {
+		return "", false, nil
+	}
+	userID, err := s.sessionUserResolver.SessionUserID(ctx)
+	if err == nil && userID != "" {
+		return userID, true, nil
+	}
+	if err != nil && apierrors.CodeOf(err) != apierrors.CodeSessionInvalid {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+// requireAdminRole enforces the minimum org role on the admin
+// billing-report RPCs (feature-25 AD6). The RoleGuard resolves the
+// caller from a session; in the transitional (session-less) path there
+// is no session user to check, so the check is skipped and the org
+// header itself is the access boundary (feature-17 AD6).
+func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
 }
 
 // NewForFVT constructs a billing service bound to a caller-provided

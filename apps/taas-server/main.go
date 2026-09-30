@@ -161,6 +161,11 @@ func main() {
 			inferSvc.SetSessionOrgResolver(authSvc)
 			meteringSvc.SetSessionOrgResolver(authSvc)
 			billingSvc.SetSessionOrgResolver(authSvc)
+			// Feature #25: the billing service resolves the session's
+			// active org and caller, and gates the admin billing-report
+			// RPCs by the caller's role (AD6).
+			billingSvc.SetSessionUserResolver(authSvc)
+			billingSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// The per-request cost attributor reads billing's
 			// price_entries over the shared database (feature #9, AD3).
 			meteringSvc.SetCostAttributor(metering.NewCostAttributor(gormDB))
