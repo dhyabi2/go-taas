@@ -10,6 +10,7 @@ import { useI18n } from '../../i18n';
 import { navigate } from '../../router';
 import { formatTime, type PageMeta } from '../../api';
 import { Dialog, ErrorBanner, Pagination } from '../../components';
+import { notifyUnreadChanged } from '../../notificationsBus';
 import type { Notification, NotificationPreference, NotificationThreshold } from '../AdminNotificationsPage';
 
 interface ListResponse {
@@ -135,6 +136,7 @@ export default function UserNotificationsPage() {
     setBusyId(n.notificationId);
     try {
       await api.post(`/api/v1/notifications/${n.notificationId}:mark-read`, orgId, {});
+      notifyUnreadChanged();
       if (n.link) navigate(n.link);
       void loadInbox();
     } catch (e) {
@@ -148,6 +150,7 @@ export default function UserNotificationsPage() {
     setBusyId('all');
     try {
       await api.post('/api/v1/notifications:mark-all-read', orgId, {});
+      notifyUnreadChanged();
       void loadInbox();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('notifications.updateFailed'));

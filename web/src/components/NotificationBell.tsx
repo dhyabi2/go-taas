@@ -7,6 +7,7 @@ import { Bell } from '@phosphor-icons/react';
 import { useApi } from '../surface';
 import { useOrg } from '../org';
 import { navigate } from '../router';
+import { subscribeUnreadChanged } from '../notificationsBus';
 
 interface UnreadResponse {
   response: { code: number; message: string };
@@ -36,9 +37,13 @@ export default function NotificationBell({
     };
     void load();
     const timer = setInterval(() => void load(), 30000);
+    // Re-poll immediately when the notifications page marks notifications
+    // read (AC9/D5), so the badge never shows a stale count.
+    const unsubscribe = subscribeUnreadChanged(() => void load());
     return () => {
       cancelled = true;
       clearInterval(timer);
+      unsubscribe();
     };
   }, [api, orgId, path]);
 

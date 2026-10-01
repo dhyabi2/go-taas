@@ -614,18 +614,16 @@ module.exports = {
       browser.assert.equal(result.value, '1', 'AC9: bell badge decremented to 1');
     });
 
-    // Mark all read clears the unread dots. The bell badge polls
-    // GetUnreadCount on a 30s interval and mark-all-read does not trigger
-    // an immediate re-poll, so re-navigate to re-mount the bell and assert
-    // the persisted cleared state (the unread count is 0).
+    // Mark all read clears the unread dots. The bell badge must update
+    // immediately (AC9/D5): the page notifies the shell bell to re-poll
+    // GetUnreadCount, so the badge clears without a reload or the 30s poll.
     browser.click('[data-testid="notifications-mark-all-read"]');
     browser.waitForElementNotPresent('[data-testid^="notification-unread-"]', 15000, 'AC9: no unread dots after mark all read');
-    browser.url(browser.globals.baseUrl + '/admin/notifications');
-    browser.waitForElementPresent('[data-testid="admin-bell-badge"]', 15000, 'AC9: bell badge after reload');
     // The bell renders the count span only when unread > 0; after mark-all-read
-    // the badge is empty (no count shown).
+    // the badge is empty (no count shown) without re-navigating.
+    browser.waitForElementPresent('[data-testid="admin-bell-badge"]', 15000, 'AC9: bell badge present');
     browser.getText('[data-testid="admin-bell-badge"]', (result) => {
-      browser.assert.equal(result.value, '', 'AC9: bell badge cleared to 0 after reload');
+      browser.assert.equal(result.value, '', 'AC9: bell badge cleared to 0 immediately after mark all read');
     });
   },
 
