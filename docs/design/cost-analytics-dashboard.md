@@ -212,7 +212,7 @@ All cost RPCs belong to the **`billing` module** (D3), served as HTTP via the Co
 
 | RPC | Route | Prefix | Status | Purpose |
 | --- | --- | --- | --- | --- |
-| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | admin | **new** | Fleet cards + dimension breakdown + cost trend + cost-per-token |
+| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` · `GET /api/v1/cost` | admin · user | **new** | Cards + dimension breakdown + cost trend + cost-per-token (admin: fleet; user: tenant-scoped) |
 | `GetCostAnalytics` | `GET /api/v1/admin/cost/{dimension}/{value}` · `GET /api/v1/cost/{dimension}/{value}` | admin · user | **new** | Single-dimension-value cards + cost trend (admin: any value; user: tenant-scoped) |
 
 **Contract notes for the Architect agent**:

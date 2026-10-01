@@ -330,11 +330,15 @@ service BillingService {
     };
   }
 
-  // GetCostAnalyticsOverview returns fleet-wide cost analytics: summary
-  // cards, a dimension breakdown, a cost trend, and cost-per-token.
-  // Admin-surface API: served under /api/v1/admin.
+  // GetCostAnalyticsOverview returns cost analytics: summary cards, a
+  // dimension breakdown, a cost trend, and cost-per-token. The admin
+  // binding is the fleet-wide view (cross-org by default, optional org
+  // filter); the user binding is tenant-scoped to the caller's org.
   rpc GetCostAnalyticsOverview(GetCostAnalyticsOverviewRequest) returns (GetCostAnalyticsOverviewResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/cost"};
+    option (google.api.http) = {
+      get: "/api/v1/admin/cost"
+      additional_bindings: {get: "/api/v1/cost"}
+    };
   }
 
   // GetCostAnalytics returns single-dimension-value cost analytics:

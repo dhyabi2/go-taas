@@ -197,6 +197,29 @@ func TestFVTCostAnalyticsGet(t *testing.T) {
 	assert.EqualValues(t, float64(11302), body["code"])
 }
 
+// AC10: GetCostAnalyticsOverview (user) returns only the caller's
+// organization's cost cards, breakdown and trend.
+func TestFVTCostAnalyticsOverviewUserScoped(t *testing.T) {
+	env := newCostEnv(t)
+	day := time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC)
+
+	env.seedCostCharge(t, "org-a", fvtKey1, fvtModelA, day.Unix(), 1.5, 10, 20)
+	env.seedCostCharge(t, "org-a", fvtKey2, fvtModelB, day.Unix(), 2.5, 5, 10)
+	env.seedCostCharge(t, "org-b", fvtKey2, fvtModelA, day.Unix(), 3.5, 20, 40)
+
+	// Caller org-a sees only its own cost.
+	code, body := env.call(t, "GET",
+		fmt.Sprintf("/api/v1/cost?since=%d&until=%d", day.Unix(), day.Add(24*time.Hour).Unix()),
+		nil, "org-a")
+	require.Equal(t, 200, code)
+	require.Equal(t, float64(0), body["response"].(map[string]any)["code"])
+	cards := body["cards"].(map[string]any)
+	assert.Equal(t, "400", cards["totalCostCents"])
+	breakdown := body["breakdown"].([]any)
+	require.Len(t, breakdown, 1)
+	assert.Equal(t, "org-a", breakdown[0].(map[string]any)["dimensionValue"])
+}
+
 // AC4: GetCostAnalytics (user) returns only the caller's organization's
 // cost.
 func TestFVTCostAnalyticsUserScoped(t *testing.T) {

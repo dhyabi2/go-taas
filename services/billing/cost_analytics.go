@@ -16,19 +16,31 @@ var costDimensions = map[string]bool{
 	"api_key":      true,
 }
 
-// GetCostAnalyticsOverview returns fleet-wide cost analytics: summary
-// cards, a dimension breakdown, a cost trend, and cost-per-token
-// (feature #29, AC1-AC2). It is admin-only (AD10): the fleet view is
-// cross-org by default, with an optional org filter, gated by the
-// caller's role.
+// GetCostAnalyticsOverview returns cost analytics: summary cards, a
+// dimension breakdown, a cost trend, and cost-per-token (feature #29,
+// AC1-AC2). The admin binding is the fleet-wide view (cross-org by
+// default, optional org filter, gated by the caller's role, AD10); the
+// user binding is hard-scoped to the caller's org (AD9).
 func (s *Service) GetCostAnalyticsOverview(ctx context.Context, req *billingv1.GetCostAnalyticsOverviewRequest) (*billingv1.GetCostAnalyticsOverviewResponse, error) {
-	// The admin fleet view is cross-org by default (AD10).
-	orgFilter := strings.TrimSpace(req.GetOrganizationId())
-	if orgFilter == "" {
-		orgFilter, _ = s.resolveOrg(ctx)
-	}
-	if err := s.requireAdminRole(ctx, orgFilter); err != nil {
-		return nil, err
+	surface := surfaceFromContext(ctx)
+
+	var orgFilter string
+	if surface == SurfaceAdmin {
+		// The admin fleet view is cross-org by default (AD10).
+		orgFilter = strings.TrimSpace(req.GetOrganizationId())
+		if orgFilter == "" {
+			orgFilter, _ = s.resolveOrg(ctx)
+		}
+		if err := s.requireAdminRole(ctx, orgFilter); err != nil {
+			return nil, err
+		}
+	} else {
+		// User binding: hard-scoped to the caller's org (AD9).
+		org, err := s.resolveOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		orgFilter = org
 	}
 	dimension := strings.TrimSpace(req.GetDimension())
 	if dimension == "" {

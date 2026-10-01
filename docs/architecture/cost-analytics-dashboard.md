@@ -147,11 +147,11 @@ The existing `charge_records` index `idx_charge_records_org_period (organization
 
 ## 5. API Design
 
-All cost RPCs belong to the existing **`taas.billing.v1.BillingService`** (`proto/taas/billing/v1/billing.proto`), served as HTTP via the Control Gateway. `GetCostAnalyticsOverview` is admin-only; `GetCostAnalytics` is dual-bound (admin + user). The surface is derived from the request path (Section 3.3).
+All cost RPCs belong to the existing **`taas.billing.v1.BillingService`** (`proto/taas/billing/v1/billing.proto`), served as HTTP via the Control Gateway. Both `GetCostAnalyticsOverview` and `GetCostAnalytics` are dual-bound (admin + user). The surface is derived from the request path (Section 3.3).
 
 | RPC | HTTP (admin) | HTTP (user) | Status | Purpose |
 | --- | --- | --- | --- | --- |
-| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | — | **new** | Fleet cards + dimension breakdown + cost trend + cost-per-token |
+| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | `GET /api/v1/cost` | **new** | Cards + dimension breakdown + cost trend + cost-per-token (admin: fleet; user: tenant-scoped) |
 | `GetCostAnalytics` | `GET /api/v1/admin/cost/{dimension}/{value}` | `GET /api/v1/cost/{dimension}/{value}` | **new** | Single-dimension-value cards + cost trend (admin: any dimension value; user: tenant-scoped) |
 
 ### 5.1 Proto contract

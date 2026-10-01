@@ -147,11 +147,11 @@ flowchart TD
 
 ## 5. API 设计
 
-所有成本 RPC 属于现有 **`taas.billing.v1.BillingService`**（`proto/taas/billing/v1/billing.proto`），通过控制网关以 HTTP 服务。`GetCostAnalyticsOverview` 仅 admin；`GetCostAnalytics` 双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
+所有成本 RPC 属于现有 **`taas.billing.v1.BillingService`**（`proto/taas/billing/v1/billing.proto`），通过控制网关以 HTTP 服务。`GetCostAnalyticsOverview` 与 `GetCostAnalytics` 均双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
 
 | RPC | HTTP（admin） | HTTP（user） | 状态 | 用途 |
 | --- | --- | --- | --- | --- |
-| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | — | **新** | 舰队卡片 + 维度分解 + 成本趋势 + 每 token 成本 |
+| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | `GET /api/v1/cost` | **新** | 卡片 + 维度分解 + 成本趋势 + 每 token 成本（admin：舰队；user：租户范围） |
 | `GetCostAnalytics` | `GET /api/v1/admin/cost/{dimension}/{value}` | `GET /api/v1/cost/{dimension}/{value}` | **新** | 单维度值卡片 + 成本趋势（admin：任意维度值；user：租户范围） |
 
 ### 5.1 Proto 契约

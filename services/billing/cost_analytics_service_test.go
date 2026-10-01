@@ -143,6 +143,28 @@ func TestGetCostAnalyticsAdminRoleGuard(t *testing.T) {
 	assert.Equal(t, 10036, int(apierrors.CodeOf(err)))
 }
 
+func TestGetCostAnalyticsOverviewUserScoped(t *testing.T) {
+	svc := newBillingTestService(t)
+	svc.SetSessionOrgResolver(fakeSessionOrgResolver{org: "org-a"})
+	db := svc.repo.db.DB(context.Background())
+	now := time.Now().Unix()
+	seedCostCharge(t, db, "org-a", "k1", "m1", now, 1.5, 10, 20)
+	seedCostCharge(t, db, "org-a", "k2", "m2", now, 2.5, 5, 10)
+	seedCostCharge(t, db, "org-b", "k3", "m3", now, 3.5, 20, 40)
+
+	// Caller org-a sees only its own cost.
+	resp, err := svc.GetCostAnalyticsOverview(costUserCtx(), &billingv1.GetCostAnalyticsOverviewRequest{
+		Since: now - 3600,
+		Until: now + 3600,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(400), resp.Cards.TotalCostCents)
+	assert.Equal(t, int64(45), resp.Cards.TotalTokens)
+	require.Len(t, resp.Breakdown, 1)
+	// org-b's dimension value must not leak into the tenant view.
+	assert.Equal(t, "org-a", resp.Breakdown[0].DimensionValue)
+}
+
 func TestDimensionName(t *testing.T) {
 	svc := newBillingTestService(t)
 	db := svc.repo.db.DB(context.Background())

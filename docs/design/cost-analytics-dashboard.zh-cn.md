@@ -212,7 +212,7 @@ sequenceDiagram
 
 | RPC | 路由 | 前缀 | 状态 | 目的 |
 | --- | --- | --- | --- | --- |
-| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` | admin | **新增** | 集群卡片 + 维度拆解 + 成本趋势 + 每 token 成本 |
+| `GetCostAnalyticsOverview` | `GET /api/v1/admin/cost` · `GET /api/v1/cost` | admin · user | **新增** | 卡片 + 维度拆解 + 成本趋势 + 每 token 成本（admin：集群；user：租户作用域） |
 | `GetCostAnalytics` | `GET /api/v1/admin/cost/{dimension}/{value}` · `GET /api/v1/cost/{dimension}/{value}` | admin · user | **新增** | 单维度值卡片 + 成本趋势（admin：任意值；user：租户作用域） |
 
 **给架构师代理的契约说明**：
