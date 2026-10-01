@@ -406,7 +406,42 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// Feature #32 (AD2): the active-version unique index must be
+	// (model_id) WHERE is_active — one active version per model. An
+	// earlier schema shipped a GLOBAL (is_active) WHERE is_active index
+	// under the same name; GORM AutoMigrate does not alter an existing
+	// index when the tag changes, so drop the stale global index first
+	// and let AutoMigrate recreate it with the per-model definition.
+	if err := migrateActiveVersionIndex(db); err != nil {
+		return err
+	}
 	return db.WithContext(ctx).AutoMigrate(&Model{}, &Version{}, &Authorization{})
+}
+
+// migrateActiveVersionIndex drops the stale global active-version unique
+// index (is_active) WHERE is_active when present, so AutoMigrate can
+// recreate it as the per-model (model_id) WHERE is_active index. It is a
+// no-op when the index is already per-model or absent.
+func migrateActiveVersionIndex(db *gorm.DB) error {
+	indexes, err := db.Migrator().GetIndexes(&Version{})
+	if err != nil {
+		return err
+	}
+	for _, idx := range indexes {
+		if idx.Name() != "idx_model_versions_active" {
+			continue
+		}
+		cols := idx.Columns()
+		// The per-model index has (model_id, is_active); the stale
+		// global index has only (is_active).
+		if len(cols) == 1 && cols[0] == "is_active" {
+			if err := db.Migrator().DropIndex(&Version{}, "idx_model_versions_active"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return nil
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared
