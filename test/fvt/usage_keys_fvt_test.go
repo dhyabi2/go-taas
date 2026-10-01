@@ -175,6 +175,34 @@ func TestFVTUsageKeysOverview(t *testing.T) {
 	assert.EqualValues(t, float64(10404), body["code"])
 }
 
+// AC10: GetUsageKeysOverview (user) returns only the caller's
+// organization's cards, top keys, table and trend.
+func TestFVTUsageKeysOverviewUserScoped(t *testing.T) {
+	env := newUsageKeysEnv(t)
+	day := time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC)
+
+	env.seedUsageLog(t, "org-a", fvtKey1, fvtModelA, day, 100, "success", 10, 20)
+	env.seedUsageLog(t, "org-a", fvtKey2, fvtModelB, day, 50, "success", 5, 10)
+	env.seedUsageLog(t, "org-b", fvtKey1, fvtModelA, day, 200, "success", 20, 40)
+	env.seedCharge(t, "org-a", fvtKey1, day.Unix(), 1.5)
+	env.seedCharge(t, "org-a", fvtKey2, day.Unix(), 2.5)
+
+	// Caller org-a sees only its own keys' usage and cost.
+	code, body := env.call(t, "GET",
+		fmt.Sprintf("/api/v1/usage/keys?since=%d&until=%d", day.Unix(), day.Add(24*time.Hour).Unix()),
+		nil, "org-a")
+	require.Equal(t, 200, code)
+	require.Equal(t, float64(0), body["response"].(map[string]any)["code"])
+	cards := body["cards"].(map[string]any)
+	assert.Equal(t, "2", cards["requestCount"])
+	keys := body["keys"].([]any)
+	require.Len(t, keys, 2)
+	topKeys := body["topKeys"].([]any)
+	require.Len(t, topKeys, 2)
+	// Top keys sorted by cost descending: key2 (250) before key1 (150).
+	assert.Equal(t, fvtKey2, topKeys[0].(map[string]any)["apiKeyId"])
+}
+
 // AC3: GetUsageKeys (admin) returns single-key cards and a per-key trend;
 // an unknown api_key_id returns 11201.
 func TestFVTUsageKeysGet(t *testing.T) {

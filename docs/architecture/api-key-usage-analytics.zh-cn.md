@@ -149,11 +149,11 @@ flowchart TD
 
 ## 5. API 设计
 
-所有用量密钥 RPC 属于现有 **`taas.metering.v1.MeteringService`**（`proto/taas/metering/v1/metering.proto`），通过控制网关以 HTTP 服务。`GetUsageKeysOverview` 仅 admin；`GetUsageKeys` 双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
+所有用量密钥 RPC 属于现有 **`taas.metering.v1.MeteringService`**（`proto/taas/metering/v1/metering.proto`），通过控制网关以 HTTP 服务。`GetUsageKeysOverview` 与 `GetUsageKeys` 均双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
 
 | RPC | HTTP（admin） | HTTP（user） | 状态 | 用途 |
 | --- | --- | --- | --- | --- |
-| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` | — | **新** | 舰队卡片 + top 密钥排名 + 按密钥表 + 按密钥趋势 |
+| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` | `GET /api/v1/usage/keys` | **新** | 卡片 + top 密钥排名 + 按密钥表 + 按密钥趋势（admin：舰队；user：租户范围） |
 | `GetUsageKeys` | `GET /api/v1/admin/usage/keys/{api_key_id}` | `GET /api/v1/usage/keys/{api_key_id}` | **新** | 单密钥卡片 + 按密钥趋势（admin：任意密钥；user：租户范围） |
 
 ### 5.1 Proto 契约

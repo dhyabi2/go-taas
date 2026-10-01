@@ -213,7 +213,7 @@ All usage-keys RPCs belong to the **`metering` module** (D3), served as HTTP via
 
 | RPC | Route | Prefix | Status | Purpose |
 | --- | --- | --- | --- | --- |
-| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` | admin | **new** | Fleet cards + top-keys ranking + per-key table + per-key trend |
+| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` · `GET /api/v1/usage/keys` | admin · user | **new** | Cards + top-keys ranking + per-key table + per-key trend (admin: fleet; user: tenant-scoped) |
 | `GetUsageKeys` | `GET /api/v1/admin/usage/keys/{api_key_id}` · `GET /api/v1/usage/keys/{api_key_id}` | admin · user | **new** | Single-key cards + per-key trend (admin: any key; user: tenant-scoped) |
 
 **Contract notes for the Architect agent**:

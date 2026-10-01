@@ -139,6 +139,34 @@ func TestGetUsageKeysAdminRoleGuard(t *testing.T) {
 	assert.Equal(t, 10036, int(apierrors.CodeOf(err)))
 }
 
+func TestGetUsageKeysOverviewUserScoped(t *testing.T) {
+	svc := newUsageKeysService(t)
+	svc.SetSessionOrgResolver(&fakeMeteringOrgResolver{org: "org-a"})
+	db := svc.repo.db.DB(context.Background())
+	now := time.Now().UTC()
+	seedUsageLog(t, db, "org-a", "k1", "m1", now, 100, "success", 10, 20)
+	seedUsageLog(t, db, "org-a", "k2", "m1", now, 50, "success", 5, 10)
+	seedUsageLog(t, db, "org-b", "k3", "m1", now, 200, "success", 20, 40)
+	seedCharge(t, db, "org-a", "k1", now.Unix(), 1.5)
+	seedCharge(t, db, "org-a", "k2", now.Unix(), 2.5)
+	seedCharge(t, db, "org-b", "k3", now.Unix(), 3.5)
+
+	// Caller org-a sees only its own keys' usage and cost.
+	resp, err := svc.GetUsageKeysOverview(usageUserCtx(), &meteringv1.GetUsageKeysOverviewRequest{
+		Since: now.Add(-time.Hour).Unix(),
+		Until: now.Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), resp.Cards.RequestCount)
+	require.Len(t, resp.Keys, 2)
+	// org-b's key must not leak into the tenant view.
+	for _, k := range resp.Keys {
+		assert.NotEqual(t, "k3", k.ApiKeyId)
+	}
+	require.Len(t, resp.TopKeys, 2)
+	assert.Equal(t, "k2", resp.TopKeys[0].ApiKeyId)
+}
+
 type fakeMeteringOrgResolver struct{ org string }
 
 func (f *fakeMeteringOrgResolver) SessionActiveOrg(_ context.Context) (string, error) { return f.org, nil }

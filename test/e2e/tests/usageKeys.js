@@ -259,21 +259,22 @@ module.exports = {
 
   // ---- Surface separation (AC11/AC12) ----
 
-  'AC11: admin usage-keys API is not reachable on the bare /api/v1 prefix': function (browser) {
+  'AC11: the bare /api/v1/usage/keys serves the tenant-scoped user overview, not the admin fleet view': function (browser) {
     const org = browser.globals.orgA;
 
-    // The admin overview is not served on the bare /api/v1/usage/keys.
+    // The bare prefix is the user surface: it serves the tenant-scoped
+    // overview (200, code 0), never the admin fleet envelope. The user
+    // binding is hard-scoped to the caller's org (AD8).
     api.request(browser, {
       method: 'GET',
       path: '/api/v1/usage/keys',
       org,
     }, (res) => {
-      // Either a 404 (no binding) or a business error; it must NOT be the
-      // admin success envelope.
-      browser.assert.ok(
-        res.status !== 200 || (res.body && res.body.response && res.body.response.code !== 0),
-        'AC11: bare /api/v1/usage/keys is not the admin overview'
-      );
+      const body = api.assertOk(browser, res, 'AC11: user overview on bare prefix');
+      browser.assert.ok(body.cards && body.cards.requestCount !== undefined, 'AC11: user cards present');
+      browser.assert.ok(Array.isArray(body.keys), 'AC11: user keys array present');
+      browser.assert.ok(Array.isArray(body.topKeys), 'AC11: user topKeys array present');
+      browser.assert.ok(Array.isArray(body.series), 'AC11: user series array present');
     });
   },
 

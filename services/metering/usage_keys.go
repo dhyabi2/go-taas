@@ -14,21 +14,34 @@ const usageKeysMaxRangeSeconds = 92 * 24 * 3600
 
 var _ = usageKeysMaxRangeSeconds
 
-// GetUsageKeysOverview returns fleet-wide per-key analytics: summary
-// cards, a top-keys ranking, a per-key table, and a per-key trend
-// (feature #28, AC1-AC2). It is admin-only (AD9): the fleet view is
-// cross-org by default, with an optional org filter, gated by the
-// caller's role.
+// GetUsageKeysOverview returns per-key analytics: summary cards, a
+// top-keys ranking, a per-key table, and a per-key trend (feature #28,
+// AC1-AC2). The admin binding is the fleet-wide view (cross-org by
+// default, optional org filter, gated by the caller's role, AD9); the
+// user binding is hard-scoped to the caller's org (AD8).
 func (s *Service) GetUsageKeysOverview(ctx context.Context, req *meteringv1.GetUsageKeysOverviewRequest) (*meteringv1.GetUsageKeysOverviewResponse, error) {
-	// The admin fleet view is cross-org by default (AD9). The org filter
-	// is optional: read from the session active org or the transitional
-	// header when the caller wants to scope to their own org.
-	orgFilter := strings.TrimSpace(req.GetOrganizationId())
-	if orgFilter == "" {
-		orgFilter, _ = s.resolveOrg(ctx)
-	}
-	if err := s.requireAdminRole(ctx, orgFilter); err != nil {
-		return nil, err
+	surface := surfaceFromContext(ctx)
+
+	var orgFilter string
+	if surface == SurfaceAdmin {
+		// The admin fleet view is cross-org by default (AD9). The org
+		// filter is optional: read from the session active org or the
+		// transitional header when the caller wants to scope to their
+		// own org.
+		orgFilter = strings.TrimSpace(req.GetOrganizationId())
+		if orgFilter == "" {
+			orgFilter, _ = s.resolveOrg(ctx)
+		}
+		if err := s.requireAdminRole(ctx, orgFilter); err != nil {
+			return nil, err
+		}
+	} else {
+		// User binding: hard-scoped to the caller's org (AD8).
+		org, err := s.resolveOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		orgFilter = org
 	}
 	since, until, err := s.validateUsageKeysRange(req.GetSince(), req.GetUntil())
 	if err != nil {

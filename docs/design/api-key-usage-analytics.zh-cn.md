@@ -213,7 +213,7 @@ sequenceDiagram
 
 | RPC | 路由 | 前缀 | 状态 | 目的 |
 | --- | --- | --- | --- | --- |
-| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` | admin | **新增** | 集群卡片 + Top Keys 排名 + 按 Key 表格 + 按 Key 趋势 |
+| `GetUsageKeysOverview` | `GET /api/v1/admin/usage/keys` · `GET /api/v1/usage/keys` | admin · user | **新增** | 卡片 + Top Keys 排名 + 按 Key 表格 + 按 Key 趋势（admin：集群；user：租户作用域） |
 | `GetUsageKeys` | `GET /api/v1/admin/usage/keys/{api_key_id}` · `GET /api/v1/usage/keys/{api_key_id}` | admin · user | **新增** | 单 Key 卡片 + 按 Key 趋势（admin：任意 Key；user：租户作用域） |
 
 **给架构师代理的契约说明**：

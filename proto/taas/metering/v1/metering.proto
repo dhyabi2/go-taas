@@ -97,11 +97,15 @@ service MeteringService {
     option (google.api.http) = {get: "/api/v1/admin/metering/request-logs/{request_log_id}"};
   }
 
-  // GetUsageKeysOverview returns fleet-wide per-key analytics: summary
-  // cards, a top-keys ranking, a per-key table, and a per-key trend.
-  // Admin-surface API: served under /api/v1/admin.
+  // GetUsageKeysOverview returns per-key analytics: summary cards, a
+  // top-keys ranking, a per-key table, and a per-key trend. The admin
+  // binding is the fleet-wide view (cross-org by default, optional org
+  // filter); the user binding is tenant-scoped to the caller's org.
   rpc GetUsageKeysOverview(GetUsageKeysOverviewRequest) returns (GetUsageKeysOverviewResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/usage/keys"};
+    option (google.api.http) = {
+      get: "/api/v1/admin/usage/keys"
+      additional_bindings: {get: "/api/v1/usage/keys"}
+    };
   }
 
   // GetUsageKeys returns single-key analytics: summary cards and a
