@@ -1,5 +1,4 @@
 package fvt
-package fvt
 
 import (
 	"encoding/json"
