@@ -30,7 +30,8 @@
     "test:webhook-notifications": "nightwatch --tag webhook-notifications",
     "test:model-observability": "nightwatch --tag model-observability",
     "test:billing-reports": "nightwatch --tag billing-reports",
-    "test:notification-center": "nightwatch --tag notification-center"
+    "test:notification-center": "nightwatch --tag notification-center",
+    "test:request-tracing": "nightwatch --tag request-tracing"
   },
   "license": "Apache-2.0",
   "devDependencies": {
