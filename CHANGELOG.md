@@ -1,3 +1,15 @@
+# [1.40.0](https://github.com/go-taas/go-taas/compare/v1.39.0...v1.40.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **fvt:** remove duplicate package declarations in fvt tests ([585e325](https://github.com/go-taas/go-taas/commit/585e325bd6eb7f488b9cc5c5af65829378b5812f))
+
+
+### Features
+
+* **playground:** model playground comparison (feature-35) ([888c7fa](https://github.com/go-taas/go-taas/commit/888c7facc31a198ce9603d324e70d1787c08fda1))
+
 # [1.39.0](https://github.com/go-taas/go-taas/compare/v1.38.0...v1.39.0) (2026-10-01)
 
 
