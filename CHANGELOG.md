@@ -1,3 +1,13 @@
+## [1.41.1](https://github.com/go-taas/go-taas/compare/v1.41.0...v1.41.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **infer:** gate admin log/deployment and compare RPCs by role ([5b771c4](https://github.com/go-taas/go-taas/commit/5b771c4bde705db9c6b23f8dfac42ee71e061c3b)), closes [#33](https://github.com/go-taas/go-taas/issues/33) [#34](https://github.com/go-taas/go-taas/issues/34) [#35](https://github.com/go-taas/go-taas/issues/35)
+* **model:** gate admin model-version RPCs by caller role ([9206d7e](https://github.com/go-taas/go-taas/commit/9206d7e64e2ab0e83df9f1d46eaab7b32660fb99)), closes [#32](https://github.com/go-taas/go-taas/issues/32)
+* **model:** make active-version unique index per-model ([0d4ea31](https://github.com/go-taas/go-taas/commit/0d4ea31a94fb442a1a378edd45858b326526521a)), closes [#32](https://github.com/go-taas/go-taas/issues/32)
+* **service:** surface error state when service logs pod enumeration fails ([3626c72](https://github.com/go-taas/go-taas/commit/3626c72161d54ecc572f90761bba90b9666b4c29)), closes [#33](https://github.com/go-taas/go-taas/issues/33)
+
 # [1.41.0](https://github.com/go-taas/go-taas/compare/v1.40.0...v1.41.0) (2026-10-01)
 
 
