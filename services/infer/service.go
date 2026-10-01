@@ -977,6 +977,13 @@ func (s *Service) ListServiceLogPods(ctx context.Context, req *inferv1.ListServi
 	if err := s.checkOrg(ctx, orgID, false); err != nil {
 		return nil, err
 	}
+	// The admin log RPCs are gated by the caller's org role (feature
+	// #33, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
+	}
 	repo, err := s.repository()
 	if err != nil {
 		return nil, err

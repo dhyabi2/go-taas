@@ -50,6 +50,33 @@ func userCtx(orgID string) context.Context {
 		metadata.Pairs("x-request-path", "/api/v1/playground/compare", organizationMetadataKey, orgID))
 }
 
+// TestListServiceLogPodsRoleGuard verifies the admin pod-enumeration RPC
+// is gated by the caller's org role (feature #33, §3.3): a non-member
+// admin session receives 10036.
+func TestListServiceLogPodsRoleGuard(t *testing.T) {
+	seedImageRegistry(t)
+	svc, _, _ := newInferTestService(t)
+	repo, err := svc.repository()
+	require.NoError(t, err)
+	svcRow := seedService(t, repo, "org-a", "svc-a", StateRunning, time.Now())
+
+	svc.SetSessionUserResolver(fakeSessionUserResolver{user: "user-1"})
+	svc.SetSessionOrgResolver(fakeSessionOrgResolver{org: "org-a"})
+
+	// Non-member: the role guard denies the admin pod RPC with 10036.
+	svc.SetRoleGuard(fakeRoleGuard{allowed: false})
+	_, err = svc.ListServiceLogPods(adminCtx(), &inferv1.ListServiceLogPodsRequest{ServiceId: svcRow.ID})
+	require.Error(t, err)
+	assert.Equal(t, apierrors.CodeForbidden, apierrors.CodeOf(err))
+
+	// Member: the admin pod RPC proceeds (fails closed on the missing
+	// log fetcher, not on the role check).
+	svc.SetRoleGuard(fakeRoleGuard{allowed: true})
+	_, err = svc.ListServiceLogPods(adminCtx(), &inferv1.ListServiceLogPodsRequest{ServiceId: svcRow.ID})
+	require.Error(t, err)
+	assert.NotEqual(t, apierrors.CodeForbidden, apierrors.CodeOf(err))
+}
+
 // TestGetServiceLogsRoleGuard verifies the admin service-log RPC is gated
 // by the caller's org role (feature #33, §3.3): a non-member admin
 // session receives 10036; a member succeeds.
