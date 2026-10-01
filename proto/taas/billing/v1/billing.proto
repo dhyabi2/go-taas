@@ -350,6 +350,19 @@ service BillingService {
       additional_bindings: {get: "/api/v1/cost/{dimension}/{value}"}
     };
   }
+
+  // GetForecast returns the forecast for a time range and optional
+  // dimension filter: the historical series, the forecast series, and
+  // the confidence band (feature #36, AD2). The admin binding is
+  // fleet-wide; the user binding is tenant-scoped.
+  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1.
+  rpc GetForecast(GetForecastRequest) returns (GetForecastResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/forecast"
+      additional_bindings: {get: "/api/v1/forecast"}
+    };
+  }
 }
 
 message SetPriceRequest {
@@ -1082,4 +1095,54 @@ message ReportSchedule {
   string status = 8; // active
   int64 last_run_at = 9;
   int64 created_at = 10;
+}
+
+// GetForecast returns the forecast for a time range and optional
+// dimension filter (feature #36, AD2).
+message GetForecastRequest {
+  // since / until are unix seconds; defaults until = now, since =
+  // until - 30d. A range > 92 days is rejected (10404).
+  int64 since = 1;
+  int64 until = 2;
+  // dimension is one of organization/model/api_key (admin) or
+  // model/api_key (user). An unsupported value returns 11301.
+  string dimension = 3;
+  // dimension_value is optional; when empty the forecast spans the
+  // whole dimension.
+  string dimension_value = 4;
+  // horizon_days defaults to 30, max 90.
+  int32 horizon_days = 5;
+}
+
+message ForecastBucket {
+  int64 bucket = 1;
+  int64 total_tokens = 2;
+  int64 total_cost_cents = 3;
+}
+
+message ForecastPoint {
+  int64 bucket = 1;
+  int64 total_tokens = 2;
+  int64 total_cost_cents = 3;
+  int64 lower_tokens = 4;
+  int64 upper_tokens = 5;
+  int64 lower_cost_cents = 6;
+  int64 upper_cost_cents = 7;
+}
+
+message ForecastSummary {
+  int64 total_tokens = 1;
+  int64 total_cost_cents = 2;
+}
+
+message GetForecastResponse {
+  taas.common.v1.Response response = 1;
+  // method is the forecast method, always "linear_trend".
+  string method = 2;
+  int32 horizon_days = 3;
+  // data_through is the last complete bucket covered by the history.
+  int64 data_through = 4;
+  repeated ForecastBucket history = 5;
+  repeated ForecastPoint forecast = 6;
+  ForecastSummary summary = 7;
 }

@@ -211,6 +211,16 @@ func (c *Configuration) applyDefaults() {
 	if c.Billing.Reports.ScheduleInterval == 0 {
 		c.Billing.Reports.ScheduleInterval = time.Minute
 	}
+	// Feature-36: the usage & cost forecasting defaults (AD3, AD4).
+	if c.Billing.Forecast.HorizonDefaultDays == 0 {
+		c.Billing.Forecast.HorizonDefaultDays = 30
+	}
+	if c.Billing.Forecast.HorizonMaxDays == 0 {
+		c.Billing.Forecast.HorizonMaxDays = 90
+	}
+	if c.Billing.Forecast.RangeMaxDays == 0 {
+		c.Billing.Forecast.RangeMaxDays = 92
+	}
 	if c.Audit.Retention.EventTTL == 0 {
 		c.Audit.Retention.EventTTL = 365 * 24 * time.Hour
 	}

@@ -73,6 +73,7 @@ import UsageKeysPage from './pages/UsageKeysPage';
 import UsageKeyDetailPage from './pages/UsageKeyDetailPage';
 import CostAnalyticsPage from './pages/CostAnalyticsPage';
 import CostDetailPage from './pages/CostDetailPage';
+import ForecastPage from './pages/ForecastPage';
 import SystemStatusPage from './pages/SystemStatusPage';
 import ErrorAnalysisPage from './pages/ErrorAnalysisPage';
 import ErrorDetailPage from './pages/ErrorDetailPage';
@@ -80,6 +81,7 @@ import UserErrorAnalysisPage from './pages/user/UserErrorAnalysisPage';
 import UserErrorDetailPage from './pages/user/UserErrorDetailPage';
 import UserCostAnalyticsPage from './pages/user/UserCostAnalyticsPage';
 import UserCostDetailPage from './pages/user/UserCostDetailPage';
+import UserForecastPage from './pages/user/UserForecastPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -140,6 +142,7 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/usage/keys/:apiKeyId" element={<UserUsageKeyDetailPage />} />
               <Route path="/cost" element={<UserCostAnalyticsPage />} />
               <Route path="/cost/:dimension/:value" element={<UserCostDetailPage />} />
+              <Route path="/forecast" element={<UserForecastPage />} />
               <Route path="/errors" element={<UserErrorAnalysisPage />} />
               <Route path="/errors/:errorCode" element={<UserErrorDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
@@ -202,6 +205,7 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/usage/keys/:apiKeyId" element={<UsageKeyDetailPage />} />
               <Route path="/admin/cost" element={<CostAnalyticsPage />} />
               <Route path="/admin/cost/:dimension/:value" element={<CostDetailPage />} />
+              <Route path="/admin/forecast" element={<ForecastPage />} />
               <Route path="/admin/status" element={<SystemStatusPage />} />
               <Route path="/admin/errors" element={<ErrorAnalysisPage />} />
               <Route path="/admin/errors/:errorCode" element={<ErrorDetailPage />} />

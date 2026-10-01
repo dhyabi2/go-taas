@@ -108,6 +108,7 @@ export const en: Record<string, string> = {
   'nav.status': 'Status',
   'nav.usageKeys': 'Usage Keys',
   'nav.cost': 'Cost',
+  'nav.forecast': 'Forecast',
 
   // ---- Account block ----
   'account.switchToAdmin': 'Switch to admin',
@@ -1204,6 +1205,30 @@ export const en: Record<string, string> = {
   'cost.notFound': 'Cost dimension value not found.',
   'cost.backOverview': 'Back to Cost',
   'cost.detailTitle': 'Cost',
+  // Usage & cost forecasting (feature #36).
+  'forecast.title': 'Forecast',
+  'forecast.subtitle': 'Predicted token usage and cost',
+  'forecast.refresh': 'Refresh',
+  'forecast.timeRange': 'Time range',
+  'forecast.range24h': '24 hours',
+  'forecast.range7d': '7 days',
+  'forecast.range30d': '30 days',
+  'forecast.dimension': 'Dimension',
+  'forecast.dimOrganization': 'Organization',
+  'forecast.dimModel': 'Model',
+  'forecast.dimApi_key': 'API key',
+  'forecast.horizon': 'Horizon',
+  'forecast.days': 'days',
+  'forecast.forecastTokens': 'Forecast tokens',
+  'forecast.forecastCost': 'Forecast cost',
+  'forecast.confidence': 'Confidence',
+  'forecast.dataThrough': 'Data through',
+  'forecast.tokens': 'Tokens',
+  'forecast.cost': 'Cost',
+  'forecast.empty': 'No usage data to forecast from.',
+  'forecast.emptyHint': 'Widen the time range to see a forecast.',
+  'forecast.loadFailed': 'failed to load forecast',
+  'forecast.staleData': 'Showing stale data — the latest load failed.',
 
   // ---- System health & status (feature #30) ----
   'status.title': 'System Status',

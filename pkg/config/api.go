@@ -199,6 +199,19 @@ type BillingConfig struct {
 	AutoRecharge BillingAutoRechargeConfig `mapstructure:"autoRecharge"`
 	// Reports configures the feature-25 billing-reports runners.
 	Reports BillingReportsConfig `mapstructure:"reports"`
+	// Forecast configures the feature-36 usage & cost forecasting.
+	Forecast BillingForecastConfig `mapstructure:"forecast"`
+}
+
+// BillingForecastConfig holds the feature-36 usage & cost forecasting
+// settings (AD3, AD4).
+type BillingForecastConfig struct {
+	// HorizonDefaultDays is the default forecast horizon in days.
+	HorizonDefaultDays int `mapstructure:"horizonDefaultDays"`
+	// HorizonMaxDays is the maximum forecast horizon in days.
+	HorizonMaxDays int `mapstructure:"horizonMaxDays"`
+	// RangeMaxDays is the maximum forecast range length in days.
+	RangeMaxDays int `mapstructure:"rangeMaxDays"`
 }
 
 // BillingReportsConfig holds the feature-25 billing-reports runner

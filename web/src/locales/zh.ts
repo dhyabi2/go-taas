@@ -108,6 +108,7 @@ export const zh: Record<string, string> = {
   'nav.status': '状态',
   'nav.usageKeys': '用量密钥',
   'nav.cost': '成本',
+  'nav.forecast': '预测',
 
   // ---- Account block ----
   'account.switchToAdmin': '切换到管理端',
@@ -1204,6 +1205,30 @@ export const zh: Record<string, string> = {
   'cost.notFound': '未找到成本维度值。',
   'cost.backOverview': '返回成本',
   'cost.detailTitle': '成本',
+  // Usage & cost forecasting (feature #36).
+  'forecast.title': '预测',
+  'forecast.subtitle': '预测令牌用量与成本',
+  'forecast.refresh': '刷新',
+  'forecast.timeRange': '时间范围',
+  'forecast.range24h': '24 小时',
+  'forecast.range7d': '7 天',
+  'forecast.range30d': '30 天',
+  'forecast.dimension': '维度',
+  'forecast.dimOrganization': '组织',
+  'forecast.dimModel': '模型',
+  'forecast.dimApi_key': 'API 密钥',
+  'forecast.horizon': '预测周期',
+  'forecast.days': '天',
+  'forecast.forecastTokens': '预测令牌数',
+  'forecast.forecastCost': '预测成本',
+  'forecast.confidence': '置信度',
+  'forecast.dataThrough': '数据截止',
+  'forecast.tokens': '令牌数',
+  'forecast.cost': '成本',
+  'forecast.empty': '没有可用于预测的用量数据。',
+  'forecast.emptyHint': '扩大时间范围以查看预测。',
+  'forecast.loadFailed': '加载预测失败',
+  'forecast.staleData': '显示的是过期数据 — 最近一次加载失败。',
 
   // ---- 系统健康与状态（功能 #30）----
   'status.title': '系统状态',

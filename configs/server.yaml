@@ -104,6 +104,11 @@ billing:
     enabled: true
     generatorInterval: 5s
     scheduleInterval: 1m
+  # forecast (feature #36): the usage & cost forecasting bounds.
+  forecast:
+    horizonDefaultDays: 30
+    horizonMaxDays: 90
+    rangeMaxDays: 92
 
 infer:
   endpointBaseURL: ""

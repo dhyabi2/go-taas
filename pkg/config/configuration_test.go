@@ -561,3 +561,48 @@ tracing:
 		t.Fatalf("tracing retention TTL = %v, want 360h", cfg.Tracing.Retention.TraceTTL)
 	}
 }
+
+func TestForecastDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Billing.Forecast.HorizonDefaultDays != 30 {
+		t.Fatalf("forecast horizon default days = %d, want 30", cfg.Billing.Forecast.HorizonDefaultDays)
+	}
+	if cfg.Billing.Forecast.HorizonMaxDays != 90 {
+		t.Fatalf("forecast horizon max days = %d, want 90", cfg.Billing.Forecast.HorizonMaxDays)
+	}
+	if cfg.Billing.Forecast.RangeMaxDays != 92 {
+		t.Fatalf("forecast range max days = %d, want 92", cfg.Billing.Forecast.RangeMaxDays)
+	}
+}
+
+func TestParseConfigsForecastSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+billing:
+  forecast:
+    horizonDefaultDays: 14
+    horizonMaxDays: 60
+    rangeMaxDays: 45
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Billing.Forecast.HorizonDefaultDays != 14 {
+		t.Fatalf("forecast horizon default days = %d, want 14", cfg.Billing.Forecast.HorizonDefaultDays)
+	}
+	if cfg.Billing.Forecast.HorizonMaxDays != 60 {
+		t.Fatalf("forecast horizon max days = %d, want 60", cfg.Billing.Forecast.HorizonMaxDays)
+	}
+	if cfg.Billing.Forecast.RangeMaxDays != 45 {
+		t.Fatalf("forecast range max days = %d, want 45", cfg.Billing.Forecast.RangeMaxDays)
+	}
+}
