@@ -18,6 +18,7 @@ import UserUsagePage from './pages/user/UsagePage';
 import UserApiKeysPage from './pages/user/ApiKeysPage';
 import UserRequestLogsPage from './pages/user/RequestLogsPage';
 import UserPlaygroundPage from './pages/user/PlaygroundPage';
+import UserPlaygroundComparePage from './pages/user/PlaygroundComparePage';
 import UserBillsPage from './pages/user/BillsPage';
 import UserBillingReportsPage from './pages/user/UserBillingReportsPage';
 import UserModelsPage from './pages/user/ModelsPage';
@@ -123,6 +124,7 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/api-keys" element={<UserApiKeysPage />} />
               <Route path="/request-logs" element={<UserRequestLogsPage />} />
               <Route path="/playground" element={<UserPlaygroundPage />} />
+              <Route path="/playground/compare" element={<UserPlaygroundComparePage />} />
               <Route path="/billing" element={<UserBillsPage />} />
               <Route path="/billing/reports" element={<UserBillingReportsPage />} />
               <Route path="/activity" element={<ActivityPage />} />

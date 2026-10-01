@@ -85,6 +85,18 @@ service InferServiceService {
     };
   }
 
+  // CompareModels runs the same prompt against multiple models and
+  // returns per-model completion, latency, token usage, and cost in a
+  // single call (feature #35, AD2). Each comparison call goes through
+  // the real metered path (AD3).
+  // User-surface API: served under /api/v1.
+  rpc CompareModels(CompareModelsRequest) returns (CompareModelsResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playground/compare"
+      body: "*"
+    };
+  }
+
   // GetInferenceEndpoint returns the tenant-facing inference base URL
   // ("<inference-gateway>/v1") from server configuration. It is never
   // a client constant. Requires no organization context; a missing
@@ -349,6 +361,35 @@ message PlaygroundModelResponse {
   int64 prompt_tokens = 4;
   int64 completion_tokens = 5;
   int64 latency_ms = 6;
+}
+
+// CompareModels runs the same prompt against multiple models (feature
+// #35, AD2).
+message CompareModelsRequest {
+  // model_ids is 2-5 models to compare.
+  repeated string model_ids = 1;
+  // api_key_id is the selected org API key identity.
+  string api_key_id = 2;
+  string prompt = 3;
+}
+
+message CompareModelResult {
+  string model_id = 1;
+  string model_name = 2;
+  string completion = 3;
+  int64 latency_ms = 4;
+  int64 input_tokens = 5;
+  int64 output_tokens = 6;
+  // cost is the metered cost of the prompt in integer cents.
+  int64 cost = 7;
+  // error is set when the model has no ready service or the inference
+  // failed; the comparison continues for the other models.
+  string error = 8;
+}
+
+message CompareModelsResponse {
+  taas.common.v1.Response response = 1;
+  repeated CompareModelResult results = 2;
 }
 
 message GetInferenceEndpointRequest {}
