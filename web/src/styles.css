@@ -373,6 +373,15 @@ table.table tbody tr:hover {
   background: var(--ok-soft);
   color: var(--ok);
 }
+.badge.latest {
+  background: var(--info-soft, #e0f2fe);
+  color: var(--info, #0284c7);
+  margin-left: 4px;
+}
+.warning-text {
+  color: var(--warn);
+  margin-bottom: 12px;
+}
 .badge.revoked {
   background: #f1f5f9;
   color: #64748b;

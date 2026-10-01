@@ -83,6 +83,25 @@ service ModelService {
   rpc GetAvailableModel(GetAvailableModelRequest) returns (GetAvailableModelResponse) {
     option (google.api.http) = {get: "/api/v1/models/{model_id}"};
   }
+
+  // ListModelVersions returns the full version history of a model,
+  // newest first, with per-version metadata and deployment counts
+  // (feature #32, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/models/{model_id}/versions"};
+  }
+
+  // ActivateModelVersion sets a version active and clears the previous
+  // active version. Idempotent: activating the already-active version is
+  // a no-op success (feature #32, AD5).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ActivateModelVersion(ActivateModelVersionRequest) returns (ActivateModelVersionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/models/{model_id}/versions/{version}:activate"
+      body: "*"
+    };
+  }
 }
 
 message RegisterModelRequest {
@@ -231,4 +250,46 @@ message GetAvailableModelResponse {
   taas.common.v1.Response response = 1;
   AvailableModel model = 2;
   ModelAutoscaling autoscaling = 3;
+}
+
+// ListModelVersions returns the full version history of a model, newest
+// first, with per-version metadata and deployment counts (feature #32,
+// AD4).
+message ListModelVersionsRequest {
+  string model_id = 1; // path
+  taas.common.v1.PageRequest page = 2;
+}
+
+// ModelVersion is one version row of a model's history (feature #32).
+message ModelVersion {
+  string version = 1;
+  string weight_path = 2;
+  int64 created_at = 3;
+  bool is_active = 4;
+  // deployment_count is the number of non-terminated inference services
+  // pinned to this version.
+  int64 deployment_count = 5;
+}
+
+message ListModelVersionsResponse {
+  taas.common.v1.Response response = 1;
+  string model_id = 2;
+  string name = 3;
+  // active_version is the currently active version string, empty when
+  // none is set.
+  string active_version = 4;
+  repeated ModelVersion versions = 5;
+  taas.common.v1.PageMeta page_meta = 6;
+}
+
+// ActivateModelVersion sets a version active and clears the previous
+// active version (feature #32, AD5).
+message ActivateModelVersionRequest {
+  string model_id = 1; // path
+  string version = 2;  // path
+}
+
+message ActivateModelVersionResponse {
+  taas.common.v1.Response response = 1;
+  string active_version = 2;
 }

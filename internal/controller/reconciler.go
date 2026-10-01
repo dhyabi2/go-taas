@@ -157,6 +157,12 @@ func (r *k8sReconciler) ApplyInferServiceChange(ctx context.Context, msg mq.Mess
 		return r.applyDelete(ctx, evt)
 	case "upsert":
 		return r.applyUpsert(ctx, evt)
+	case "update_version":
+		// In-place version change (feature #32, AD6): recreate the pods
+		// with the new weights while keeping the service identity and
+		// endpoints. applyUpsert already reconciles the Deployment/Service
+		// from the resolved spec, so the version-change event reuses it.
+		return r.applyUpsert(ctx, evt)
 	default:
 		return mq.Permanent(fmt.Errorf("controller: unknown event_type %q", evt.EventType))
 	}

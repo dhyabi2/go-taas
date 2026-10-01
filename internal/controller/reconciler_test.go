@@ -298,6 +298,39 @@ func TestApplyUpsertHappyPath(t *testing.T) {
 	assert.Equal(t, []string{"https://infer.example.com/demo/v1"}, publisher.reports[1].Endpoints)
 }
 
+func TestApplyUpdateVersionReusesUpsert(t *testing.T) {
+	publisher := &recordingPublisher{Client: mq.NewFake()}
+	reconciler, clientset := newFakeReconciler(publisher)
+
+	// A version-change event (feature #32, AD6) reconciles the
+	// Deployment with the new weights while keeping the service identity.
+	evt := testChangeEvent("update_version", "demo")
+	evt.Model.Version = "v2"
+	evt.Model.WeightPath = "qwen/v2"
+	err := reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt))
+	require.NoError(t, err)
+
+	// The Deployment is created with the new weight path.
+	dep, err := clientset.AppsV1().Deployments(reconcileNamespace).Get(
+		context.Background(), "demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v2", "--port", "8000", "--host", "0.0.0.0",
+	}, dep.Spec.Template.Spec.Containers[0].Command)
+
+	// The Service keeps the same identity.
+	svc, err := clientset.CoreV1().Services(reconcileNamespace).Get(
+		context.Background(), "demo-svc", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "demo", svc.Spec.Selector["app"])
+
+	// Status reports: deploying then running.
+	require.Len(t, publisher.reports, 2)
+	assert.Equal(t, "deploying", publisher.reports[0].State)
+	assert.Equal(t, "running", publisher.reports[1].State)
+}
+
 func TestApplyUpsertIdempotent(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	reconciler, clientset := newFakeReconciler(publisher)

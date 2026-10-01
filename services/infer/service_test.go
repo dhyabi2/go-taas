@@ -17,6 +17,7 @@ import (
 
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/services/image"
+	"github.com/go-taas/go-taas/services/model"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 )
@@ -311,6 +312,74 @@ func TestDeleteInferenceServiceIdempotent(t *testing.T) {
 	})
 	require.Error(t, err)
 	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeInferServiceStateInvalid, ae.Code)
+}
+
+func TestUpdateInferenceServiceVersion(t *testing.T) {
+	seedImageRegistry(t)
+	svc, client, db := newInferTestService(t)
+	modelID := seedModel(t, db, "qwen-3b", "v1")
+	// Register a second version.
+	repo := model.NewRepository(db)
+	_, err := repo.RegisterModelOrCreateVersion(context.Background(), "qwen-3b", "", "v2", "qwen-3b/v2")
+	require.NoError(t, err)
+
+	created, err := svc.CreateInferenceService(orgContext("org-1"), &inferv1.CreateInferenceServiceRequest{
+		Name: "demo", ModelId: modelID, ModelVersion: "v1",
+		ImageId: "img-vllm-nvidia", Replicas: 1, Accelerator: "nvidia",
+	})
+	require.NoError(t, err)
+	client.published = nil
+
+	// Update the version in place.
+	resp, err := svc.UpdateInferenceServiceVersion(orgContext("org-1"), &inferv1.UpdateInferenceServiceVersionRequest{
+		ServiceId: created.GetServiceId(), ModelVersion: "v2",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, created.GetServiceId(), resp.GetServiceId())
+	assert.Equal(t, StateDeploying, resp.GetState())
+
+	// One update_version event with the new version and weight path.
+	require.Len(t, client.published, 1)
+	var evt changeEvent
+	require.NoError(t, json.Unmarshal(client.published[0].Body, &evt))
+	assert.Equal(t, EventTypeUpdateVersion, evt.EventType)
+	assert.Equal(t, "v2", evt.Model.Version)
+	assert.Equal(t, "qwen-3b/v2", evt.Model.WeightPath)
+
+	// The row reflects the new version and deploying state.
+	get, err := svc.GetInferenceService(orgContext("org-1"), &inferv1.GetInferenceServiceRequest{ServiceId: created.GetServiceId()})
+	require.NoError(t, err)
+	assert.Equal(t, "v2", get.GetService().GetModelVersion())
+	assert.Equal(t, StateDeploying, get.GetService().GetState())
+
+	// Unknown service → 10301.
+	_, err = svc.UpdateInferenceServiceVersion(orgContext("org-1"), &inferv1.UpdateInferenceServiceVersionRequest{
+		ServiceId: "no-such", ModelVersion: "v2",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeInferServiceNotFound, ae.Code)
+
+	// Unknown version → 10103.
+	_, err = svc.UpdateInferenceServiceVersion(orgContext("org-1"), &inferv1.UpdateInferenceServiceVersionRequest{
+		ServiceId: created.GetServiceId(), ModelVersion: "nope",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelVersionNotFound, ae.Code)
+
+	// Terminated service → 10303.
+	_, err = svc.DeleteInferenceService(orgContext("org-1"), &inferv1.DeleteInferenceServiceRequest{ServiceId: created.GetServiceId()})
+	require.NoError(t, err)
+	_, err = svc.UpdateInferenceServiceVersion(orgContext("org-1"), &inferv1.UpdateInferenceServiceVersionRequest{
+		ServiceId: created.GetServiceId(), ModelVersion: "v2",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
 	require.True(t, ok)
 	assert.Equal(t, apierrors.CodeInferServiceStateInvalid, ae.Code)
 }

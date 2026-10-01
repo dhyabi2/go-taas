@@ -139,6 +139,30 @@ func (r *InferenceServiceRepository) UpdateReplicas(ctx context.Context, orgID, 
 	})
 }
 
+// UpdateModelVersion applies an in-place version change: it sets the new
+// model_version and transitions the service to deploying (feature #32,
+// AD6). The service_id and endpoints are untouched. A miss maps to
+// CodeInferServiceNotFound.
+func (r *InferenceServiceRepository) UpdateModelVersion(ctx context.Context, orgID, serviceID, modelVersion string) error {
+	return r.db.WithinTx(ctx, func(ctx context.Context) error {
+		res := r.DB(ctx).
+			Model(&InferenceService{}).
+			Where("id = ? AND organization_id = ?", serviceID, orgID).
+			Updates(map[string]any{
+				"model_version": modelVersion,
+				"state":         StateDeploying,
+				"updated_at":    time.Now().UTC(),
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return apierrors.New(apierrors.CodeInferServiceNotFound)
+		}
+		return nil
+	})
+}
+
 // MarkTerminated sets state=terminated. It is idempotent: an
 // already-terminated service is a no-op success (AC9).
 func (r *InferenceServiceRepository) MarkTerminated(ctx context.Context, orgID, serviceID string) error {

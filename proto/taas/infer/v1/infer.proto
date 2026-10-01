@@ -44,6 +44,17 @@ service InferServiceService {
     };
   }
 
+  // UpdateInferenceServiceVersion changes a service's model_version in
+  // place, keeping the same service_id and endpoints. The service goes
+  // through deploying then back to running (feature #32, AD6).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc UpdateInferenceServiceVersion(UpdateInferenceServiceVersionRequest) returns (UpdateInferenceServiceVersionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/inference-services/{service_id}:update-version"
+      body: "*"
+    };
+  }
+
   // DeleteInferenceService tears an inference service down.
   // Admin-surface API: served under /api/v1/admin.
   rpc DeleteInferenceService(DeleteInferenceServiceRequest) returns (DeleteInferenceServiceResponse) {
@@ -247,6 +258,19 @@ message ScaleInferenceServiceRequest {
 
 message ScaleInferenceServiceResponse {
   taas.common.v1.Response response = 1;
+}
+
+// UpdateInferenceServiceVersion changes a service's model_version in
+// place (feature #32, AD6).
+message UpdateInferenceServiceVersionRequest {
+  string service_id = 1; // path
+  string model_version = 2;
+}
+
+message UpdateInferenceServiceVersionResponse {
+  taas.common.v1.Response response = 1;
+  string service_id = 2;
+  string state = 3; // deploying
 }
 
 message DeleteInferenceServiceRequest {

@@ -226,3 +226,36 @@ const (
 const (
 	CodeErrorCauseNotFound Code = 11501 // ERROR_CAUSE_NOT_FOUND
 )
+
+// model-versioning module error codes (feature #32, AD8). The block is
+// 11601-11699, the next free block after error-analysis' 115xx. The
+// feature reuses the existing model/infer codes (10101/10102/10103/
+// 10301/10303) for every failure mode the design names; this block is
+// reserved for any future model-versioning-specific code.
+const (
+	CodeModelVersionInvalid Code = 11601 // MODEL_VERSION_INVALID
+)
+
+// service-logs module error codes (feature #33, AD2). The block is
+// 11701-11799, the next free block after model-versioning's 116xx.
+const (
+	CodeServiceLogsInvalid Code = 11701 // SERVICE_LOGS_INVALID
+)
+
+// deployment-history module error codes (feature #34, AD2). The block is
+// 11801-11899, the next free block after service-logs' 117xx.
+const (
+	CodeDeploymentEventNotFound Code = 11801 // DEPLOYMENT_EVENT_NOT_FOUND
+)
+
+// playground-comparison module error codes (feature #35, AD2). The block
+// is 11901-11999, the next free block after deployment-history's 118xx.
+const (
+	CodePlaygroundCompareInvalid Code = 11901 // PLAYGROUND_COMPARE_INVALID
+)
+
+// usage-cost-forecasting module error codes (feature #36, AD2). The block
+// is 12001-12099, the next free block after playground-comparison's 119xx.
+const (
+	CodeForecastInvalid Code = 12001 // FORECAST_INVALID
+)

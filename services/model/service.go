@@ -848,6 +848,78 @@ func (s *Service) ListModelAuthorizations(ctx context.Context, req *modelv1.List
 	}, nil
 }
 
+// ListModelVersions returns the full version history of a model, newest
+// first, with per-version metadata and deployment counts (feature #32,
+// AC1). Unknown model → 10101.
+func (s *Service) ListModelVersions(ctx context.Context, req *modelv1.ListModelVersionsRequest) (*modelv1.ListModelVersionsResponse, error) {
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetModelId()) == "" {
+		return nil, apierrors.New(apierrors.CodeModelNotFound)
+	}
+	m, err := repo.GetModel(ctx, req.GetModelId())
+	if err != nil {
+		return nil, err
+	}
+	rows, activeVersion, err := repo.ListVersionsWithCounts(ctx, m.ID)
+	if err != nil {
+		return nil, err
+	}
+	versions := make([]*modelv1.ModelVersion, 0, len(rows))
+	for _, row := range rows {
+		versions = append(versions, &modelv1.ModelVersion{
+			Version:         row.Version.Version,
+			WeightPath:      row.WeightPath,
+			CreatedAt:       row.CreatedAt.Unix(),
+			IsActive:        row.IsActive,
+			DeploymentCount: row.DeploymentCount,
+		})
+	}
+	return &modelv1.ListModelVersionsResponse{
+		Response:      okResponse(),
+		ModelId:       m.ID,
+		Name:          m.Name,
+		ActiveVersion: activeVersion,
+		Versions:      versions,
+	}, nil
+}
+
+// ActivateModelVersion sets a version active and clears the previous
+// active version (feature #32, AC2). Idempotent: activating the
+// already-active version is a no-op success. Unknown model → 10101,
+// unknown version → 10103.
+func (s *Service) ActivateModelVersion(ctx context.Context, req *modelv1.ActivateModelVersionRequest) (*modelv1.ActivateModelVersionResponse, error) {
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.GetModelId()) == "" {
+		return nil, apierrors.New(apierrors.CodeModelNotFound)
+	}
+	if _, err := repo.GetModel(ctx, req.GetModelId()); err != nil {
+		return nil, err
+	}
+	activeVersion, err := repo.ActivateVersion(ctx, req.GetModelId(), strings.TrimSpace(req.GetVersion()))
+	if err != nil {
+		return nil, err
+	}
+	// Feature #15: record the successful activation best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		ActorUserID:  s.grantedBy(ctx),
+		ActorType:    "user",
+		Action:       "model.activate_version",
+		ResourceType: "model",
+		ResourceID:   req.GetModelId(),
+		Result:       "success",
+	})
+	return &modelv1.ActivateModelVersionResponse{
+		Response:      okResponse(),
+		ActiveVersion: activeVersion,
+	}, nil
+}
+
 // normalizePagination clamps the page request: offset >= 0, limit
 // defaults to 20 when unset or non-positive, capped at 100.
 func normalizePagination(page *commonv1.PageRequest) (offset, limit int) {

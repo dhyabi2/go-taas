@@ -712,6 +712,89 @@ func (s *Service) DeleteInferenceService(ctx context.Context, req *inferv1.Delet
 	return &inferv1.DeleteInferenceServiceResponse{Response: okResponse()}, nil
 }
 
+// UpdateInferenceServiceVersion changes a service's model_version in
+// place, keeping the same service_id and endpoints (feature #32, AC3).
+// The service transitions running → deploying → running. Validation
+// order: service exists (10301), state updatable (10303), target version
+// registered for the service's model (10103).
+func (s *Service) UpdateInferenceServiceVersion(ctx context.Context, req *inferv1.UpdateInferenceServiceVersionRequest) (*inferv1.UpdateInferenceServiceVersionResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	client, err := s.mqClientFor()
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := repo.FindByIDAndOrganization(ctx, orgID, req.GetServiceId())
+	if err != nil {
+		return nil, err
+	}
+	if row.State == StateTerminated {
+		return nil, apierrors.New(apierrors.CodeInferServiceStateInvalid)
+	}
+	targetVersion := strings.TrimSpace(req.GetModelVersion())
+	if targetVersion == "" {
+		return nil, apierrors.New(apierrors.CodeModelVersionNotFound)
+	}
+	modelRepo, err := s.modelRepository()
+	if err != nil {
+		return nil, err
+	}
+	// The target version must be a registered version of the service's
+	// model (10103).
+	target, err := modelRepo.FindVersion(ctx, row.ModelID, targetVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	// Spec-only update: change model_version and transition to deploying.
+	if err := repo.UpdateModelVersion(ctx, orgID, req.GetServiceId(), target.Version); err != nil {
+		return nil, err
+	}
+
+	// Re-read the image to compose the resolved spec.
+	img, err := image.Lookup(row.ImageID)
+	if err != nil {
+		return nil, err
+	}
+
+	updated := *row
+	updated.ModelVersion = target.Version
+	updated.State = StateDeploying
+	evt := buildChangeEvent(EventTypeUpdateVersion, &updated, target.WeightPath, img.Reference(), img.Engine)
+	if err := publishChange(ctx, client, evt); err != nil {
+		logger.S().Errorw("infer: publish version-change failed",
+			"service_id", req.GetServiceId(), "err", err)
+		return nil, apierrors.Newf(apierrors.CodeInternal, "infer: publish change failed")
+	}
+
+	// Feature #15: record the successful version change best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    orgID,
+		ActorType:      "user",
+		Action:         "inference_service.update_version",
+		ResourceType:   "inference_service",
+		ResourceID:     req.GetServiceId(),
+		Result:         "success",
+	})
+
+	return &inferv1.UpdateInferenceServiceVersionResponse{
+		Response:  okResponse(),
+		ServiceId: req.GetServiceId(),
+		State:     StateDeploying,
+	}, nil
+}
+
 // resolveOrganizationID reads the organization id from the incoming
 // gRPC metadata (set by the gateway from X-Organization-Id).
 func resolveOrganizationID(ctx context.Context) (string, error) {

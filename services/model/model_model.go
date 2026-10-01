@@ -37,6 +37,11 @@ type Version struct {
 	// syntax-validated at registration (existence is checked by the
 	// controller at deploy time).
 	WeightPath string `gorm:"size:512;not null"`
+	// IsActive marks this version as the active/default version for new
+	// deployments (feature #32, AD2). At most one version per model is
+	// active, enforced by the partial unique index (model_id) WHERE
+	// is_active.
+	IsActive bool `gorm:"not null;default:false;uniqueIndex:idx_model_versions_active,where:is_active"`
 	// CreatedAt is the registration time (UTC).
 	CreatedAt time.Time `gorm:"index:idx_model_versions_model_created,priority:1"`
 }

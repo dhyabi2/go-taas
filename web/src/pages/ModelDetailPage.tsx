@@ -77,6 +77,17 @@ export default function ModelDetailPage() {
           </h1>
           <div className="subtitle mono">{model.model.modelId}</div>
         </div>
+        <a
+          className="secondary"
+          data-testid="model-versions-link"
+          href={`/admin/models/${model.model.modelId}/versions`}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(`/admin/models/${model.model.modelId}/versions`);
+          }}
+        >
+          {t('modelversions.title')}
+        </a>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>

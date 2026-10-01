@@ -13,6 +13,10 @@ import (
 const (
 	EventTypeUpsert = "upsert"
 	EventTypeDelete = "delete"
+	// EventTypeUpdateVersion is the in-place version-change event
+	// (feature #32, AD6). The controller recreates the pods with the new
+	// weights while keeping the service identity and endpoints.
+	EventTypeUpdateVersion = "update_version"
 )
 
 // changeEventModel is the resolved model spec inside a change event. The

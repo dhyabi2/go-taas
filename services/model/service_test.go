@@ -147,6 +147,93 @@ func TestServiceGetModel(t *testing.T) {
 	assert.Equal(t, apierrors.CodeModelNotFound, ae.Code)
 }
 
+func TestServiceListModelVersions(t *testing.T) {
+	svc := newModelTestService(t)
+	ctx := context.Background()
+
+	reg, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "qwen-3b", Version: "v1", WeightPath: "qwen/v1",
+	})
+	require.NoError(t, err)
+	_, err = svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "qwen-3b", Version: "v2", WeightPath: "qwen/v2",
+	})
+	require.NoError(t, err)
+
+	resp, err := svc.ListModelVersions(ctx, &modelv1.ListModelVersionsRequest{ModelId: reg.GetModelId()})
+	require.NoError(t, err)
+	assert.Equal(t, reg.GetModelId(), resp.GetModelId())
+	assert.Equal(t, "qwen-3b", resp.GetName())
+	assert.Equal(t, "", resp.GetActiveVersion())
+	require.Len(t, resp.GetVersions(), 2)
+	// Newest first.
+	assert.Equal(t, "v2", resp.GetVersions()[0].GetVersion())
+	assert.Equal(t, "qwen/v2", resp.GetVersions()[0].GetWeightPath())
+	assert.Equal(t, false, resp.GetVersions()[0].GetIsActive())
+	assert.Equal(t, int64(0), resp.GetVersions()[0].GetDeploymentCount())
+	assert.Equal(t, "v1", resp.GetVersions()[1].GetVersion())
+
+	// Unknown model → 10101.
+	_, err = svc.ListModelVersions(ctx, &modelv1.ListModelVersionsRequest{ModelId: "no-such"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelNotFound, ae.Code)
+}
+
+func TestServiceActivateModelVersion(t *testing.T) {
+	svc := newModelTestService(t)
+	ctx := context.Background()
+
+	reg, err := svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "qwen-3b", Version: "v1", WeightPath: "qwen/v1",
+	})
+	require.NoError(t, err)
+	_, err = svc.RegisterModel(ctx, &modelv1.RegisterModelRequest{
+		Name: "qwen-3b", Version: "v2", WeightPath: "qwen/v2",
+	})
+	require.NoError(t, err)
+
+	// Activate v1.
+	resp, err := svc.ActivateModelVersion(ctx, &modelv1.ActivateModelVersionRequest{
+		ModelId: reg.GetModelId(), Version: "v1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v1", resp.GetActiveVersion())
+
+	// Idempotent.
+	resp, err = svc.ActivateModelVersion(ctx, &modelv1.ActivateModelVersionRequest{
+		ModelId: reg.GetModelId(), Version: "v1",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v1", resp.GetActiveVersion())
+
+	// Activating v2 clears v1.
+	resp, err = svc.ActivateModelVersion(ctx, &modelv1.ActivateModelVersionRequest{
+		ModelId: reg.GetModelId(), Version: "v2",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "v2", resp.GetActiveVersion())
+
+	// Unknown model → 10101.
+	_, err = svc.ActivateModelVersion(ctx, &modelv1.ActivateModelVersionRequest{
+		ModelId: "no-such", Version: "v1",
+	})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelNotFound, ae.Code)
+
+	// Unknown version → 10103.
+	_, err = svc.ActivateModelVersion(ctx, &modelv1.ActivateModelVersionRequest{
+		ModelId: reg.GetModelId(), Version: "nope",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelVersionNotFound, ae.Code)
+}
+
 func TestServiceDeleteModel(t *testing.T) {
 	svc := newModelTestService(t)
 	ctx := context.Background()

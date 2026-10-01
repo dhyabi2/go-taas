@@ -31,6 +31,7 @@ import SSOProvidersPage from './pages/SSOProvidersPage';
 import IdentityBindingsPage from './pages/IdentityBindingsPage';
 import ModelsPage from './pages/ModelsPage';
 import ModelDetailPage from './pages/ModelDetailPage';
+import ModelVersionsPage from './pages/ModelVersionsPage';
 import InferenceServicesPage from './pages/InferenceServicesPage';
 import ServiceDetailPage from './pages/ServiceDetailPage';
 import ImagesPage from './pages/ImagesPage';
@@ -165,6 +166,7 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/identity-bindings" element={<IdentityBindingsPage />} />
               <Route path="/admin/models" element={<ModelsPage />} />
               <Route path="/admin/models/:id" element={<ModelDetailPage />} />
+              <Route path="/admin/models/:id/versions" element={<ModelVersionsPage />} />
               <Route path="/admin/images" element={<ImagesPage />} />
               <Route path="/admin/images/:id" element={<ImageDetailPage />} />
               <Route path="/admin/inference-services" element={<InferenceServicesPage />} />
