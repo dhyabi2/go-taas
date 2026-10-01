@@ -70,6 +70,10 @@ import UsageKeyDetailPage from './pages/UsageKeyDetailPage';
 import CostAnalyticsPage from './pages/CostAnalyticsPage';
 import CostDetailPage from './pages/CostDetailPage';
 import SystemStatusPage from './pages/SystemStatusPage';
+import ErrorAnalysisPage from './pages/ErrorAnalysisPage';
+import ErrorDetailPage from './pages/ErrorDetailPage';
+import UserErrorAnalysisPage from './pages/user/UserErrorAnalysisPage';
+import UserErrorDetailPage from './pages/user/UserErrorDetailPage';
 import UserCostAnalyticsPage from './pages/user/UserCostAnalyticsPage';
 import UserCostDetailPage from './pages/user/UserCostDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -131,6 +135,8 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/usage/keys/:apiKeyId" element={<UserUsageKeyDetailPage />} />
               <Route path="/cost" element={<UserCostAnalyticsPage />} />
               <Route path="/cost/:dimension/:value" element={<UserCostDetailPage />} />
+              <Route path="/errors" element={<UserErrorAnalysisPage />} />
+              <Route path="/errors/:errorCode" element={<UserErrorDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
             </Routes>
           </UserShell>
@@ -189,6 +195,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/cost" element={<CostAnalyticsPage />} />
               <Route path="/admin/cost/:dimension/:value" element={<CostDetailPage />} />
               <Route path="/admin/status" element={<SystemStatusPage />} />
+              <Route path="/admin/errors" element={<ErrorAnalysisPage />} />
+              <Route path="/admin/errors/:errorCode" element={<ErrorDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>
