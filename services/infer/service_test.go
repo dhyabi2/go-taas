@@ -384,6 +384,101 @@ func TestUpdateInferenceServiceVersion(t *testing.T) {
 	assert.Equal(t, apierrors.CodeInferServiceStateInvalid, ae.Code)
 }
 
+// fakeLogFetcher is a deterministic LogFetcher for unit tests.
+type fakeLogFetcher struct {
+	pods    []LogPod
+	windows map[string]LogWindow
+}
+
+func (f *fakeLogFetcher) ListServiceLogPods(_ context.Context, _ string) ([]LogPod, error) {
+	return f.pods, nil
+}
+
+func (f *fakeLogFetcher) GetServiceLogs(_ context.Context, _, pod, container string, _ int, _, _ string) (LogWindow, error) {
+	if w, ok := f.windows[pod+"|"+container]; ok {
+		return w, nil
+	}
+	return LogWindow{}, nil
+}
+
+func TestServiceLogs(t *testing.T) {
+	seedImageRegistry(t)
+	svc, _, db := newInferTestService(t)
+	modelID := seedModel(t, db, "qwen-3b", "v1")
+
+	created, err := svc.CreateInferenceService(orgContext("org-1"), &inferv1.CreateInferenceServiceRequest{
+		Name: "demo", ModelId: modelID, ModelVersion: "v1",
+		ImageId: "img-vllm-nvidia", Replicas: 1, Accelerator: "nvidia",
+	})
+	require.NoError(t, err)
+
+	svc.SetLogFetcher(&fakeLogFetcher{
+		pods: []LogPod{
+			{ReplicaIndex: "replica-1", Container: "engine", State: "Running"},
+		},
+		windows: map[string]LogWindow{
+			"replica-1|engine": {
+				Lines:     []LogLine{{Timestamp: 100, Level: "info", Message: "hi"}},
+				NextOffset: "replica-1|engine|100",
+				HasMore:   true,
+			},
+		},
+	})
+
+	// ListServiceLogPods.
+	resp, err := svc.ListServiceLogPods(orgContext("org-1"), &inferv1.ListServiceLogPodsRequest{ServiceId: created.GetServiceId()})
+	require.NoError(t, err)
+	require.Len(t, resp.GetPods(), 1)
+	assert.Equal(t, "replica-1", resp.GetPods()[0].GetReplicaIndex())
+	assert.Equal(t, "engine", resp.GetPods()[0].GetContainer())
+
+	// Unknown service → 10301.
+	_, err = svc.ListServiceLogPods(orgContext("org-1"), &inferv1.ListServiceLogPodsRequest{ServiceId: "no-such"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeInferServiceNotFound, ae.Code)
+
+	// GetServiceLogs.
+	logs, err := svc.GetServiceLogs(orgContext("org-1"), &inferv1.GetServiceLogsRequest{
+		ServiceId: created.GetServiceId(), Pod: "replica-1", Container: "engine", Tail: 500,
+	})
+	require.NoError(t, err)
+	require.Len(t, logs.GetLines(), 1)
+	assert.Equal(t, int64(100), logs.GetLines()[0].GetTimestamp())
+	assert.Equal(t, "info", logs.GetLines()[0].GetLevel())
+	assert.Equal(t, "hi", logs.GetLines()[0].GetMessage())
+	assert.Equal(t, "replica-1|engine|100", logs.GetNextOffset())
+	assert.Equal(t, true, logs.GetHasMore())
+
+	// Invalid tail → 10404.
+	_, err = svc.GetServiceLogs(orgContext("org-1"), &inferv1.GetServiceLogsRequest{
+		ServiceId: created.GetServiceId(), Pod: "replica-1", Tail: 99999,
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeMeteringRangeInvalid, ae.Code)
+
+	// Malformed since → 10404.
+	_, err = svc.GetServiceLogs(orgContext("org-1"), &inferv1.GetServiceLogsRequest{
+		ServiceId: created.GetServiceId(), Pod: "replica-1", Since: "not-a-time",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeMeteringRangeInvalid, ae.Code)
+
+	// Unknown service → 10301.
+	_, err = svc.GetServiceLogs(orgContext("org-1"), &inferv1.GetServiceLogsRequest{
+		ServiceId: "no-such", Pod: "replica-1",
+	})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeInferServiceNotFound, ae.Code)
+}
+
 func TestStatusConsumerHandle(t *testing.T) {
 	db := newInferTestDB(t)
 	repo := NewInferenceServiceRepository(db)

@@ -382,6 +382,62 @@ table.table tbody tr:hover {
   color: var(--warn);
   margin-bottom: 12px;
 }
+
+/* ---- service logs viewer (feature #33) ---- */
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.filter-bar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.log-pane {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+  max-height: 480px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log-line {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+.log-time {
+  color: #64748b;
+  flex-shrink: 0;
+}
+.log-msg {
+  flex: 1;
+}
+.badge.error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.badge.info {
+  background: var(--info-soft, #e0f2fe);
+  color: var(--info, #0284c7);
+}
+.badge.debug {
+  background: #f1f5f9;
+  color: #64748b;
+}
 .badge.revoked {
   background: #f1f5f9;
   color: #64748b;

@@ -9,11 +9,13 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/go-taas/go-taas/pkg/config"
+	"github.com/go-taas/go-taas/pkg/k8s"
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/modelhub"
 	"github.com/go-taas/go-taas/pkg/registry"
 	"github.com/go-taas/go-taas/pkg/server"
 
+	"github.com/go-taas/go-taas/internal/controller"
 	"github.com/go-taas/go-taas/services/accelerator"
 	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/auth"
@@ -266,6 +268,16 @@ func main() {
 			imageSvc.SetSessionOrgResolver(authSvc)
 			inferSvc.SetCompatibilityChecker(image.NewCompatibilityChecker(imageSvc))
 			modelSvc.SetCompatibilityProvider(image.NewModelCompatibilitySummaryProvider(imageSvc))
+			// Feature #33: the service-logs viewer reads container logs
+			// from the Kubernetes API through the Controller. The server
+			// builds its own k8s client from the controller config so the
+			// log RPCs work in a single-process topology; when no
+			// kubeconfig is configured the log RPCs fail closed (10301).
+			if cfg.Controller.Kubeconfig != "" {
+				if k8sClient, k8sErr := k8s.NewClient(&k8s.Config{Kubeconfig: cfg.Controller.Kubeconfig}); k8sErr == nil {
+					inferSvc.SetLogFetcher(controller.NewLogFetcher(k8sClient, cfg.Controller.Namespace))
+				}
+			}
 			// Feature #20: the load-test runner persists runs and drives
 			// real inference traffic with the synthetic platform
 			// credential the auth module seeds (AD11/AD12). The runner is

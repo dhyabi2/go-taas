@@ -10,6 +10,7 @@ import (
 	"math"
 	"regexp"
 	"strings"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -96,6 +97,11 @@ type Service struct {
 	// credential for the load-test runner (feature #20, AD11). Nil until
 	// wired: CreateLoadTest fails closed (10311).
 	systemCredentialProvider SystemCredentialProvider
+
+	// logFetcher reads a service's container logs from the Kubernetes
+	// API through the Controller (feature #33, AD2). Nil until wired:
+	// the log RPCs fail closed (10301).
+	logFetcher LogFetcher
 }
 
 // AuditRecorder is the best-effort, non-fatal audit recorder seam
@@ -147,6 +153,11 @@ func (s *Service) SetSystemCredentialProvider(p SystemCredentialProvider) {
 // created (10311). The enable/disable kill switch is a startup decision
 // made at wiring time (main.go), so this path never reads global config.
 func (s *Service) SetLoadTestRunner(r *LoadTestRunner) { s.loadTestRunner = r }
+
+// SetLogFetcher installs the read-only log-fetch seam (feature #33,
+// AD2). Production wires the controller-backed implementation; unit
+// tests may inject a fake. Without it the log RPCs fail closed.
+func (s *Service) SetLogFetcher(f LogFetcher) { s.logFetcher = f }
 
 // recordAudit writes one audit event best-effort (feature #15, AD3). A
 // recorder failure is logged and never fails or rolls back the mutation.
@@ -792,6 +803,101 @@ func (s *Service) UpdateInferenceServiceVersion(ctx context.Context, req *inferv
 		Response:  okResponse(),
 		ServiceId: req.GetServiceId(),
 		State:     StateDeploying,
+	}, nil
+}
+
+// ListServiceLogPods returns the service's pods/containers masked as
+// replica indices (feature #33, AC1). Unknown service → 10301.
+func (s *Service) ListServiceLogPods(ctx context.Context, req *inferv1.ListServiceLogPodsRequest) (*inferv1.ListServiceLogPodsResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := repo.FindByIDAndOrganization(ctx, orgID, req.GetServiceId()); err != nil {
+		return nil, err
+	}
+	if s.logFetcher == nil {
+		return nil, apierrors.New(apierrors.CodeInferServiceNotFound)
+	}
+	pods, err := s.logFetcher.ListServiceLogPods(ctx, req.GetServiceId())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*inferv1.ServiceLogPod, 0, len(pods))
+	for _, p := range pods {
+		out = append(out, &inferv1.ServiceLogPod{
+			ReplicaIndex: p.ReplicaIndex,
+			Container:    p.Container,
+			State:        p.State,
+		})
+	}
+	return &inferv1.ListServiceLogPodsResponse{
+		Response: okResponse(),
+		Pods:     out,
+	}, nil
+}
+
+// GetServiceLogs returns a bounded window of log lines for a chosen
+// pod/container (feature #33, AC2/AC3). Validation order: service exists
+// (10301), tail/since valid (10404), pod/container known (10304).
+func (s *Service) GetServiceLogs(ctx context.Context, req *inferv1.GetServiceLogsRequest) (*inferv1.GetServiceLogsResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := repo.FindByIDAndOrganization(ctx, orgID, req.GetServiceId()); err != nil {
+		return nil, err
+	}
+	tail := int(req.GetTail())
+	if tail == 0 {
+		tail = 500
+	}
+	if tail < 1 || tail > 5000 {
+		return nil, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	if since := strings.TrimSpace(req.GetSince()); since != "" {
+		if _, err := time.Parse(time.RFC3339, since); err != nil {
+			return nil, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+		}
+	}
+	if s.logFetcher == nil {
+		return nil, apierrors.New(apierrors.CodeInferServiceNotFound)
+	}
+	window, err := s.logFetcher.GetServiceLogs(
+		ctx, req.GetServiceId(), strings.TrimSpace(req.GetPod()),
+		strings.TrimSpace(req.GetContainer()), tail, strings.TrimSpace(req.GetSince()),
+		strings.TrimSpace(req.GetNextOffset()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	lines := make([]*inferv1.ServiceLogLine, 0, len(window.Lines))
+	for _, l := range window.Lines {
+		lines = append(lines, &inferv1.ServiceLogLine{
+			Timestamp: l.Timestamp,
+			Level:     l.Level,
+			Message:   l.Message,
+		})
+	}
+	return &inferv1.GetServiceLogsResponse{
+		Response:   okResponse(),
+		Lines:      lines,
+		NextOffset: window.NextOffset,
+		HasMore:    window.HasMore,
 	}, nil
 }
 

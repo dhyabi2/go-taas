@@ -174,6 +174,21 @@ service InferServiceService {
   rpc GetModelLoadTests(GetModelLoadTestsRequest) returns (GetModelLoadTestsResponse) {
     option (google.api.http) = {get: "/api/v1/models/{model_id}/load-tests"};
   }
+
+  // ListServiceLogPods returns the service's pods/containers masked as
+  // replica indices (never raw pod names) (feature #33, AD3).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListServiceLogPods(ListServiceLogPodsRequest) returns (ListServiceLogPodsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/services/{service_id}/logs/pods"};
+  }
+
+  // GetServiceLogs returns a bounded window of log lines for a chosen
+  // pod/container, with tail/time/level filters and a next_offset cursor
+  // (feature #33, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/services/{service_id}/logs"};
+  }
 }
 
 message CreateInferenceServiceRequest {
@@ -503,4 +518,57 @@ message ModelLoadTestResult {
 message GetModelLoadTestsResponse {
   taas.common.v1.Response response = 1;
   repeated ModelLoadTestResult results = 2; // most recent completed first
+}
+
+// ListServiceLogPods returns the service's pods/containers masked as
+// replica indices (feature #33, AD3).
+message ListServiceLogPodsRequest {
+  string service_id = 1; // path
+}
+
+message ServiceLogPod {
+  // replica_index is the masked replica index, e.g. "replica-1".
+  string replica_index = 1;
+  // container is the container name.
+  string container = 2;
+  // state is the pod's phase (Running, Pending, etc.).
+  string state = 3;
+}
+
+message ListServiceLogPodsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ServiceLogPod pods = 2;
+}
+
+// GetServiceLogs returns a bounded window of log lines for a chosen
+// pod/container (feature #33, AD4).
+message GetServiceLogsRequest {
+  string service_id = 1; // path
+  // pod is the replica index (e.g. "replica-1").
+  string pod = 2;
+  // container is optional; when empty the first container is used.
+  string container = 3;
+  // tail is the number of most-recent lines, default 500, max 5000.
+  int32 tail = 4;
+  // since is an RFC3339 time; optional.
+  string since = 5;
+  // level is best-effort: error / warn / info / debug.
+  string level = 6;
+  // next_offset is the cursor for "load more"; empty on the first call.
+  string next_offset = 7;
+}
+
+message ServiceLogLine {
+  int64 timestamp = 1;
+  // level is best-effort, empty when not detected.
+  string level = 2;
+  string message = 3;
+}
+
+message GetServiceLogsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ServiceLogLine lines = 2;
+  // next_offset is the cursor for the next older window.
+  string next_offset = 3;
+  bool has_more = 4;
 }

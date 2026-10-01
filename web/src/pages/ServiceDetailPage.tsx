@@ -19,6 +19,7 @@ import {
   usePolling,
 } from '../components';
 import { useI18n } from '../i18n';
+import { navigate } from '../router';
 
 interface ServiceResponse {
   response: { code: number; message: string };
@@ -85,6 +86,17 @@ export default function ServiceDetailPage() {
           <div className="subtitle mono">{s.serviceId}</div>
         </div>
         <StateBadge state={s.state} />
+        <a
+          className="secondary"
+          data-testid="service-logs-link"
+          href={`/admin/services/${s.serviceId}/logs`}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(`/admin/services/${s.serviceId}/logs`);
+          }}
+        >
+          {t('servicelogs.title')}
+        </a>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
