@@ -30,7 +30,7 @@ type Version struct {
 	// ID is the server-generated UUID v4.
 	ID string `gorm:"primaryKey;type:uuid"`
 	// ModelID is the owning model's id.
-	ModelID string `gorm:"type:uuid;not null;uniqueIndex:idx_model_versions_model_version,priority:1"`
+	ModelID string `gorm:"type:uuid;not null;uniqueIndex:idx_model_versions_model_version,priority:1;uniqueIndex:idx_model_versions_active,priority:1"`
 	// Version is the version string, 1-64 chars.
 	Version string `gorm:"size:64;not null;uniqueIndex:idx_model_versions_model_version,priority:2;index:idx_model_versions_model_created,priority:2,sort:DESC"`
 	// WeightPath is the object-storage path of the model weights,
@@ -41,7 +41,7 @@ type Version struct {
 	// deployments (feature #32, AD2). At most one version per model is
 	// active, enforced by the partial unique index (model_id) WHERE
 	// is_active.
-	IsActive bool `gorm:"not null;default:false;uniqueIndex:idx_model_versions_active,where:is_active"`
+	IsActive bool `gorm:"not null;default:false;uniqueIndex:idx_model_versions_active,priority:2,where:is_active"`
 	// CreatedAt is the registration time (UTC).
 	CreatedAt time.Time `gorm:"index:idx_model_versions_model_created,priority:1"`
 }

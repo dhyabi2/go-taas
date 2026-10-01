@@ -218,6 +218,52 @@ func TestRepositoryActiveVersionAndActivate(t *testing.T) {
 	assert.Equal(t, apierrors.CodeModelVersionNotFound, ae.Code)
 }
 
+// TestRepositoryActiveVersionPerModel verifies the one-active-per-model
+// invariant (feature #32, AD2): activating a version on one model must
+// never be blocked by an active version on a different model. This is
+// enforced by the partial unique index (model_id) WHERE is_active, which
+// SQLite does not enforce the same way as PostgreSQL, so the invariant
+// is asserted at the repository layer.
+func TestRepositoryActiveVersionPerModel(t *testing.T) {
+	repo := newModelTestRepo(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	modelA := &Model{Name: "qwen-3b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, modelA))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: modelA.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+
+	modelB := &Model{Name: "qwen-7b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, modelB))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: modelB.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+
+	// Activate v1 on model A.
+	activeVersion, err := repo.ActivateVersion(ctx, modelA.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	// Activating v1 on model B succeeds independently of model A's
+	// active version (the per-model invariant).
+	activeVersion, err = repo.ActivateVersion(ctx, modelB.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	// Both models have exactly one active version each.
+	for _, id := range []string{modelA.ID, modelB.ID} {
+		var count int64
+		require.NoError(t, repo.db.DB(ctx).Model(&Version{}).Where("model_id = ? AND is_active = ?", id, true).Count(&count).Error)
+		assert.Equal(t, int64(1), count)
+	}
+
+	// Re-activating on model A does not disturb model B's active row.
+	activeVersion, err = repo.ActivateVersion(ctx, modelA.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+	var count int64
+	require.NoError(t, repo.db.DB(ctx).Model(&Version{}).Where("model_id = ? AND is_active = ?", modelB.ID, true).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}
+
 func TestRepositoryListVersionsWithCounts(t *testing.T) {
 	repo := newModelTestRepo(t)
 	ctx := context.Background()
