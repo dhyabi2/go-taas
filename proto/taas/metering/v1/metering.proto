@@ -119,6 +119,12 @@ message IngestMeteringEventRequest {
   RequestLogStatus status = 10;
   // error is the failure reason; empty on success (feature #12).
   string error = 11;
+  // ttft_ms is the time-to-first-token (prefill phase) in milliseconds
+  // (feature #27, AD3).
+  int64 ttft_ms = 12;
+  // generation_ms is the generation (decode phase) in milliseconds
+  // (feature #27, AD3).
+  int64 generation_ms = 13;
 }
 
 message TokenUsage {

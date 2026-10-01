@@ -25,6 +25,7 @@ import (
 	"github.com/go-taas/go-taas/services/notification"
 	"github.com/go-taas/go-taas/services/observability"
 	"github.com/go-taas/go-taas/services/tenancy"
+	"github.com/go-taas/go-taas/services/tracing"
 	"github.com/go-taas/go-taas/services/webhook"
 )
 
@@ -118,6 +119,12 @@ func main() {
 	// threshold alerts, plus the event consumer and retention runner.
 	notificationSvc := notification.New(srv.Components())
 	srv.RegisterService(notificationSvc)
+	// Feature #27: the tracing service owns the traces + trace_spans
+	// tables, the best-effort capture alongside the request log, and the
+	// read-only query RPCs (ListTraces, GetTrace) dual-bound to the admin
+	// and user surfaces.
+	tracingSvc := tracing.New(srv.Components())
+	srv.RegisterService(tracingSvc)
 	// Feature #18: the accelerator inventory service serves the read-only
 	// fleet view from its in-memory projection cache. The cache is
 	// constructed once and shared with the snapshot consumer so the
@@ -206,6 +213,14 @@ func main() {
 			notificationSvc.SetSessionOrgResolver(authSvc)
 			notificationSvc.SetSessionUserResolver(authSvc)
 			notificationSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			// Feature #27: the tracing service resolves the session's
+			// active org and caller, gates the admin tracing RPCs by the
+			// caller's role (AD9), and the metering service captures the
+			// trace best-effort alongside the request log (AD3).
+			tracingSvc.SetSessionOrgResolver(authSvc)
+			tracingSvc.SetSessionUserResolver(authSvc)
+			tracingSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			meteringSvc.SetTraceCapturer(tracingSvc)
 			// The auth service records key revokes and logins into the
 			// audit trail best-effort (feature #15, AC1/AC3).
 			auditRecorder := audit.NewRecorder(audit.NewRepository(gormDB))
@@ -319,6 +334,11 @@ func main() {
 		srv.AddRunner(runner)
 	}
 	if runner := notification.NewNotificationRetentionRunnerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	// Feature #27: the trace retention runner deletes traces (and their
+	// spans) older than tracing.retention.traceTTL (30 days, AD5).
+	if runner := tracing.NewTraceRetentionRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
 	if runner := billing.NewEventConsumerRunner(srv.Components()); runner != nil {

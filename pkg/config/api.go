@@ -543,6 +543,21 @@ type ObservabilityConfig struct {
 	MaxRangeSeconds int64 `mapstructure:"maxRangeSeconds"`
 }
 
+// TracingConfig holds tracing-module specific settings (feature #27,
+// Section 9).
+type TracingConfig struct {
+	// Retention configures the trace retention runner (AD5).
+	Retention TracingRetentionConfig `mapstructure:"retention"`
+}
+
+// TracingRetentionConfig holds the trace retention runner settings
+// (feature #27, AD5).
+type TracingRetentionConfig struct {
+	// TraceTTL is how long traces (and their spans) are kept before
+	// deletion; default 720h (30 days), aligned with request logs.
+	TraceTTL time.Duration `mapstructure:"traceTTL"`
+}
+
 // NotificationConfig holds notification-module specific settings
 // (feature #26, Section 9).
 type NotificationConfig struct {
@@ -593,6 +608,7 @@ type Configuration struct {
 	Webhook       WebhookConfig       `mapstructure:"webhook"`
 	Observability ObservabilityConfig `mapstructure:"observability"`
 	Notification  NotificationConfig  `mapstructure:"notification"`
+	Tracing       TracingConfig       `mapstructure:"tracing"`
 	Log           LogConfig           `mapstructure:"log"`
 }
 
@@ -773,6 +789,9 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Notification.Retention.Interval < 0 {
 		return &FieldError{Field: "notification.retention.interval", Reason: "must not be negative"}
+	}
+	if c.Tracing.Retention.TraceTTL < 0 {
+		return &FieldError{Field: "tracing.retention.traceTTL", Reason: "must not be negative"}
 	}
 	return nil
 }

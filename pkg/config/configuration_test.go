@@ -513,3 +513,48 @@ notification:
 		t.Fatalf("notification retention TTL = %v, want 720h", cfg.Notification.Retention.NotificationTTL)
 	}
 }
+
+func TestTracingDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Tracing.Retention.TraceTTL != 720*time.Hour {
+		t.Fatalf("tracing retention TTL default = %v, want 720h", cfg.Tracing.Retention.TraceTTL)
+	}
+}
+
+func TestValidateTracingConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative retention TTL fails.
+	cfg.Tracing.Retention.TraceTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative tracing retention TTL should fail validation")
+	}
+	cfg.Tracing.Retention.TraceTTL = 720 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid tracing config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsTracingSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+tracing:
+  retention:
+    traceTTL: 360h
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Tracing.Retention.TraceTTL != 360*time.Hour {
+		t.Fatalf("tracing retention TTL = %v, want 360h", cfg.Tracing.Retention.TraceTTL)
+	}
+}

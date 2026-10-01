@@ -195,3 +195,34 @@ const (
 	CodeNotificationThresholdInvalid   Code = 11004 // NOTIFICATION_THRESHOLD_INVALID
 	CodeNotificationEventTypeInvalid   Code = 11005 // NOTIFICATION_EVENT_TYPE_INVALID
 )
+
+// tracing module error codes (feature #27, AD2). The block is
+// 11101-11199, the next free block after notification's 110xx.
+const (
+	CodeTraceNotFound Code = 11101 // TRACE_NOT_FOUND
+)
+
+// usage-keys module error codes (feature #28, AD2). The block is
+// 11201-11299, the next free block after tracing's 111xx.
+const (
+	CodeUsageKeyNotFound Code = 11201 // USAGE_KEY_NOT_FOUND
+)
+
+// cost module error codes (feature #29, AD2). The block is
+// 11301-11399, the next free block after usage-keys' 112xx.
+const (
+	CodeCostDimensionInvalid       Code = 11301 // COST_DIMENSION_INVALID
+	CodeCostDimensionValueNotFound Code = 11302 // COST_DIMENSION_VALUE_NOT_FOUND
+)
+
+// status module error codes (feature #30, AD7). The block is
+// 11401-11499, the next free block after cost's 113xx.
+const (
+	CodeStatusComponentNotFound Code = 11401 // STATUS_COMPONENT_NOT_FOUND
+)
+
+// error-analysis module error codes (feature #31, AD2). The block is
+// 11501-11599, the next free block after status' 114xx.
+const (
+	CodeErrorCauseNotFound Code = 11501 // ERROR_CAUSE_NOT_FOUND
+)

@@ -139,6 +139,22 @@ var messages = map[Code]string{
 	CodeNotificationThresholdNotFound:  "threshold not found",
 	CodeNotificationThresholdInvalid:   "invalid threshold",
 	CodeNotificationEventTypeInvalid:   "invalid event type",
+
+	// tracing (feature #27, AD2)
+	CodeTraceNotFound: "trace not found",
+
+	// usage-keys (feature #28, AD2)
+	CodeUsageKeyNotFound: "usage key not found",
+
+	// cost (feature #29, AD2)
+	CodeCostDimensionInvalid:       "invalid cost dimension",
+	CodeCostDimensionValueNotFound: "cost dimension value not found",
+
+	// status (feature #30, AD7)
+	CodeStatusComponentNotFound: "status component not found",
+
+	// error-analysis (feature #31, AD2)
+	CodeErrorCauseNotFound: "error cause not found",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a

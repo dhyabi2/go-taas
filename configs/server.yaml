@@ -216,3 +216,10 @@ notification:
     notificationTTL: 2160h
     batchSize: 1000
     interval: 1h
+
+# Feature #27: request tracing. The best-effort trace capture writes
+# traces + trace_spans alongside the request log; the retention runner
+# deletes traces older than traceTTL (30 days, AD5).
+tracing:
+  retention:
+    traceTTL: 720h

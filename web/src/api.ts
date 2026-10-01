@@ -434,6 +434,69 @@ export interface GetModelObservabilityResponse {
   keys?: ObservabilityKeyRow[];
 }
 
+// ---- request tracing (feature #27) ----
+
+export interface TraceSummary {
+  traceId: string;
+  organizationId: string;
+  apiKeyId: string;
+  apiKeyName: string;
+  modelId: string;
+  modelName: string;
+  serviceId: string;
+  status: string;
+  error: string;
+  totalLatencyMs: string;
+  ttftMs: string;
+  generationMs: string;
+  createdAt: string;
+}
+
+export interface TraceSpan {
+  spanId: string;
+  traceId: string;
+  parentSpanId: string;
+  name: string;
+  kind: string;
+  startOffsetMs: string;
+  durationMs: string;
+  status: string;
+  error: string;
+  attributes: string;
+}
+
+export interface TraceDetail {
+  traceId: string;
+  organizationId: string;
+  apiKeyId: string;
+  apiKeyName: string;
+  modelId: string;
+  modelName: string;
+  serviceId: string;
+  status: string;
+  error: string;
+  totalLatencyMs: string;
+  ttftMs: string;
+  generationMs: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  createdAt: string;
+  spans?: TraceSpan[];
+}
+
+export interface ListTracesResponse {
+  response: ResponseEnvelope;
+  traces?: TraceSummary[];
+  nextPageToken: string;
+}
+
+export interface GetTraceResponse {
+  response: ResponseEnvelope;
+  trace?: TraceDetail;
+}
+
 // ---- per-tenant model authorization (feature #13) ----
 
 export interface ModelAuthorization {

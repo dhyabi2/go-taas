@@ -260,6 +260,11 @@ func (c *Configuration) applyDefaults() {
 	if c.Notification.Retention.Interval == 0 {
 		c.Notification.Retention.Interval = time.Hour
 	}
+	// Feature #27: tracing module defaults (Section 9). Traces are kept
+	// for 30 days (720h), aligned with request logs (AD5).
+	if c.Tracing.Retention.TraceTTL == 0 {
+		c.Tracing.Retention.TraceTTL = 720 * time.Hour
+	}
 	// The image-import Harbor project defaults to "taas" so imported
 	// images always land in the platform's own project.
 	if c.Image.Harbor.Project == "" {

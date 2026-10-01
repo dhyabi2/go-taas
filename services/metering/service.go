@@ -58,6 +58,37 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// TraceCapturer captures an inference request's trace best-effort
+// (feature #27, AD3). It is implemented by the tracing module and
+// injected at wiring time. Nil until wired: no trace is captured.
+type TraceCapturer interface {
+	// CaptureTrace writes the trace and its spans best-effort; a failure
+	// is logged and never fails or retries the voucher or the request
+	// log.
+	CaptureTrace(ctx context.Context, ev *TraceCaptureEvent)
+}
+
+// TraceCaptureEvent is the metering event projection the trace capture
+// reads (feature #27, AD3). It carries the request identity, token
+// counts, latency, status, error, and the per-phase timings.
+type TraceCaptureEvent struct {
+	RequestID        string
+	OrganizationID   string
+	APIKeyID         string
+	ModelID          string
+	ServiceID        string
+	PromptTokens     int64
+	CompletionTokens int64
+	CachedTokens     int64
+	ReasoningTokens  int64
+	LatencyMs        int64
+	TTFTMs           int64
+	GenerationMs     int64
+	Status           string
+	Error            string
+	CompletedAt      int64
+}
+
 // Service implements the metering gRPC service.
 type Service struct {
 	meteringv1.UnimplementedMeteringServiceServer
@@ -83,6 +114,10 @@ type Service struct {
 	// the user-realm reads (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// traceCapturer captures an inference request's trace best-effort
+	// (feature #27, AD3). Nil until wired: no trace is captured.
+	traceCapturer TraceCapturer
 }
 
 // New constructs the metering service. The repository is wired lazily
@@ -101,6 +136,11 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // by the user-realm reads (feature-17 AD6). Production and FVT wire the
 // auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// SetTraceCapturer injects the best-effort trace capturer (feature #27,
+// AD3). Production and FVT wire the tracing service; unit tests leave it
+// nil so no trace is captured.
+func (s *Service) SetTraceCapturer(c TraceCapturer) { s.traceCapturer = c }
 
 // resolveOrg returns the organization context for a user-realm read
 // (feature-17 AD6): the session's active org when a session is present,
@@ -298,7 +338,37 @@ func (s *Service) handleEvent(ctx context.Context, ev *meteringEvent) (string, e
 	// Feature #12: write the request log best-effort and non-fatal
 	// (AD2). A failure is logged and never fails or retries the voucher.
 	s.writeRequestLog(ctx, repo, ev)
+	// Feature #27: capture the trace best-effort and non-fatal (AD3). A
+	// trace-write failure is logged and never fails or retries the
+	// voucher or the request log.
+	s.captureTrace(ctx, ev)
 	return stored.ID, nil
+}
+
+// captureTrace forwards the metering event to the tracing module's
+// best-effort trace capture (feature #27, AD3). No-op when the capturer
+// is not wired.
+func (s *Service) captureTrace(ctx context.Context, ev *meteringEvent) {
+	if s.traceCapturer == nil {
+		return
+	}
+	s.traceCapturer.CaptureTrace(ctx, &TraceCaptureEvent{
+		RequestID:        ev.RequestID,
+		OrganizationID:   ev.OrganizationID,
+		APIKeyID:         ev.APIKeyID,
+		ModelID:          ev.ModelID,
+		ServiceID:        ev.ServiceID,
+		PromptTokens:     ev.Usage.PromptTokens,
+		CompletionTokens: ev.Usage.CompletionTokens,
+		CachedTokens:     ev.Usage.CachedTokens,
+		ReasoningTokens:  ev.Usage.ReasoningTokens,
+		LatencyMs:        ev.LatencyMs,
+		TTFTMs:           ev.TTFTMs,
+		GenerationMs:     ev.GenerationMs,
+		Status:           ev.Status,
+		Error:            ev.Error,
+		CompletedAt:      ev.CompletedAt,
+	})
 }
 
 // writeRequestLog builds and writes a request-log row best-effort
@@ -376,6 +446,8 @@ func (s *Service) IngestMeteringEvent(ctx context.Context, req *meteringv1.Inges
 		LatencyMs:      req.GetLatencyMs(),
 		Status:         requestLogStatusString(req.GetStatus()),
 		Error:          req.GetError(),
+		TTFTMs:         req.GetTtftMs(),
+		GenerationMs:   req.GetGenerationMs(),
 	}
 	if usage := req.GetUsage(); usage != nil {
 		ev.Usage = tokenUsage{

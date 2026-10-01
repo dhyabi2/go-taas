@@ -43,6 +43,7 @@ export const USER_NAV_ITEMS: { path: string; labelKey: string; testid: string; i
   { path: '/webhooks', labelKey: 'nav.webhooks', testid: 'user-nav-webhooks', icon: LinkSimple },
   { path: '/notifications', labelKey: 'nav.notifications', testid: 'user-nav-notifications', icon: Bell },
   { path: '/models', labelKey: 'nav.models', testid: 'user-nav-models', icon: Cube },
+  { path: '/traces', labelKey: 'nav.traces', testid: 'user-nav-traces', icon: ChartLine },
 ];
 
 function isActive(path: string, current: string): boolean {

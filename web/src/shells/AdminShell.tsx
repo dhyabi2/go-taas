@@ -60,6 +60,7 @@ export const ADMIN_NAV_ITEMS: { path: string; labelKey: string; testid: string; 
   { path: '/admin/webhooks', labelKey: 'nav.webhooks', testid: 'nav-webhooks', icon: LinkSimple },
   { path: '/admin/notifications', labelKey: 'nav.notifications', testid: 'nav-notifications', icon: Bell },
   { path: '/admin/observability', labelKey: 'nav.observability', testid: 'nav-observability', icon: ChartLine },
+  { path: '/admin/traces', labelKey: 'nav.traces', testid: 'nav-traces', icon: ChartLine },
 ];
 
 function isActive(path: string, current: string): boolean {
