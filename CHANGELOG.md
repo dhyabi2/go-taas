@@ -1,3 +1,10 @@
+# [1.34.0](https://github.com/go-taas/go-taas/compare/v1.33.1...v1.34.0) (2026-10-01)
+
+
+### Features
+
+* **tracing:** request tracing with latency breakdown ([a5c2909](https://github.com/go-taas/go-taas/commit/a5c290992ff6628a40fbfa2876bb76f51fb2aabe))
+
 ## [1.33.1](https://github.com/go-taas/go-taas/compare/v1.33.0...v1.33.1) (2026-10-01)
 
 
