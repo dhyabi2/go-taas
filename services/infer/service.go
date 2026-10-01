@@ -102,6 +102,10 @@ type Service struct {
 	// API through the Controller (feature #33, AD2). Nil until wired:
 	// the log RPCs fail closed (10301).
 	logFetcher LogFetcher
+
+	// deploymentEventRepo persists the deployment event trail (feature
+	// #34, AD2). Wired lazily from the shared components.
+	deploymentEventRepo *DeploymentEventRepository
 }
 
 // AuditRecorder is the best-effort, non-fatal audit recorder seam
@@ -200,8 +204,14 @@ func NewWithDependencies(
 	repo *InferenceServiceRepository,
 	modelRepo *model.Repository,
 	mqClient mq.Client,
+	deploymentEventRepo *DeploymentEventRepository,
 ) *Service {
-	return &Service{repo: repo, modelRepo: modelRepo, mqClient: mqClient}
+	return &Service{
+		repo:                repo,
+		modelRepo:           modelRepo,
+		mqClient:            mqClient,
+		deploymentEventRepo: deploymentEventRepo,
+	}
 }
 
 // NewForFVT constructs a Service bound to a test database and MQ
@@ -211,14 +221,15 @@ func NewForFVT(db *gorm.DB, mqClient mq.Client) *Service {
 		NewInferenceServiceRepository(db),
 		model.NewRepository(db),
 		mqClient,
+		NewDeploymentEventRepository(db),
 	)
 }
 
 // MigrateSchemaForFVT applies the infer schema (inference_services,
-// autoscaling_policy, load_tests) to the given database. FVT-only
-// helper.
+// autoscaling_policy, load_tests, deployment_events) to the given
+// database. FVT-only helper.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	if err := db.AutoMigrate(&InferenceService{}, &AutoscalingPolicy{}, &LoadTest{}); err != nil {
+	if err := db.AutoMigrate(&InferenceService{}, &AutoscalingPolicy{}, &LoadTest{}, &DeploymentEvent{}); err != nil {
 		return err
 	}
 	return NewAutoscalingPolicyRepository(db).SeedDefault(context.Background())
@@ -243,7 +254,7 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&InferenceService{}, &AutoscalingPolicy{}, &LoadTest{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&InferenceService{}, &AutoscalingPolicy{}, &LoadTest{}, &DeploymentEvent{}); err != nil {
 		return err
 	}
 	// Seed the singleton global-default policy (feature #16, §4.3): the
@@ -305,6 +316,20 @@ func (s *Service) mqClientFor() (mq.Client, error) {
 	}
 	s.mqClient = client
 	return client, nil
+}
+
+// deploymentEventRepository lazily resolves the deployment event
+// repository (feature #34, AD2).
+func (s *Service) deploymentEventRepository() (*DeploymentEventRepository, error) {
+	if s.deploymentEventRepo != nil {
+		return s.deploymentEventRepo, nil
+	}
+	db, err := s.gormDB()
+	if err != nil {
+		return nil, err
+	}
+	s.deploymentEventRepo = NewDeploymentEventRepository(db)
+	return s.deploymentEventRepo, nil
 }
 
 // CreateInferenceService deploys a model with the given image and
@@ -451,6 +476,9 @@ func (s *Service) CreateInferenceService(ctx context.Context, req *inferv1.Creat
 		ResourceID:     svc.ID,
 		Result:         "success",
 	})
+	// Feature #34: record the create event in the deployment trail. The
+	// before side is empty (nothing existed before the create).
+	s.recordLifecycleEvent(ctx, nil, svc, DeploymentEventCreate, s.actorFor(ctx, orgID))
 
 	return &inferv1.CreateInferenceServiceResponse{
 		Response:  okResponse(),
@@ -664,6 +692,12 @@ func (s *Service) ScaleInferenceService(ctx context.Context, req *inferv1.ScaleI
 		ResourceID:     req.GetServiceId(),
 		Result:         "success",
 	})
+	// Feature #34: record the scale event in the deployment trail with
+	// the before (old replicas) and after (new replicas) states.
+	scaledRow, _ := repo.FindByIDAndOrganization(ctx, orgID, req.GetServiceId())
+	if scaledRow != nil {
+		s.recordLifecycleEvent(ctx, row, scaledRow, DeploymentEventScale, s.actorFor(ctx, orgID))
+	}
 
 	return &inferv1.ScaleInferenceServiceResponse{Response: okResponse()}, nil
 }
@@ -719,6 +753,9 @@ func (s *Service) DeleteInferenceService(ctx context.Context, req *inferv1.Delet
 		ResourceID:     req.GetServiceId(),
 		Result:         "success",
 	})
+	// Feature #34: record the delete event in the deployment trail. The
+	// after side is empty (nothing remains after the delete).
+	s.recordLifecycleEvent(ctx, row, nil, DeploymentEventDelete, s.actorFor(ctx, orgID))
 
 	return &inferv1.DeleteInferenceServiceResponse{Response: okResponse()}, nil
 }
@@ -798,6 +835,10 @@ func (s *Service) UpdateInferenceServiceVersion(ctx context.Context, req *inferv
 		ResourceID:     req.GetServiceId(),
 		Result:         "success",
 	})
+
+	// Feature #34: record the update event in the deployment trail with
+	// the before (old version) and after (new version) states.
+	s.recordLifecycleEvent(ctx, row, &updated, DeploymentEventUpdate, s.actorFor(ctx, orgID))
 
 	return &inferv1.UpdateInferenceServiceVersionResponse{
 		Response:  okResponse(),
@@ -899,6 +940,224 @@ func (s *Service) GetServiceLogs(ctx context.Context, req *inferv1.GetServiceLog
 		NextOffset: window.NextOffset,
 		HasMore:    window.HasMore,
 	}, nil
+}
+
+// ListDeploymentEvents returns the deployment event trail, newest first,
+// with field-level diffs, filtered by service/event type/actor/time range
+// (feature #34, AC1). Unknown service_id → 10301; invalid range → 10404.
+func (s *Service) ListDeploymentEvents(ctx context.Context, req *inferv1.ListDeploymentEventsRequest) (*inferv1.ListDeploymentEventsResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	evtRepo, err := s.deploymentEventRepository()
+	if err != nil {
+		return nil, err
+	}
+	serviceID := strings.TrimSpace(req.GetServiceId())
+	if serviceID != "" {
+		if _, err := repo.FindByIDAndOrganization(ctx, orgID, serviceID); err != nil {
+			return nil, err
+		}
+	}
+	since, until := req.GetSince(), req.GetUntil()
+	if since > 0 && until > 0 && since > until {
+		return nil, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	offset, limit := normalizePagination(req.GetPage())
+	rows, total, err := evtRepo.ListEvents(ctx, DeploymentEventFilter{
+		ServiceID: serviceID,
+		EventType: strings.TrimSpace(req.GetEventType()),
+		Actor:     strings.TrimSpace(req.GetActor()),
+		Since:     since,
+		Until:     until,
+	}, offset, limit)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*inferv1.DeploymentEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, &inferv1.DeploymentEvent{
+			EventId:     row.ID,
+			ServiceId:   row.ServiceID,
+			ServiceName: row.ServiceName,
+			EventType:   row.EventType,
+			Actor:       row.Actor,
+			Before:      string(row.Before),
+			After:       string(row.After),
+			CreatedAt:   row.CreatedAt.Unix(),
+		})
+	}
+	return &inferv1.ListDeploymentEventsResponse{
+		Response: okResponse(),
+		Events:   events,
+		PageMeta: &commonv1.PageMeta{Total: total, Offset: int64(offset), Limit: clampToInt32(limit)},
+	}, nil
+}
+
+// RollbackDeployment reverts a service to a selected historical state
+// (the before of a chosen event), keeping the same service_id and
+// endpoints (feature #34, AC3). Validation order: service exists (10301),
+// state updatable (10303), event exists and belongs to the service
+// (10304).
+func (s *Service) RollbackDeployment(ctx context.Context, req *inferv1.RollbackDeploymentRequest) (*inferv1.RollbackDeploymentResponse, error) {
+	orgID, err := s.resolveOrg(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkOrg(ctx, orgID, false); err != nil {
+		return nil, err
+	}
+	repo, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	evtRepo, err := s.deploymentEventRepository()
+	if err != nil {
+		return nil, err
+	}
+	client, err := s.mqClientFor()
+	if err != nil {
+		return nil, err
+	}
+
+	row, err := repo.FindByIDAndOrganization(ctx, orgID, req.GetServiceId())
+	if err != nil {
+		return nil, err
+	}
+	if row.State == StateTerminated {
+		return nil, apierrors.New(apierrors.CodeInferServiceStateInvalid)
+	}
+	evt, err := evtRepo.GetEvent(ctx, req.GetEventId())
+	if err != nil {
+		return nil, err
+	}
+	if evt.ServiceID != row.ID {
+		return nil, apierrors.New(apierrors.CodeInferEndpointNotFound)
+	}
+
+	// The rollback target is the event's before state. The before diff
+	// omits unchanged fields, so the target is merged onto the current
+	// state: only the fields the target event changed are restored.
+	target, err := specFromJSON(evt.Before)
+	if err != nil {
+		return nil, apierrors.Newf(apierrors.CodeInternal, "infer: malformed rollback target")
+	}
+	if target.isEmpty() {
+		return nil, apierrors.New(apierrors.CodeInferServiceStateInvalid)
+	}
+	// The target version, when present, must be a registered version of
+	// the service's model.
+	if target.ModelVersion != "" {
+		modelRepo, err := s.modelRepository()
+		if err != nil {
+			return nil, err
+		}
+		if _, err := modelRepo.FindVersion(ctx, row.ModelID, target.ModelVersion); err != nil {
+			return nil, err
+		}
+	}
+
+	// Apply the target as the new desired state.
+	if err := repo.ApplyRollbackState(ctx, orgID, row.ID, target); err != nil {
+		return nil, err
+	}
+
+	// Compose the rolled-back desired state by merging the target onto
+	// the current row.
+	updated := *row
+	if target.ModelVersion != "" {
+		updated.ModelVersion = target.ModelVersion
+	}
+	if target.ImageID != "" {
+		updated.ImageID = target.ImageID
+	}
+	if target.Replicas != 0 {
+		updated.Replicas = target.Replicas
+	}
+	if target.Accelerator != "" {
+		updated.Accelerator = target.Accelerator
+	}
+	if target.AcceleratorType != "" {
+		updated.AcceleratorType = target.AcceleratorType
+	}
+	updated.State = StateDeploying
+	img, err := image.Lookup(updated.ImageID)
+	if err != nil {
+		return nil, err
+	}
+	evtChange := buildChangeEvent(EventTypeRollback, &updated, target.WeightPath, img.Reference(), img.Engine)
+	if err := publishChange(ctx, client, evtChange); err != nil {
+		logger.S().Errorw("infer: publish rollback change failed",
+			"service_id", req.GetServiceId(), "err", err)
+		return nil, apierrors.Newf(apierrors.CodeInternal, "infer: publish change failed")
+	}
+
+	// Record the rollback event (FR2.3): the diff is from the current
+	// state to the rolled-back state.
+	s.recordLifecycleEvent(ctx, row, &updated, DeploymentEventRollback, s.actorFor(ctx, orgID))
+
+	// Feature #15: record the successful rollback best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    orgID,
+		ActorType:      "user",
+		Action:         "inference_service.rollback",
+		ResourceType:   "inference_service",
+		ResourceID:     req.GetServiceId(),
+		Result:         "success",
+	})
+
+	return &inferv1.RollbackDeploymentResponse{
+		Response:  okResponse(),
+		ServiceId: req.GetServiceId(),
+		State:     StateDeploying,
+	}, nil
+}
+
+// recordLifecycleEvent records a deployment event in the trail
+// (feature #34, AD2). before/after are the service states on either side
+// of the mutation; a nil side renders as an empty diff (the "before" of
+// a create or the "after" of a delete). Best-effort: a recorder failure
+// is logged and never fails the mutation.
+func (s *Service) recordLifecycleEvent(ctx context.Context, before, after *InferenceService, eventType, actor string) {
+	evtRepo, err := s.deploymentEventRepository()
+	if err != nil {
+		logger.S().Warnw("infer: deployment event repo unavailable", "err", err)
+		return
+	}
+	svc := after
+	if svc == nil {
+		svc = before
+	}
+	if svc == nil {
+		return
+	}
+	beforeJSON, afterJSON := specDiff(before, after)
+	_ = evtRepo.RecordEvent(ctx, &DeploymentEvent{
+		ServiceID:   svc.ID,
+		ServiceName: svc.Name,
+		EventType:   eventType,
+		Actor:       actor,
+		Before:      beforeJSON,
+		After:       afterJSON,
+	})
+}
+
+// actorFor resolves the actor for a deployment event: the caller's
+// organization id (transitional) or "system".
+func (s *Service) actorFor(_ context.Context, orgID string) string {
+	if orgID != "" {
+		return orgID
+	}
+	return "system"
 }
 
 // resolveOrganizationID reads the organization id from the incoming

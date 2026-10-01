@@ -17,6 +17,10 @@ const (
 	// (feature #32, AD6). The controller recreates the pods with the new
 	// weights while keeping the service identity and endpoints.
 	EventTypeUpdateVersion = "update_version"
+	// EventTypeRollback is the deployment rollback event (feature #34,
+	// AD5). The controller applies the previous desired state while
+	// keeping the service identity and endpoints.
+	EventTypeRollback = "rollback"
 )
 
 // changeEventModel is the resolved model spec inside a change event. The

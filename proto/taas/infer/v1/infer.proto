@@ -189,6 +189,25 @@ service InferServiceService {
   rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {
     option (google.api.http) = {get: "/api/v1/admin/services/{service_id}/logs"};
   }
+
+  // ListDeploymentEvents returns the deployment event trail, newest
+  // first, with field-level diffs, filtered by service/event type/actor/
+  // time range (feature #34, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListDeploymentEvents(ListDeploymentEventsRequest) returns (ListDeploymentEventsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/deployments/events"};
+  }
+
+  // RollbackDeployment reverts a service to a selected historical state
+  // (the before of a chosen event), keeping the same service_id and
+  // endpoints (feature #34, AD5).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc RollbackDeployment(RollbackDeploymentRequest) returns (RollbackDeploymentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/deployments/{service_id}:rollback"
+      body: "*"
+    };
+  }
 }
 
 message CreateInferenceServiceRequest {
@@ -571,4 +590,51 @@ message GetServiceLogsResponse {
   // next_offset is the cursor for the next older window.
   string next_offset = 3;
   bool has_more = 4;
+}
+
+// ListDeploymentEvents returns the deployment event trail (feature #34,
+// AD4).
+message ListDeploymentEventsRequest {
+  // service_id is optional; when empty the trail spans all services.
+  string service_id = 1;
+  // event_type is optional: create / update / scale / rollback / delete.
+  string event_type = 2;
+  // actor is optional.
+  string actor = 3;
+  // since / until are unix seconds; optional.
+  int64 since = 4;
+  int64 until = 5;
+  taas.common.v1.PageRequest page = 6;
+}
+
+message DeploymentEvent {
+  string event_id = 1;
+  string service_id = 2;
+  string service_name = 3;
+  string event_type = 4;
+  string actor = 5;
+  // before / after are the field-level diff (mutable spec fields).
+  string before = 6;
+  string after = 7;
+  int64 created_at = 8;
+}
+
+message ListDeploymentEventsResponse {
+  taas.common.v1.Response response = 1;
+  repeated DeploymentEvent events = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+// RollbackDeployment reverts a service to a selected historical state
+// (feature #34, AD5).
+message RollbackDeploymentRequest {
+  string service_id = 1; // path
+  // event_id is the event whose before is the rollback target.
+  string event_id = 2;
+}
+
+message RollbackDeploymentResponse {
+  taas.common.v1.Response response = 1;
+  string service_id = 2;
+  string state = 3; // deploying
 }
