@@ -1,3 +1,12 @@
+## [1.37.1](https://github.com/go-taas/go-taas/compare/v1.37.0...v1.37.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **cost:** bind GetCostAnalyticsOverview on the user prefix ([6cea6b3](https://github.com/go-taas/go-taas/commit/6cea6b3d5212286265209735a5baf62627e6ffe3))
+* **errors:** bind GetErrorAnalysisOverview on the user prefix ([8cdf8ae](https://github.com/go-taas/go-taas/commit/8cdf8aee5e966cf694cb274bc864284e1a732aa7))
+* **usage:** bind GetUsageKeysOverview on the user prefix ([e48e2c3](https://github.com/go-taas/go-taas/commit/e48e2c348d413efac123c5aa7134283e96135cfa))
+
 # [1.37.0](https://github.com/go-taas/go-taas/compare/v1.36.0...v1.37.0) (2026-10-01)
 
 
