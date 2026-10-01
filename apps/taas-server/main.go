@@ -181,6 +181,12 @@ func main() {
 			inferSvc.SetSessionOrgResolver(authSvc)
 			meteringSvc.SetSessionOrgResolver(authSvc)
 			billingSvc.SetSessionOrgResolver(authSvc)
+			// Features #32/#33/#34/#35: the infer service resolves the
+			// session's active org and caller, and gates the admin
+			// model-version/service-log/deployment and the user-realm
+			// compare RPCs by the caller's role (AD).
+			inferSvc.SetSessionUserResolver(authSvc)
+			inferSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// Feature #25: the billing service resolves the session's
 			// active org and caller, and gates the admin billing-report
 			// RPCs by the caller's role (AD6).

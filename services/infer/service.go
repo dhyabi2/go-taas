@@ -56,6 +56,36 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// SessionUserResolver resolves the authenticated caller's user id from
+// the session (feature #10). It is implemented by the auth module and
+// injected at wiring time.
+type SessionUserResolver interface {
+	// SessionUserID returns the authenticated caller's user id.
+	SessionUserID(ctx context.Context) (string, error)
+}
+
+// RoleGuard enforces the minimum org role on the admin infer RPCs
+// (features #32/#33/#34/#35, AD). It is implemented by tenancy.RoleGuard.
+type RoleGuard interface {
+	RequireRole(ctx context.Context, orgID, userID, minRole string) error
+}
+
+// roleAdmin is the minimum org role for the admin infer RPCs: the
+// fleet/operator view is admin-scoped.
+const roleAdmin = "admin"
+
+// roleMember is the minimum org role for the user-realm infer RPCs
+// (feature #35): the compare RPC requires the caller to be an org member.
+const roleMember = "member"
+
+// Surface constants derived from the request path (feature #29, §3.3).
+const (
+	// SurfaceAdmin is the admin console surface.
+	SurfaceAdmin = "admin"
+	// SurfaceUser is the end-user console surface.
+	SurfaceUser = "user"
+)
+
 // serviceNamePattern matches DNS-safe names: lowercase alphanumerics
 // and hyphens, 1-63 chars, not starting or ending with a hyphen.
 var serviceNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`)
@@ -78,6 +108,16 @@ type Service struct {
 	// the user-realm playground (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// sessionUserResolver resolves the caller's user id for the admin
+	// role check (feature #10). Nil until wired: no role check.
+	sessionUserResolver SessionUserResolver
+
+	// roleGuard gates the admin infer RPCs by the caller's role in the
+	// resolved org context (features #32/#33/#34/#35). Nil until wired:
+	// no role check (unit tests).
+	roleGuard RoleGuard
+
 	// auditRecorder is the best-effort audit recorder (feature #15, AD3).
 	// Nil until wired: no audit events are produced.
 	auditRecorder AuditRecorder
@@ -132,6 +172,14 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // by the user-realm playground (feature-17 AD6). Production and FVT wire
 // the auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// SetSessionUserResolver injects the session-user resolver used by the
+// admin role check (feature #10).
+func (s *Service) SetSessionUserResolver(r SessionUserResolver) { s.sessionUserResolver = r }
+
+// SetRoleGuard injects the org role guard that gates the admin infer
+// RPCs by the caller's role (features #32/#33/#34/#35).
+func (s *Service) SetRoleGuard(g RoleGuard) { s.roleGuard = g }
 
 // SetAuditRecorder injects the best-effort audit recorder (feature #15,
 // AD3). Production wires the audit module; unit tests may inject a fake.
@@ -196,6 +244,78 @@ func (s *Service) checkOrg(ctx context.Context, orgID string, requireActive bool
 		return s.orgGuard.RequireActive(ctx, orgID)
 	}
 	return s.orgGuard.RequireExists(ctx, orgID)
+}
+
+// requireAdminRole enforces the minimum org role on the admin infer RPCs
+// (features #32/#33/#34/#35). The RoleGuard resolves the caller from a
+// session; in the transitional (session-less) path there is no session
+// user to check, so the check is skipped and the org header itself is
+// the access boundary (feature-17 AD6).
+func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
+}
+
+// requireMemberRole enforces the minimum org role on the user-realm
+// infer RPCs (feature #35, AD). The compare RPC is end-user surface but
+// still requires the caller to be an org member (10036 for a non-member
+// session). The RoleGuard resolves the caller from a session; in the
+// transitional (session-less) path there is no session user to check, so
+// the check is skipped and the org header itself is the access boundary.
+func (s *Service) requireMemberRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleMember)
+}
+
+// resolveSessionActor returns the caller's user id and whether a session
+// is present.
+func (s *Service) resolveSessionActor(ctx context.Context) (string, bool, error) {
+	if s.sessionUserResolver == nil {
+		return "", false, nil
+	}
+	userID, err := s.sessionUserResolver.SessionUserID(ctx)
+	if err == nil && userID != "" {
+		return userID, true, nil
+	}
+	if err != nil && apierrors.CodeOf(err) != apierrors.CodeSessionInvalid {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+// surfaceFromContext derives the infer surface from the request path.
+// The surface is a property of the binding, never a request field
+// (feature #29, §3.3). The gateway forwards the request path in the
+// x-request-path metadata; the admin prefix maps to "admin", everything
+// else to "user".
+func surfaceFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return SurfaceUser
+	}
+	paths := md.Get("x-request-path")
+	if len(paths) > 0 && strings.HasPrefix(paths[0], "/api/v1/admin/") {
+		return SurfaceAdmin
+	}
+	return SurfaceUser
 }
 
 // NewWithDependencies constructs a Service with explicit dependencies
@@ -896,6 +1016,13 @@ func (s *Service) GetServiceLogs(ctx context.Context, req *inferv1.GetServiceLog
 	if err := s.checkOrg(ctx, orgID, false); err != nil {
 		return nil, err
 	}
+	// The admin log RPCs are gated by the caller's org role (feature
+	// #33, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
+	}
 	repo, err := s.repository()
 	if err != nil {
 		return nil, err
@@ -952,6 +1079,13 @@ func (s *Service) ListDeploymentEvents(ctx context.Context, req *inferv1.ListDep
 	}
 	if err := s.checkOrg(ctx, orgID, false); err != nil {
 		return nil, err
+	}
+	// The admin deployment RPCs are gated by the caller's org role
+	// (feature #34, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
 	}
 	repo, err := s.repository()
 	if err != nil {
@@ -1014,6 +1148,13 @@ func (s *Service) RollbackDeployment(ctx context.Context, req *inferv1.RollbackD
 	}
 	if err := s.checkOrg(ctx, orgID, false); err != nil {
 		return nil, err
+	}
+	// The admin deployment RPCs are gated by the caller's org role
+	// (feature #34, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
 	}
 	repo, err := s.repository()
 	if err != nil {

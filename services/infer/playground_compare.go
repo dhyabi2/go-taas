@@ -33,6 +33,11 @@ func (s *Service) CompareModels(ctx context.Context, req *inferv1.CompareModelsR
 	if err := s.checkOrg(ctx, orgID, false); err != nil {
 		return nil, err
 	}
+	// The compare RPC is gated by the caller's org role (feature #35,
+	// §3.3): a non-member user session receives 10036.
+	if err := s.requireMemberRole(ctx, orgID); err != nil {
+		return nil, err
+	}
 	modelIDs := req.GetModelIds()
 	if len(modelIDs) < minCompareModels || len(modelIDs) > maxCompareModels {
 		return nil, apierrors.New(apierrors.CodeMeteringRangeInvalid)
