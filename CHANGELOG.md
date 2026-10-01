@@ -1,3 +1,11 @@
+# [1.36.0](https://github.com/go-taas/go-taas/compare/v1.35.0...v1.36.0) (2026-10-01)
+
+
+### Features
+
+* **cost:** cost analytics dashboard (feature-29) ([cef0698](https://github.com/go-taas/go-taas/commit/cef06982e19fb1c20268ea4d5f52b45cd53ed871))
+* **status:** system health and service status (feature-30) ([7bb5357](https://github.com/go-taas/go-taas/commit/7bb53571fbd3dabf2d50212abb18d93da8dd490c))
+
 # [1.35.0](https://github.com/go-taas/go-taas/compare/v1.34.0...v1.35.0) (2026-10-01)
 
 
