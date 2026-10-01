@@ -1,3 +1,10 @@
+## [1.33.1](https://github.com/go-taas/go-taas/compare/v1.33.0...v1.33.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **notification:** refresh bell badge immediately after mark-all-read ([9cb896b](https://github.com/go-taas/go-taas/commit/9cb896bb31a01258c109c71f497b32ef74644945))
+
 # [1.33.0](https://github.com/go-taas/go-taas/compare/v1.32.2...v1.33.0) (2026-10-01)
 
 
