@@ -30,6 +30,11 @@ against the local docker compose stack.
 | Cost analytics dashboard | feature-29 `cost-analytics-dashboard` | `tests/costAnalytics.js` |
 | System health & status | feature-30 `system-health-status` | `tests/systemStatus.js` |
 | Error analysis | feature-31 `error-analysis` | `tests/errorAnalysis.js` |
+| Model versioning & rollback | feature-32 `model-versioning` | `tests/modelVersioning.js` |
+| Inference service logs viewer | feature-33 `service-logs-viewer` | `tests/serviceLogsViewer.js` |
+| Deployment history & audit | feature-34 `deployment-history-audit` | `tests/deploymentHistoryAudit.js` |
+| Model playground comparison | feature-35 `playground-comparison` | `tests/playgroundComparison.js` |
+| Usage & cost forecasting | feature-36 `usage-cost-forecasting` | `tests/usageCostForecasting.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md`,
@@ -83,6 +88,11 @@ npm run test:usage-keys             # feature-28 only
 npm run test:cost-analytics         # feature-29 only
 npm run test:system-status          # feature-30 only
 npm run test:error-analysis         # feature-31 only
+npm run test:model-versioning       # feature-32 only
+npm run test:service-logs-viewer    # feature-33 only
+npm run test:deployment-history-audit  # feature-34 only
+npm run test:playground-comparison  # feature-35 only
+npm run test:usage-cost-forecasting # feature-36 only
 ```
 
 Environment overrides:
