@@ -26,6 +26,10 @@ against the local docker compose stack.
 | Billing reports & CSV export | feature-25 `billing-reports` | `tests/billingReports.js` |
 | Notification center & threshold alerts | feature-26 `notification-center` | `tests/notificationCenter.js` |
 | Request tracing & latency breakdown | feature-27 `request-tracing` | `tests/requestTracing.js` |
+| API key usage analytics | feature-28 `api-key-usage-analytics` | `tests/usageKeys.js` |
+| Cost analytics dashboard | feature-29 `cost-analytics-dashboard` | `tests/costAnalytics.js` |
+| System health & status | feature-30 `system-health-status` | `tests/systemStatus.js` |
+| Error analysis | feature-31 `error-analysis` | `tests/errorAnalysis.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md`,
@@ -75,6 +79,10 @@ npm run test:infer       # feature-02 inference-service cases (tag)
 npm run test:webhook-notifications  # feature-23 only
 npm run test:notification-center    # feature-26 only
 npm run test:request-tracing        # feature-27 only
+npm run test:usage-keys             # feature-28 only
+npm run test:cost-analytics         # feature-29 only
+npm run test:system-status          # feature-30 only
+npm run test:error-analysis         # feature-31 only
 ```
 
 Environment overrides:

@@ -31,7 +31,11 @@
     "test:model-observability": "nightwatch --tag model-observability",
     "test:billing-reports": "nightwatch --tag billing-reports",
     "test:notification-center": "nightwatch --tag notification-center",
-    "test:request-tracing": "nightwatch --tag request-tracing"
+    "test:request-tracing": "nightwatch --tag request-tracing",
+    "test:usage-keys": "nightwatch --tag usage-keys",
+    "test:cost-analytics": "nightwatch --tag cost-analytics",
+    "test:system-status": "nightwatch --tag system-status",
+    "test:error-analysis": "nightwatch --tag error-analysis"
   },
   "license": "Apache-2.0",
   "devDependencies": {
