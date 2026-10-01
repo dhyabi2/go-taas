@@ -29,7 +29,8 @@
     "test:unified-login": "nightwatch --tag unified-login",
     "test:webhook-notifications": "nightwatch --tag webhook-notifications",
     "test:model-observability": "nightwatch --tag model-observability",
-    "test:billing-reports": "nightwatch --tag billing-reports"
+    "test:billing-reports": "nightwatch --tag billing-reports",
+    "test:notification-center": "nightwatch --tag notification-center"
   },
   "license": "Apache-2.0",
   "devDependencies": {

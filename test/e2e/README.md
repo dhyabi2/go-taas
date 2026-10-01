@@ -24,6 +24,7 @@ against the local docker compose stack.
 | Webhook notifications & event subscriptions | feature-23 `webhook-notifications` | `tests/webhookNotifications.js` |
 | Model observability dashboard | feature-24 `model-observability` | `tests/modelObservability.js` |
 | Billing reports & CSV export | feature-25 `billing-reports` | `tests/billingReports.js` |
+| Notification center & threshold alerts | feature-26 `notification-center` | `tests/notificationCenter.js` |
 
 Cases are derived from the acceptance criteria in
 `docs/design/api-key-management.md`,
@@ -71,6 +72,7 @@ npm run test:auth        # feature-01 only
 npm run test:model       # feature-02 model cases (tag)
 npm run test:infer       # feature-02 inference-service cases (tag)
 npm run test:webhook-notifications  # feature-23 only
+npm run test:notification-center    # feature-26 only
 ```
 
 Environment overrides:
