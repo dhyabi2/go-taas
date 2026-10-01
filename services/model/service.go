@@ -61,6 +61,32 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// SessionUserResolver resolves the authenticated caller's user id from
+// the session (feature #10). It is implemented by the auth module and
+// injected at wiring time.
+type SessionUserResolver interface {
+	// SessionUserID returns the authenticated caller's user id.
+	SessionUserID(ctx context.Context) (string, error)
+}
+
+// RoleGuard enforces the minimum org role on the admin model RPCs
+// (feature #32, §3.3). It is implemented by tenancy.RoleGuard.
+type RoleGuard interface {
+	RequireRole(ctx context.Context, orgID, userID, minRole string) error
+}
+
+// roleAdmin is the minimum org role for the admin model RPCs: the
+// fleet/operator view is admin-scoped.
+const roleAdmin = "admin"
+
+// Surface constants derived from the request path (feature #29, §3.3).
+const (
+	// SurfaceAdmin is the admin console surface.
+	SurfaceAdmin = "admin"
+	// SurfaceUser is the end-user console surface.
+	SurfaceUser = "user"
+)
+
 // AutoscalingProvider resolves the read-only autoscaling projection for
 // a model (feature #16, AD13). It is implemented by the infer module and
 // injected at wiring time, keeping the model module free of an infer
@@ -119,6 +145,15 @@ type Service struct {
 	// the user-realm catalog (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// sessionUserResolver resolves the caller's user id for the admin
+	// role check (feature #10). Nil until wired: no role check.
+	sessionUserResolver SessionUserResolver
+
+	// roleGuard gates the admin model RPCs by the caller's role in the
+	// resolved org context (feature #32, §3.3). Nil until wired: no role
+	// check (unit tests).
+	roleGuard RoleGuard
 
 	// autoscalingProvider resolves the read-only autoscaling projection
 	// for the user-realm catalog (feature #16, AD13). Nil until wired:
@@ -202,6 +237,14 @@ func (s *Service) SetSessionResolver(r SessionResolver) { s.sessionResolver = r 
 // the auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
 
+// SetSessionUserResolver injects the session-user resolver used by the
+// admin role check (feature #10).
+func (s *Service) SetSessionUserResolver(r SessionUserResolver) { s.sessionUserResolver = r }
+
+// SetRoleGuard injects the org role guard that gates the admin model
+// RPCs by the caller's role (feature #32, §3.3).
+func (s *Service) SetRoleGuard(g RoleGuard) { s.roleGuard = g }
+
 // SetAutoscalingProvider injects the read-only autoscaling projection
 // provider (feature #16, AD13). Production wires the infer module; unit
 // tests may inject a fake.
@@ -241,6 +284,58 @@ func (s *Service) checkOrg(ctx context.Context, orgID string) error {
 		return nil
 	}
 	return s.orgGuard.RequireExists(ctx, orgID)
+}
+
+// requireAdminRole enforces the minimum org role on the admin model RPCs
+// (feature #32, §3.3). The RoleGuard resolves the caller from a session;
+// in the transitional (session-less) path there is no session user to
+// check, so the check is skipped and the org header itself is the access
+// boundary (feature-17 AD6).
+func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
+}
+
+// resolveSessionActor returns the caller's user id and whether a session
+// is present.
+func (s *Service) resolveSessionActor(ctx context.Context) (string, bool, error) {
+	if s.sessionUserResolver == nil {
+		return "", false, nil
+	}
+	userID, err := s.sessionUserResolver.SessionUserID(ctx)
+	if err == nil && userID != "" {
+		return userID, true, nil
+	}
+	if err != nil && apierrors.CodeOf(err) != apierrors.CodeSessionInvalid {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+// surfaceFromContext derives the model surface from the request path.
+// The surface is a property of the binding, never a request field
+// (feature #29, §3.3). The gateway forwards the request path in the
+// x-request-path metadata; the admin prefix maps to "admin", everything
+// else to "user".
+func surfaceFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return SurfaceUser
+	}
+	paths := md.Get("x-request-path")
+	if len(paths) > 0 && strings.HasPrefix(paths[0], "/api/v1/admin/") {
+		return SurfaceAdmin
+	}
+	return SurfaceUser
 }
 
 // grantedBy resolves the granted_by audit value of a grant (AD8): the
@@ -852,6 +947,17 @@ func (s *Service) ListModelAuthorizations(ctx context.Context, req *modelv1.List
 // first, with per-version metadata and deployment counts (feature #32,
 // AC1). Unknown model → 10101.
 func (s *Service) ListModelVersions(ctx context.Context, req *modelv1.ListModelVersionsRequest) (*modelv1.ListModelVersionsResponse, error) {
+	// The admin version RPCs are gated by the caller's org role (feature
+	// #32, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		orgID, err := s.resolveOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
+	}
 	repo, err := s.repository()
 	if err != nil {
 		return nil, err
@@ -891,6 +997,17 @@ func (s *Service) ListModelVersions(ctx context.Context, req *modelv1.ListModelV
 // already-active version is a no-op success. Unknown model → 10101,
 // unknown version → 10103.
 func (s *Service) ActivateModelVersion(ctx context.Context, req *modelv1.ActivateModelVersionRequest) (*modelv1.ActivateModelVersionResponse, error) {
+	// The admin version RPCs are gated by the caller's org role (feature
+	// #32, §3.3): a non-member admin session receives 10036.
+	if surfaceFromContext(ctx) == SurfaceAdmin {
+		orgID, err := s.resolveOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.requireAdminRole(ctx, orgID); err != nil {
+			return nil, err
+		}
+	}
 	repo, err := s.repository()
 	if err != nil {
 		return nil, err

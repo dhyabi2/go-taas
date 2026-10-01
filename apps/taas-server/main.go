@@ -160,6 +160,11 @@ func main() {
 			// The model service validates the organization a grant names
 			// (feature #13, AC1).
 			modelSvc.SetOrgGuard(orgGuard)
+			// Feature #32: the model service resolves the session's
+			// active org and caller, and gates the admin model-version
+			// RPCs by the caller's role (AD).
+			modelSvc.SetSessionUserResolver(authSvc)
+			modelSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// Per-tenant model authorization (feature #13): the model
 			// repository is the single default-allow check shared by the
 			// control plane (infer) and the data plane (auth, AD5), and the
