@@ -67,6 +67,10 @@ import UserUsageKeysPage from './pages/user/UserUsageKeysPage';
 import UserUsageKeyDetailPage from './pages/user/UserUsageKeyDetailPage';
 import UsageKeysPage from './pages/UsageKeysPage';
 import UsageKeyDetailPage from './pages/UsageKeyDetailPage';
+import CostAnalyticsPage from './pages/CostAnalyticsPage';
+import CostDetailPage from './pages/CostDetailPage';
+import UserCostAnalyticsPage from './pages/user/UserCostAnalyticsPage';
+import UserCostDetailPage from './pages/user/UserCostDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -124,6 +128,8 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/traces/:traceId" element={<UserTraceDetailPage />} />
               <Route path="/usage/keys" element={<UserUsageKeysPage />} />
               <Route path="/usage/keys/:apiKeyId" element={<UserUsageKeyDetailPage />} />
+              <Route path="/cost" element={<UserCostAnalyticsPage />} />
+              <Route path="/cost/:dimension/:value" element={<UserCostDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
             </Routes>
           </UserShell>
@@ -179,6 +185,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/traces/:traceId" element={<TraceDetailPage />} />
               <Route path="/admin/usage/keys" element={<UsageKeysPage />} />
               <Route path="/admin/usage/keys/:apiKeyId" element={<UsageKeyDetailPage />} />
+              <Route path="/admin/cost" element={<CostAnalyticsPage />} />
+              <Route path="/admin/cost/:dimension/:value" element={<CostDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

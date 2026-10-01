@@ -1,0 +1,49 @@
+// CostCards renders the cost analytics summary cards (feature #29, AD8):
+// Total cost, Total tokens, Cost per token, Top dimension, each with a
+// "data through <time>" freshness note. The wire carries integer cents
+// and integer tokens only; cost-per-token and share are derived
+// client-side.
+
+import type { CostAnalyticsCard } from '../api';
+import { formatTime } from '../api';
+
+// costDollars formats integer cents as dollars.
+function costDollars(cents: string): string {
+  return `$${(parseInt(cents || '0', 10) / 100).toFixed(2)}`;
+}
+
+// costPerToken derives cost-per-token as cents per 1000 tokens.
+function costPerToken(card: CostAnalyticsCard): string {
+  const tokens = parseInt(card.totalTokens || '0', 10);
+  if (tokens === 0) return '—';
+  const cents = parseInt(card.totalCostCents || '0', 10);
+  return `$${((cents / tokens) * 1000 / 100).toFixed(4)}/1k`;
+}
+
+export default function CostCards({ cards }: { cards: CostAnalyticsCard }) {
+  const dataThrough = cards.dataThrough ? formatTime(cards.dataThrough) : '—';
+  return (
+    <div className="card-row" data-testid="cost-cards">
+      <div className="card" data-testid="cost-card-total-cost">
+        <div className="card-value">{costDollars(cards.totalCostCents)}</div>
+        <div className="card-label">Total cost</div>
+        <div className="card-note">data through {dataThrough}</div>
+      </div>
+      <div className="card" data-testid="cost-card-tokens">
+        <div className="card-value">{parseInt(cards.totalTokens || '0', 10).toLocaleString()}</div>
+        <div className="card-label">Total tokens</div>
+        <div className="card-note">data through {dataThrough}</div>
+      </div>
+      <div className="card" data-testid="cost-card-per-token">
+        <div className="card-value">{costPerToken(cards)}</div>
+        <div className="card-label">Cost per token</div>
+        <div className="card-note">data through {dataThrough}</div>
+      </div>
+      <div className="card" data-testid="cost-card-top-dimension">
+        <div className="card-value">{cards.topDimensionValue || '—'}</div>
+        <div className="card-label">Top dimension</div>
+        <div className="card-note">{cards.topDimensionSharePct ? `${cards.topDimensionSharePct}% share` : 'data through ' + dataThrough}</div>
+      </div>
+    </div>
+  );
+}

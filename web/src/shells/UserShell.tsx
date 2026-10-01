@@ -35,6 +35,7 @@ export const USER_NAV_ITEMS: { path: string; labelKey: string; testid: string; i
   { path: '/quickstart', labelKey: 'nav.quickstart', testid: 'user-nav-quickstart', icon: Rocket },
   { path: '/usage', labelKey: 'nav.usage', testid: 'user-nav-usage', icon: ChartLine },
   { path: '/usage/keys', labelKey: 'nav.usageKeys', testid: 'user-nav-usage-keys', icon: Key },
+  { path: '/cost', labelKey: 'nav.cost', testid: 'user-nav-cost', icon: ChartLine },
   { path: '/api-keys', labelKey: 'nav.apiKeys', testid: 'user-nav-api-keys', icon: Key },
   { path: '/request-logs', labelKey: 'nav.requestLogs', testid: 'user-nav-request-logs', icon: ListMagnifyingGlass },
   { path: '/playground', labelKey: 'nav.playground', testid: 'user-nav-playground', icon: Play },

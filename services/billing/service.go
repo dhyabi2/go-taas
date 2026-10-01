@@ -252,6 +252,50 @@ func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
 	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
 }
 
+// Surface constants derived from the request path (feature #29, §3.3).
+const (
+	// SurfaceAdmin is the admin console surface.
+	SurfaceAdmin = "admin"
+	// SurfaceUser is the end-user console surface.
+	SurfaceUser = "user"
+)
+
+// surfaceFromContext derives the billing surface from the request path.
+// The surface is a property of the binding, never a request field
+// (feature #29, §3.3). The gateway forwards the request path in the
+// x-request-path metadata; the admin prefix maps to "admin", everything
+// else to "user".
+func surfaceFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return SurfaceUser
+	}
+	paths := md.Get("x-request-path")
+	if len(paths) > 0 && strings.HasPrefix(paths[0], "/api/v1/admin/") {
+		return SurfaceAdmin
+	}
+	return SurfaceUser
+}
+
+// validateRange checks and defaults the since/until pair: until defaults
+// to now, since to until-24h; since > until or a range > 92 days returns
+// 10404 (the metering range contract, AD6).
+func validateRange(since, until int64) (int64, int64, error) {
+	if since == 0 && until == 0 {
+		until = time.Now().Unix()
+		since = until - 24*3600
+	} else if until == 0 {
+		until = time.Now().Unix()
+	}
+	if since > until {
+		return 0, 0, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	if until-since > 92*24*3600 {
+		return 0, 0, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	return since, until, nil
+}
+
 // NewForFVT constructs a billing service bound to a caller-provided
 // GORM database and MQ client. It exists so full-verification tests can
 // wire the real service stack against a disposable database and bus.

@@ -104,6 +104,7 @@ export const zh: Record<string, string> = {
   'nav.observability': '可观测性',
   'nav.traces': '追踪',
   'nav.usageKeys': '用量密钥',
+  'nav.cost': '成本',
 
   // ---- Account block ----
   'account.switchToAdmin': '切换到管理端',
@@ -1174,6 +1175,32 @@ export const zh: Record<string, string> = {
   'usageKeys.colAvgLatency': '平均延迟',
   'usageKeys.colP95': 'p95 延迟',
   'usageKeys.colDataThrough': '数据截止',
+
+  // ---- 成本分析（功能 #29）----
+  'cost.title': '成本',
+  'cost.subtitle': '按维度随时间变化的成本归因',
+  'cost.refresh': '刷新',
+  'cost.range24h': '24 小时',
+  'cost.range7d': '7 天',
+  'cost.range30d': '30 天',
+  'cost.customRange': '自定义',
+  'cost.dimensionFilter': '维度',
+  'cost.dimension.organization': '组织',
+  'cost.dimension.model': '模型',
+  'cost.dimension.api_key': 'API 密钥',
+  'cost.dataThrough': '数据截止',
+  'cost.pending': '待处理 — 数据截止到最后一个完整桶',
+  'cost.staleData': '显示的是过期数据 — 最近一次加载失败。',
+  'cost.loadFailed': '加载成本分析失败',
+  'cost.chartTitle': '成本趋势',
+  'cost.metric.cost': '成本',
+  'cost.metric.tokens': '令牌数',
+  'cost.metric.costPerToken': '每令牌成本',
+  'cost.breakdownTitle': '维度分解',
+  'cost.empty': '此范围内没有成本数据。',
+  'cost.notFound': '未找到成本维度值。',
+  'cost.backOverview': '返回成本',
+  'cost.detailTitle': '成本',
 
   // ---- Traces (feature #27) ----
   'traces.title': '追踪',

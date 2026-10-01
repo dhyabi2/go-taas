@@ -329,6 +329,23 @@ service BillingService {
       additional_bindings: {get: "/api/v1/admin/billing/reports/schedules/{schedule_id}/runs"}
     };
   }
+
+  // GetCostAnalyticsOverview returns fleet-wide cost analytics: summary
+  // cards, a dimension breakdown, a cost trend, and cost-per-token.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetCostAnalyticsOverview(GetCostAnalyticsOverviewRequest) returns (GetCostAnalyticsOverviewResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/cost"};
+  }
+
+  // GetCostAnalytics returns single-dimension-value cost analytics:
+  // summary cards and a cost trend. The admin binding covers any
+  // dimension value; the user binding is tenant-scoped.
+  rpc GetCostAnalytics(GetCostAnalyticsRequest) returns (GetCostAnalyticsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/cost/{dimension}/{value}"
+      additional_bindings: {get: "/api/v1/cost/{dimension}/{value}"}
+    };
+  }
 }
 
 message SetPriceRequest {
@@ -964,6 +981,89 @@ message Report {
   int64 created_at = 11;
   // schedule_id is set when the report is a scheduled run.
   string schedule_id = 12;
+}
+
+// ---- Cost analytics (feature #29) ----
+
+message GetCostAnalyticsOverviewRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD10).
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // dimension is one of organization / model / api_key (default
+  // organization). An unsupported value returns 11301 (AD2).
+  string dimension = 4;
+}
+
+message GetCostAnalyticsOverviewResponse {
+  taas.common.v1.Response response = 1;
+  CostAnalyticsCard cards = 2;
+  repeated CostBreakdownRow breakdown = 3;
+  repeated CostSeriesPoint series = 4;
+}
+
+message GetCostAnalyticsRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // dimension is one of organization / model / api_key (admin) or
+  // model / api_key (user). An unsupported value returns 11301 (AD2).
+  string dimension = 2;
+  // value is the dimension value (e.g. a model_id or api_key_id).
+  string value = 3;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 4;
+  int64 until = 5;
+}
+
+message GetCostAnalyticsResponse {
+  taas.common.v1.Response response = 1;
+  CostAnalyticsCard cards = 2;
+  repeated CostSeriesPoint series = 3;
+}
+
+// CostAnalyticsCard is the headline summary of the range. cost_per_token
+// and top_dimension_share_pct are derived client-side; the wire carries
+// integer cents and integer tokens only.
+message CostAnalyticsCard {
+  int64 total_cost_cents = 1;
+  int64 total_tokens = 2;
+  // top_dimension_value is the top dimension value by cost.
+  string top_dimension_value = 3;
+  // top_dimension_share_pct is derived client-side as top value cost /
+  // total cost.
+  int64 top_dimension_share_pct = 4;
+  // data_through is the start of the last complete bucket covered by
+  // charge records (AD8); buckets past it are pending.
+  int64 data_through = 5;
+}
+
+// CostBreakdownRow is one dimension value's aggregate in the breakdown.
+message CostBreakdownRow {
+  string dimension_value = 1;
+  string dimension_name = 2;
+  int64 total_cost_cents = 3;
+  int64 total_tokens = 4;
+  // cost_per_token and share_pct are derived client-side.
+  int64 cost_per_token = 5;
+  int64 share_pct = 6;
+}
+
+// CostSeriesPoint is one time bucket of the series.
+message CostSeriesPoint {
+  // bucket is the bucket start, unix seconds (hourly for ranges <= 7
+  // days, daily otherwise, AD6).
+  int64 bucket = 1;
+  int64 total_cost_cents = 2;
+  int64 total_tokens = 3;
+  // cost_per_token is derived client-side as cost / tokens.
+  int64 cost_per_token = 4;
 }
 
 // ReportSchedule is one scheduled report definition.

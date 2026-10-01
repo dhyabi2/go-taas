@@ -104,6 +104,7 @@ export const en: Record<string, string> = {
   'nav.observability': 'Observability',
   'nav.traces': 'Traces',
   'nav.usageKeys': 'Usage Keys',
+  'nav.cost': 'Cost',
 
   // ---- Account block ----
   'account.switchToAdmin': 'Switch to admin',
@@ -1174,6 +1175,32 @@ export const en: Record<string, string> = {
   'usageKeys.colAvgLatency': 'Avg latency',
   'usageKeys.colP95': 'p95 latency',
   'usageKeys.colDataThrough': 'Data through',
+
+  // ---- Cost analytics (feature #29) ----
+  'cost.title': 'Cost',
+  'cost.subtitle': 'Cost attribution by dimension over time',
+  'cost.refresh': 'Refresh',
+  'cost.range24h': '24 h',
+  'cost.range7d': '7 d',
+  'cost.range30d': '30 d',
+  'cost.customRange': 'Custom',
+  'cost.dimensionFilter': 'Dimension',
+  'cost.dimension.organization': 'Organization',
+  'cost.dimension.model': 'Model',
+  'cost.dimension.api_key': 'API key',
+  'cost.dataThrough': 'data through',
+  'cost.pending': 'Pending — data through the last complete bucket',
+  'cost.staleData': 'Showing stale data — the latest load failed.',
+  'cost.loadFailed': 'failed to load cost analytics',
+  'cost.chartTitle': 'Cost trend',
+  'cost.metric.cost': 'Cost',
+  'cost.metric.tokens': 'Tokens',
+  'cost.metric.costPerToken': 'Cost per token',
+  'cost.breakdownTitle': 'Dimension breakdown',
+  'cost.empty': 'No cost data in this range.',
+  'cost.notFound': 'Cost dimension value not found.',
+  'cost.backOverview': 'Back to Cost',
+  'cost.detailTitle': 'Cost',
 
   // ---- Traces (feature #27) ----
   'traces.title': 'Traces',

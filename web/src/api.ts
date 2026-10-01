@@ -534,6 +534,47 @@ export interface GetErrorAnalysisResponse {
   series?: ErrorSeriesPoint[];
 }
 
+// ---- cost analytics (feature #29) ----
+// Admin surface: /api/v1/admin/cost/*. User surface (masked):
+// /api/v1/cost/*. int64 fields arrive as strings.
+
+export interface CostAnalyticsCard {
+  totalCostCents: string;
+  totalTokens: string;
+  topDimensionValue: string;
+  topDimensionSharePct: string;
+  dataThrough: string;
+}
+
+export interface CostBreakdownRow {
+  dimensionValue: string;
+  dimensionName: string;
+  totalCostCents: string;
+  totalTokens: string;
+  costPerToken: string;
+  sharePct: string;
+}
+
+export interface CostSeriesPoint {
+  bucket: string;
+  totalCostCents: string;
+  totalTokens: string;
+  costPerToken: string;
+}
+
+export interface GetCostAnalyticsOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: CostAnalyticsCard;
+  breakdown?: CostBreakdownRow[];
+  series?: CostSeriesPoint[];
+}
+
+export interface GetCostAnalyticsResponse {
+  response: ResponseEnvelope;
+  cards?: CostAnalyticsCard;
+  series?: CostSeriesPoint[];
+}
+
 // ---- request tracing (feature #27) ----
 
 export interface TraceSummary {
