@@ -33,7 +33,7 @@ service BillingService {
   rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse) {
     option (google.api.http) = {
       get: "/api/v1/billing/balance"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         get: "/api/v1/admin/billing/balance"
@@ -47,7 +47,7 @@ service BillingService {
   rpc ListBills(ListBillsRequest) returns (ListBillsResponse) {
     option (google.api.http) = {
       get: "/api/v1/billing/bills"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         get: "/api/v1/admin/billing/bills"
@@ -62,7 +62,7 @@ service BillingService {
   rpc ListCharges(ListChargesRequest) returns (ListChargesResponse) {
     option (google.api.http) = {
       get: "/api/v1/billing/charges"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         get: "/api/v1/admin/billing/charges"
@@ -218,6 +218,150 @@ service BillingService {
   // Admin-surface API: served under /api/v1/admin.
   rpc DownloadInvoice(DownloadInvoiceRequest) returns (DownloadInvoiceResponse) {
     option (google.api.http) = {get: "/api/v1/admin/billing/invoices/{invoice_id}:download"};
+  }
+
+  // ---- Billing reports & CSV export (feature-25) ----
+  //
+  // The billing-report RPCs are dual-bound: the user binding is
+  // tenant-scoped under /api/v1/billing/reports/*, the admin binding is
+  // fleet-wide under /api/v1/admin/billing/reports/*.
+
+  // CreateReport creates an on-demand report job (status = pending).
+  // User-surface API: tenant-scoped under /api/v1/billing/reports.
+  // Admin-surface API: fleet-wide under /api/v1/admin/billing/reports.
+  rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/billing/reports"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/admin/billing/reports"
+        body: "*"
+      }
+    };
+  }
+
+  // GetReport returns a report's status, definition, row count and
+  // data_through.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc GetReport(GetReportRequest) returns (GetReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/{report_id}"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/{report_id}"}
+    };
+  }
+
+  // ListReports returns the report history, newest first.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports"
+      additional_bindings: {get: "/api/v1/admin/billing/reports"}
+    };
+  }
+
+  // DownloadReport returns the CSV when status = ready.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc DownloadReport(DownloadReportRequest) returns (DownloadReportResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/{report_id}/download"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/{report_id}/download"}
+    };
+  }
+
+  // CreateSchedule creates a scheduled report (status = active).
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc CreateSchedule(CreateScheduleRequest) returns (CreateScheduleResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/billing/reports/schedules"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/admin/billing/reports/schedules"
+        body: "*"
+      }
+    };
+  }
+
+  // ListSchedules returns the caller's schedules.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/schedules"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/schedules"}
+    };
+  }
+
+  // UpdateSchedule updates a schedule's name, frequency or relative
+  // range.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (UpdateScheduleResponse) {
+    option (google.api.http) = {
+      patch: "/api/v1/billing/reports/schedules/{schedule_id}"
+      body: "*"
+      additional_bindings: {
+        patch: "/api/v1/admin/billing/reports/schedules/{schedule_id}"
+        body: "*"
+      }
+    };
+  }
+
+  // DeleteSchedule deletes a schedule.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc DeleteSchedule(DeleteScheduleRequest) returns (DeleteScheduleResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/billing/reports/schedules/{schedule_id}"
+      additional_bindings: {delete: "/api/v1/admin/billing/reports/schedules/{schedule_id}"}
+    };
+  }
+
+  // ListScheduleRuns returns the runs a schedule has produced.
+  // User-surface API: served under /api/v1/billing/reports.
+  // Admin-surface API: served under /api/v1/admin/billing/reports.
+  rpc ListScheduleRuns(ListScheduleRunsRequest) returns (ListScheduleRunsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/billing/reports/schedules/{schedule_id}/runs"
+      additional_bindings: {get: "/api/v1/admin/billing/reports/schedules/{schedule_id}/runs"}
+    };
+  }
+
+  // GetCostAnalyticsOverview returns cost analytics: summary cards, a
+  // dimension breakdown, a cost trend, and cost-per-token. The admin
+  // binding is the fleet-wide view (cross-org by default, optional org
+  // filter); the user binding is tenant-scoped to the caller's org.
+  rpc GetCostAnalyticsOverview(GetCostAnalyticsOverviewRequest) returns (GetCostAnalyticsOverviewResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/cost"
+      additional_bindings: {get: "/api/v1/cost"}
+    };
+  }
+
+  // GetCostAnalytics returns single-dimension-value cost analytics:
+  // summary cards and a cost trend. The admin binding covers any
+  // dimension value; the user binding is tenant-scoped.
+  rpc GetCostAnalytics(GetCostAnalyticsRequest) returns (GetCostAnalyticsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/cost/{dimension}/{value}"
+      additional_bindings: {get: "/api/v1/cost/{dimension}/{value}"}
+    };
+  }
+
+  // GetForecast returns the forecast for a time range and optional
+  // dimension filter: the historical series, the forecast series, and
+  // the confidence band (feature #36, AD2). The admin binding is
+  // fleet-wide; the user binding is tenant-scoped.
+  // Admin-surface API: served under /api/v1/admin.
+  // User-surface API: served under /api/v1.
+  rpc GetForecast(GetForecastRequest) returns (GetForecastResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/forecast"
+      additional_bindings: {get: "/api/v1/forecast"}
+    };
   }
 }
 
@@ -686,4 +830,319 @@ message DownloadInvoiceResponse {
   // content is a presentable JSON/HTML rendering of the invoice.
   string content = 2;
   string content_type = 3;
+}
+
+// ---- Billing reports & CSV export (feature-25) ----
+
+// ReportDimension is the aggregation dimension of a report.
+enum ReportDimension {
+  REPORT_DIMENSION_UNSPECIFIED = 0;
+  REPORT_DIMENSION_ORGANIZATION = 1;
+  REPORT_DIMENSION_API_KEY = 2;
+  REPORT_DIMENSION_MODEL = 3;
+}
+
+// ReportGranularity is the bucket size of a report.
+enum ReportGranularity {
+  REPORT_GRANULARITY_UNSPECIFIED = 0;
+  REPORT_GRANULARITY_DAILY = 1;
+  REPORT_GRANULARITY_HOURLY = 2;
+}
+
+// ReportFrequency is the cadence of a scheduled report.
+enum ReportFrequency {
+  REPORT_FREQUENCY_UNSPECIFIED = 0;
+  REPORT_FREQUENCY_DAILY = 1;
+  REPORT_FREQUENCY_WEEKLY = 2;
+  REPORT_FREQUENCY_MONTHLY = 3;
+}
+
+// RelativeRange is the relative time range of a scheduled report.
+enum RelativeRange {
+  RELATIVE_RANGE_UNSPECIFIED = 0;
+  RELATIVE_RANGE_LAST_7_DAYS = 1;
+  RELATIVE_RANGE_LAST_30_DAYS = 2;
+  RELATIVE_RANGE_LAST_MONTH = 3;
+}
+
+message CreateReportRequest {
+  // name is the report name.
+  string name = 1;
+  // dimension is organization / api_key / model.
+  ReportDimension dimension = 2;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 30d. A range > 366 days is rejected (10404).
+  int64 since = 3;
+  int64 until = 4;
+  // granularity is daily or hourly.
+  ReportGranularity granularity = 5;
+  // timezone is an IANA name, default UTC.
+  string timezone = 6;
+  // organization_id is an optional fleet filter on the admin surface;
+  // absent means all orgs. On the user surface it is ignored (the
+  // caller's org is implicit).
+  string organization_id = 7;
+}
+
+message CreateReportResponse {
+  taas.common.v1.Response response = 1;
+  Report report = 2;
+}
+
+message GetReportRequest {
+  string report_id = 1;
+}
+
+message GetReportResponse {
+  taas.common.v1.Response response = 1;
+  Report report = 2;
+}
+
+message ListReportsRequest {
+  taas.common.v1.PageRequest page = 1;
+  // dimension/status are optional filters.
+  ReportDimension dimension = 2;
+  string status = 3;
+}
+
+message ListReportsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Report reports = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message DownloadReportRequest {
+  string report_id = 1;
+}
+
+message DownloadReportResponse {
+  taas.common.v1.Response response = 1;
+  // csv is the UTF-8-BOM CSV content when status = ready.
+  string csv = 2;
+  // filename is the Content-Disposition filename.
+  string filename = 3;
+}
+
+message CreateScheduleRequest {
+  string name = 1;
+  ReportDimension dimension = 2;
+  RelativeRange relative_range = 3;
+  ReportGranularity granularity = 4;
+  ReportFrequency frequency = 5;
+  string timezone = 6;
+  // organization_id is an optional fleet filter on the admin surface;
+  // absent means all orgs. On the user surface it is ignored.
+  string organization_id = 7;
+}
+
+message CreateScheduleResponse {
+  taas.common.v1.Response response = 1;
+  ReportSchedule schedule = 2;
+}
+
+message ListSchedulesRequest {
+  taas.common.v1.PageRequest page = 1;
+  // organization_id is an optional admin filter.
+  string organization_id = 2;
+}
+
+message ListSchedulesResponse {
+  taas.common.v1.Response response = 1;
+  repeated ReportSchedule schedules = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message UpdateScheduleRequest {
+  string schedule_id = 1;
+  string name = 2;
+  ReportFrequency frequency = 3;
+  RelativeRange relative_range = 4;
+}
+
+message UpdateScheduleResponse {
+  taas.common.v1.Response response = 1;
+  ReportSchedule schedule = 2;
+}
+
+message DeleteScheduleRequest {
+  string schedule_id = 1;
+}
+
+message DeleteScheduleResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message ListScheduleRunsRequest {
+  taas.common.v1.PageRequest page = 1;
+  string schedule_id = 2;
+}
+
+message ListScheduleRunsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Report runs = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+// Report is one report (on-demand or a scheduled run).
+message Report {
+  string report_id = 1;
+  string name = 2;
+  ReportDimension dimension = 3;
+  int64 since = 4;
+  int64 until = 5;
+  ReportGranularity granularity = 6;
+  string timezone = 7;
+  string status = 8; // pending / ready / failed
+  int64 row_count = 9;
+  int64 data_through = 10;
+  int64 created_at = 11;
+  // schedule_id is set when the report is a scheduled run.
+  string schedule_id = 12;
+}
+
+// ---- Cost analytics (feature #29) ----
+
+message GetCostAnalyticsOverviewRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD10).
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // dimension is one of organization / model / api_key (default
+  // organization). An unsupported value returns 11301 (AD2).
+  string dimension = 4;
+}
+
+message GetCostAnalyticsOverviewResponse {
+  taas.common.v1.Response response = 1;
+  CostAnalyticsCard cards = 2;
+  repeated CostBreakdownRow breakdown = 3;
+  repeated CostSeriesPoint series = 4;
+}
+
+message GetCostAnalyticsRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // dimension is one of organization / model / api_key (admin) or
+  // model / api_key (user). An unsupported value returns 11301 (AD2).
+  string dimension = 2;
+  // value is the dimension value (e.g. a model_id or api_key_id).
+  string value = 3;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 4;
+  int64 until = 5;
+}
+
+message GetCostAnalyticsResponse {
+  taas.common.v1.Response response = 1;
+  CostAnalyticsCard cards = 2;
+  repeated CostSeriesPoint series = 3;
+}
+
+// CostAnalyticsCard is the headline summary of the range. cost_per_token
+// and top_dimension_share_pct are derived client-side; the wire carries
+// integer cents and integer tokens only.
+message CostAnalyticsCard {
+  int64 total_cost_cents = 1;
+  int64 total_tokens = 2;
+  // top_dimension_value is the top dimension value by cost.
+  string top_dimension_value = 3;
+  // top_dimension_share_pct is derived client-side as top value cost /
+  // total cost.
+  int64 top_dimension_share_pct = 4;
+  // data_through is the start of the last complete bucket covered by
+  // charge records (AD8); buckets past it are pending.
+  int64 data_through = 5;
+}
+
+// CostBreakdownRow is one dimension value's aggregate in the breakdown.
+message CostBreakdownRow {
+  string dimension_value = 1;
+  string dimension_name = 2;
+  int64 total_cost_cents = 3;
+  int64 total_tokens = 4;
+  // cost_per_token and share_pct are derived client-side.
+  int64 cost_per_token = 5;
+  int64 share_pct = 6;
+}
+
+// CostSeriesPoint is one time bucket of the series.
+message CostSeriesPoint {
+  // bucket is the bucket start, unix seconds (hourly for ranges <= 7
+  // days, daily otherwise, AD6).
+  int64 bucket = 1;
+  int64 total_cost_cents = 2;
+  int64 total_tokens = 3;
+  // cost_per_token is derived client-side as cost / tokens.
+  int64 cost_per_token = 4;
+}
+
+// ReportSchedule is one scheduled report definition.
+message ReportSchedule {
+  string schedule_id = 1;
+  string name = 2;
+  ReportDimension dimension = 3;
+  RelativeRange relative_range = 4;
+  ReportGranularity granularity = 5;
+  ReportFrequency frequency = 6;
+  string timezone = 7;
+  string status = 8; // active
+  int64 last_run_at = 9;
+  int64 created_at = 10;
+}
+
+// GetForecast returns the forecast for a time range and optional
+// dimension filter (feature #36, AD2).
+message GetForecastRequest {
+  // since / until are unix seconds; defaults until = now, since =
+  // until - 30d. A range > 92 days is rejected (10404).
+  int64 since = 1;
+  int64 until = 2;
+  // dimension is one of organization/model/api_key (admin) or
+  // model/api_key (user). An unsupported value returns 11301.
+  string dimension = 3;
+  // dimension_value is optional; when empty the forecast spans the
+  // whole dimension.
+  string dimension_value = 4;
+  // horizon_days defaults to 30, max 90.
+  int32 horizon_days = 5;
+}
+
+message ForecastBucket {
+  int64 bucket = 1;
+  int64 total_tokens = 2;
+  int64 total_cost_cents = 3;
+}
+
+message ForecastPoint {
+  int64 bucket = 1;
+  int64 total_tokens = 2;
+  int64 total_cost_cents = 3;
+  int64 lower_tokens = 4;
+  int64 upper_tokens = 5;
+  int64 lower_cost_cents = 6;
+  int64 upper_cost_cents = 7;
+}
+
+message ForecastSummary {
+  int64 total_tokens = 1;
+  int64 total_cost_cents = 2;
+}
+
+message GetForecastResponse {
+  taas.common.v1.Response response = 1;
+  // method is the forecast method, always "linear_trend".
+  string method = 2;
+  int32 horizon_days = 3;
+  // data_through is the last complete bucket covered by the history.
+  int64 data_through = 4;
+  repeated ForecastBucket history = 5;
+  repeated ForecastPoint forecast = 6;
+  ForecastSummary summary = 7;
 }

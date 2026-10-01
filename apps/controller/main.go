@@ -45,12 +45,21 @@ func main() {
 	}
 	defer func() { _ = mqClient.Close() }()
 
-	k8sClient, err := k8s.NewClient(&k8s.Config{})
+	k8sClient, err := k8s.NewClient(&k8s.Config{Kubeconfig: cfg.Controller.Kubeconfig})
 	if err != nil {
 		logger.S().Fatalw("init kubernetes client failed", "err", err)
 	}
 
-	ctrl := controller.New(mqClient, controller.NewK8sReconciler(k8sClient, mqClient, cfg.Infer.EndpointBaseURL))
+	ctrl := controller.New(mqClient, controller.NewK8sReconciler(k8sClient, mqClient, cfg.Infer.EndpointBaseURL, cfg.Controller.Namespace, controller.WeightsConfig{
+		StorageClass: cfg.Controller.Weights.StorageClass,
+		PVCName:      cfg.Controller.Weights.PVCName,
+		MountPath:    cfg.Controller.Weights.MountPath,
+	}))
+	// Feature #18: the accelerator inventory collector lists nodes and
+	// publishes the full snapshot on the configured interval.
+	ctrl.SetInventoryCollector(controller.NewInventoryCollector(
+		k8sClient.Clientset(), mqClient, cfg.Accelerator.CollectInterval,
+	))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

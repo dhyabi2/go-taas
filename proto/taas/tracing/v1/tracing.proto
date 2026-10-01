@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package taas.tracing.v1;
+
+import "google/api/annotations.proto";
+import "taas/common/v1/common.proto";
+
+option go_package = "github.com/go-taas/go-taas/proto/taas/tracing/v1;tracingv1";
+
+// TracingService serves read-only inference request traces. ListTraces
+// and GetTrace are dual-bound: the admin binding is a fleet-wide trace
+// explorer (all orgs, optional organization_id filter); the user binding
+// is tenant-scoped and masks operator internals.
+service TracingService {
+  // ListTraces returns the trace explorer list for a time range and
+  // optional filters. When request_id is set, at most one trace is
+  // returned (the exact match). Admin-surface API: served under
+  // /api/v1/admin; user-surface API: served under /api/v1.
+  rpc ListTraces(ListTracesRequest) returns (ListTracesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/traces"
+      additional_bindings: {get: "/api/v1/traces"}
+    };
+  }
+
+  // GetTrace returns one trace's full detail: the summary fields plus
+  // its spans. The admin binding covers any trace; the user binding is
+  // tenant-scoped.
+  rpc GetTrace(GetTraceRequest) returns (GetTraceResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/traces/{trace_id}"
+      additional_bindings: {get: "/api/v1/traces/{trace_id}"}
+    };
+  }
+}
+
+message ListTracesRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD9).
+  string organization_id = 1;
+  // request_id is an exact lookup; when set, at most one trace is
+  // returned (AD7).
+  string request_id = 2;
+  // model_id / api_key_id / status are optional filters.
+  string model_id = 3;
+  string api_key_id = 4;
+  string status = 5;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 6;
+  int64 until = 7;
+  // page_token / page_size for dotted pagination (default 20, cap 100).
+  string page_token = 8;
+  int32 page_size = 9;
+}
+
+message ListTracesResponse {
+  taas.common.v1.Response response = 1;
+  repeated TraceSummary traces = 2;
+  string next_page_token = 3;
+}
+
+message GetTraceRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // trace_id is the path parameter.
+  string trace_id = 2;
+}
+
+message GetTraceResponse {
+  taas.common.v1.Response response = 1;
+  TraceDetail trace = 2;
+}
+
+// TraceSummary is one row of the trace explorer list.
+message TraceSummary {
+  string trace_id = 1;
+  string organization_id = 2;
+  string api_key_id = 3;
+  string api_key_name = 4;
+  string model_id = 5;
+  string model_name = 6;
+  // service_id is masked to a phase label (gateway / inference) on the
+  // user surface (AD8); the admin surface carries the operator id.
+  string service_id = 7;
+  string status = 8;
+  string error = 9;
+  int64 total_latency_ms = 10;
+  int64 ttft_ms = 11;
+  int64 generation_ms = 12;
+  int64 created_at = 13;
+}
+
+// TraceDetail is one trace's full detail: the summary fields plus its
+// spans.
+message TraceDetail {
+  string trace_id = 1;
+  string organization_id = 2;
+  string api_key_id = 3;
+  string api_key_name = 4;
+  string model_id = 5;
+  string model_name = 6;
+  string service_id = 7;
+  string status = 8;
+  string error = 9;
+  int64 total_latency_ms = 10;
+  int64 ttft_ms = 11;
+  int64 generation_ms = 12;
+  int64 prompt_tokens = 13;
+  int64 completion_tokens = 14;
+  int64 cached_tokens = 15;
+  int64 reasoning_tokens = 16;
+  int64 created_at = 17;
+  repeated TraceSpan spans = 18;
+}
+
+// TraceSpan is one span of a trace, ordered by start_offset_ms ascending.
+message TraceSpan {
+  string span_id = 1;
+  string trace_id = 2;
+  string parent_span_id = 3;
+  string name = 4;
+  string kind = 5;
+  int64 start_offset_ms = 6;
+  int64 duration_ms = 7;
+  string status = 8;
+  string error = 9;
+  string attributes = 10;
+}

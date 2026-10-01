@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"google.golang.org/grpc/metadata"
 )
 
 func gatewayErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.Marshaler, w http.ResponseWriter, r *http.Request, err error) {
@@ -42,4 +43,16 @@ func incomingHeaderMatcher(key string) (string, bool) {
 // reproduce the production header pass-through.
 func FVTHeaderMatcher(key string) (string, bool) {
 	return incomingHeaderMatcher(key)
+}
+
+// pathMetadataKey is the gRPC metadata key carrying the request path.
+// The webhook service derives its surface from it (feature #23, §3.4).
+const pathMetadataKey = "x-request-path"
+
+// PathMetadataAnnotator forwards the HTTP request path into the gRPC
+// metadata as x-request-path, so services can derive the console surface
+// from the request path (feature #23, §3.4). It is exported for
+// full-verification tests that build their own gateway mux.
+func PathMetadataAnnotator(_ context.Context, r *http.Request) metadata.MD {
+	return metadata.Pairs(pathMetadataKey, r.URL.Path)
 }

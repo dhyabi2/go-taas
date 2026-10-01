@@ -7,6 +7,7 @@ import { navigate } from '../router';
 import { api, ApiError, formatTime, type ImageSummary, type PageMeta } from '../api';
 import { useOrg } from '../org';
 import { Dialog, ErrorBanner, Pagination, StateBadge } from '../components';
+import { useI18n } from '../i18n';
 
 interface ListResponse {
   response: { code: number; message: string };
@@ -19,6 +20,7 @@ const ACCELERATORS = ['all', 'nvidia', 'iluvatar', 'metax'];
 
 export default function ImagesPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [images, setImages] = useState<ImageSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -48,11 +50,11 @@ export default function ImagesPage() {
       setImages(data.images || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load images');
+      setError(e instanceof Error ? e.message : t('images.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset, accelerator, engine]);
+  }, [orgId, offset, accelerator, engine, t]);
 
   useEffect(() => {
     void load();
@@ -62,14 +64,11 @@ export default function ImagesPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Images</h1>
-          <div className="subtitle">
-            Engine images available for one-click deployment, with warmup
-            pre-pull support.
-          </div>
+          <h1>{t('images.title')}</h1>
+          <div className="subtitle">{t('images.subtitle')}</div>
         </div>
         <button data-testid="register-image" onClick={() => setRegisterOpen(true)}>
-          Register Image
+          {t('images.register')}
         </button>
       </div>
 
@@ -86,14 +85,14 @@ export default function ImagesPage() {
         >
           {ACCELERATORS.map((a) => (
             <option key={a} value={a}>
-              {a === 'all' ? 'All accelerators' : a}
+              {a === 'all' ? t('images.filterAccelerator') : a}
             </option>
           ))}
         </select>
         <input
           type="text"
           data-testid="image-engine-filter"
-          placeholder="Filter by engine…"
+          placeholder={t('images.filterEngine')}
           value={engine}
           onChange={(e) => {
             setEngine(e.target.value);
@@ -104,22 +103,22 @@ export default function ImagesPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : images.length === 0 ? (
           <div className="empty-state" data-testid="images-empty">
-            No images match your filters.
+            {t('images.empty')}
           </div>
         ) : (
           <table className="data" data-testid="images-table">
             <thead>
               <tr>
-                <th>Image</th>
-                <th>Accelerator</th>
-                <th>Engine</th>
-                <th>In use</th>
-                <th>Last warmup</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('images.colImage')}</th>
+                <th>{t('images.colAccelerator')}</th>
+                <th>{t('images.colEngine')}</th>
+                <th>{t('images.colInUse')}</th>
+                <th>{t('images.colLastWarmup')}</th>
+                <th>{t('images.colCreated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -151,21 +150,21 @@ export default function ImagesPage() {
                       data-testid={`warmup-${img.name}`}
                       onClick={() => setWarmupTarget(img)}
                     >
-                      Warmup
+                      {t('images.warmup')}
                     </button>
                     <button
                       className="link"
                       data-testid={`edit-${img.name}`}
                       onClick={() => setEditTarget(img)}
                     >
-                      Edit
+                      {t('common.edit')}
                     </button>
                     <button
                       className="link danger"
                       data-testid={`delete-${img.name}`}
                       onClick={() => setDeleteTarget(img)}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </td>
                 </tr>
@@ -250,22 +249,23 @@ function RegisterImageDialog({
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     if (!name.trim()) {
-      setError('Name is required (e.g. ghcr.io/go-taas/vllm).');
+      setError(t('images.validationName'));
       return;
     }
     if (!tag.trim()) {
-      setError('Tag is required (e.g. v0.6.3).');
+      setError(t('images.validationTag'));
       return;
     }
     if (digest.trim() && !/^sha256:[a-fA-F0-9]{64}$/.test(digest.trim())) {
-      setError('Digest must look like sha256:<64 hex chars>.');
+      setError(t('images.validationDigest'));
       return;
     }
     if (!engine.trim()) {
-      setError('Engine is required (e.g. vllm).');
+      setError(t('images.validationEngine'));
       return;
     }
     setSubmitting(true);
@@ -281,49 +281,49 @@ function RegisterImageDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to register image');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('images.registerFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Register Image" onClose={onClose} testId="register-image-dialog">
+    <Dialog title={t('images.registerTitle')} onClose={onClose} testId="register-image-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="image-name">Name</label>
+          <label htmlFor="image-name">{t('images.fieldName')}</label>
           <input
             id="image-name"
             data-testid="image-name-input"
             value={name}
             maxLength={255}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. ghcr.io/go-taas/vllm"
+            placeholder={t('images.placeholderName')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="image-tag">Tag</label>
+          <label htmlFor="image-tag">{t('images.fieldTag')}</label>
           <input
             id="image-tag"
             data-testid="image-tag-input"
             value={tag}
             maxLength={128}
             onChange={(e) => setTag(e.target.value)}
-            placeholder="e.g. v0.6.3"
+            placeholder={t('images.placeholderTag')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="image-digest">Digest (optional)</label>
+          <label htmlFor="image-digest">{t('images.fieldDigest')}</label>
           <input
             id="image-digest"
             data-testid="image-digest-input"
             value={digest}
             onChange={(e) => setDigest(e.target.value)}
-            placeholder="e.g. sha256:abcd…"
+            placeholder={t('images.placeholderDigest')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="image-accelerator">Accelerator</label>
+          <label htmlFor="image-accelerator">{t('images.fieldAccelerator')}</label>
           <select
             id="image-accelerator"
             data-testid="image-accelerator-select"
@@ -338,18 +338,18 @@ function RegisterImageDialog({
           </select>
         </div>
         <div className="form-field">
-          <label htmlFor="image-engine">Engine</label>
+          <label htmlFor="image-engine">{t('images.fieldEngine')}</label>
           <input
             id="image-engine"
             data-testid="image-engine-input"
             value={engine}
             maxLength={64}
             onChange={(e) => setEngine(e.target.value)}
-            placeholder="e.g. vllm"
+            placeholder={t('images.placeholderEngine')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="image-description">Description (optional)</label>
+          <label htmlFor="image-description">{t('common.descriptionOptional')}</label>
           <textarea
             id="image-description"
             data-testid="image-description-input"
@@ -363,14 +363,14 @@ function RegisterImageDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="register-image-submit"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Registering…' : 'Register'}
+          {submitting ? 'Registering…' : t('images.register')}
         </button>
       </div>
     </Dialog>
@@ -391,6 +391,7 @@ function EditImageDialog({
   const [description, setDescription] = useState(image.description || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     setSubmitting(true);
@@ -401,17 +402,21 @@ function EditImageDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update image');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('images.updateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Edit ${image.name}:${image.tag}`} onClose={onClose} testId="edit-image-dialog">
+    <Dialog
+      title={t('images.editTitle', { name: image.name, tag: image.tag })}
+      onClose={onClose}
+      testId="edit-image-dialog"
+    >
       <div className="form-grid">
         <div className="form-field full">
-          <label htmlFor="edit-image-description">Description</label>
+          <label htmlFor="edit-image-description">{t('common.description')}</label>
           <textarea
             id="edit-image-description"
             data-testid="edit-image-description-input"
@@ -420,20 +425,20 @@ function EditImageDialog({
             rows={3}
             onChange={(e) => setDescription(e.target.value)}
           />
-          <div className="muted">Only the description is editable.</div>
+          <div className="muted">{t('images.editNote')}</div>
         </div>
       </div>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="edit-image-submit"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -453,6 +458,7 @@ function DeleteImageDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     setSubmitting(true);
@@ -462,22 +468,23 @@ function DeleteImageDialog({
       onDone();
     } catch (e) {
       // 10206: the image is referenced by inference services.
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to delete image');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('images.deleteFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Delete ${image.name}:${image.tag}?`} onClose={onClose} testId="delete-image-dialog">
-      <p>
-        This removes the image from the catalog. Inference services
-        referencing it must be deleted first.
-      </p>
+    <Dialog
+      title={t('images.deleteTitle', { name: image.name, tag: image.tag })}
+      onClose={onClose}
+      testId="delete-image-dialog"
+    >
+      <p>{t('images.deleteBody')}</p>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="danger"
@@ -485,7 +492,7 @@ function DeleteImageDialog({
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Deleting…' : 'Delete'}
+          {submitting ? t('common.deleting') : t('common.delete')}
         </button>
       </div>
     </Dialog>
@@ -509,6 +516,7 @@ function WarmupDialog({
   const [selectorValue, setSelectorValue] = useState(image.accelerator);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     setSubmitting(true);
@@ -520,21 +528,22 @@ function WarmupDialog({
       onDone();
     } catch (e) {
       // 10205: a warmup task is already active for this image.
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to trigger warmup');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('images.warmupFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Warmup ${image.name}:${image.tag}`} onClose={onClose} testId="warmup-dialog">
-      <p className="muted">
-        Pre-pull the image on nodes matching the selector. The controller
-        runs a short helper pod per matching node.
-      </p>
+    <Dialog
+      title={t('images.warmupTitle', { name: image.name, tag: image.tag })}
+      onClose={onClose}
+      testId="warmup-dialog"
+    >
+      <p className="muted">{t('images.warmupNote')}</p>
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="warmup-selector-key">Node selector key</label>
+          <label htmlFor="warmup-selector-key">{t('images.fieldSelectorKey')}</label>
           <input
             id="warmup-selector-key"
             data-testid="warmup-selector-key-input"
@@ -543,7 +552,7 @@ function WarmupDialog({
           />
         </div>
         <div className="form-field">
-          <label htmlFor="warmup-selector-value">Node selector value</label>
+          <label htmlFor="warmup-selector-value">{t('images.fieldSelectorValue')}</label>
           <input
             id="warmup-selector-value"
             data-testid="warmup-selector-value-input"
@@ -555,14 +564,14 @@ function WarmupDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="warmup-submit"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Triggering…' : 'Trigger Warmup'}
+          {submitting ? 'Triggering…' : t('images.triggerWarmup')}
         </button>
       </div>
     </Dialog>

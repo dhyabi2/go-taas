@@ -110,6 +110,183 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+func TestValidateAutoscalingConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative concurrency workers fails.
+	cfg.Infer.Autoscaling.ConcurrencyConsumer.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative concurrency workers should fail validation")
+	}
+	cfg.Infer.Autoscaling.ConcurrencyConsumer.Workers = 2
+	// Negative status-report interval fails.
+	cfg.Infer.Autoscaling.StatusReportInterval = -time.Second
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative status report interval should fail validation")
+	}
+	cfg.Infer.Autoscaling.StatusReportInterval = 5 * time.Second
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid autoscaling config rejected: %v", err)
+	}
+}
+
+func TestValidateAcceleratorConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative collect interval fails.
+	cfg.Accelerator.CollectInterval = -time.Second
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative collect interval should fail validation")
+	}
+	cfg.Accelerator.CollectInterval = 30 * time.Second
+	// Negative snapshot consumer workers fails.
+	cfg.Accelerator.SnapshotConsumer.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative snapshot consumer workers should fail validation")
+	}
+	cfg.Accelerator.SnapshotConsumer.Workers = 1
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid accelerator config rejected: %v", err)
+	}
+}
+
+func TestAcceleratorDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Accelerator.CollectInterval != 30*time.Second {
+		t.Fatalf("collect interval default = %v, want 30s", cfg.Accelerator.CollectInterval)
+	}
+	if cfg.Accelerator.SnapshotConsumer.Workers != 1 {
+		t.Fatalf("snapshot consumer workers default = %d, want 1", cfg.Accelerator.SnapshotConsumer.Workers)
+	}
+}
+
+func TestCompatibilityDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Image.Compatibility.LazySeedDefault != "experimental" {
+		t.Fatalf("lazySeedDefault default = %q, want experimental", cfg.Image.Compatibility.LazySeedDefault)
+	}
+	// An explicit lazySeedDefault is preserved.
+	cfg.Image.Compatibility.LazySeedDefault = "supported"
+	cfg.applyDefaults()
+	if cfg.Image.Compatibility.LazySeedDefault != "supported" {
+		t.Fatalf("explicit lazySeedDefault overwritten: %q", cfg.Image.Compatibility.LazySeedDefault)
+	}
+}
+
+func TestAdminRolesDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	want := []string{"platform-admin", "org-admin", "admin", "owner"}
+	if len(cfg.Auth.AdminRoles) != len(want) {
+		t.Fatalf("adminRoles default = %v, want %v", cfg.Auth.AdminRoles, want)
+	}
+	for i, r := range want {
+		if cfg.Auth.AdminRoles[i] != r {
+			t.Fatalf("adminRoles[%d] = %q, want %q", i, cfg.Auth.AdminRoles[i], r)
+		}
+	}
+	// An explicit adminRoles is preserved.
+	cfg.Auth.AdminRoles = []string{"superadmin"}
+	cfg.applyDefaults()
+	if len(cfg.Auth.AdminRoles) != 1 || cfg.Auth.AdminRoles[0] != "superadmin" {
+		t.Fatalf("explicit adminRoles overwritten: %v", cfg.Auth.AdminRoles)
+	}
+}
+
+func TestValidateAdminRoles(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// An empty adminRoles (raw zero-value config) is allowed through.
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("empty adminRoles should pass validation: %v", err)
+	}
+	// A list containing an empty string fails.
+	cfg.Auth.AdminRoles = []string{"admin", ""}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("adminRoles with an empty string should fail validation")
+	}
+	// A valid list passes.
+	cfg.Auth.AdminRoles = []string{"admin", "owner"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid adminRoles rejected: %v", err)
+	}
+}
+
+func TestParseConfigsAdminRoles(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+auth:
+  adminRoles:
+    - platform-admin
+    - admin
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if len(cfg.Auth.AdminRoles) != 2 || cfg.Auth.AdminRoles[0] != "platform-admin" || cfg.Auth.AdminRoles[1] != "admin" {
+		t.Fatalf("adminRoles from file = %v, want [platform-admin admin]", cfg.Auth.AdminRoles)
+	}
+}
+
+func TestParseConfigsCompatibilitySection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+image:
+  compatibility:
+    seedOnBoot: false
+    lazySeedDefault: "unsupported"
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Image.Compatibility.SeedOnBoot {
+		t.Fatal("seedOnBoot should be false from the file")
+	}
+	if cfg.Image.Compatibility.LazySeedDefault != "unsupported" {
+		t.Fatalf("lazySeedDefault = %q, want unsupported", cfg.Image.Compatibility.LazySeedDefault)
+	}
+}
+
+func TestParseConfigsCompatibilitySeedOnBootDefaultsTrue(t *testing.T) {
+	// An absent seedOnBoot key defaults to true (AD3), while an explicit
+	// false is preserved (covered by TestParseConfigsCompatibilitySection).
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if !cfg.Image.Compatibility.SeedOnBoot {
+		t.Fatal("seedOnBoot should default to true when the key is absent")
+	}
+}
+
 func TestLoadDotEnv(t *testing.T) {
 	dir := t.TempDir()
 	envPath := filepath.Join(dir, ".env")
@@ -133,5 +310,299 @@ func TestLoadDotEnv(t *testing.T) {
 	// Missing file is not an error.
 	if err := LoadDotEnv(filepath.Join(dir, "nope.env")); err != nil {
 		t.Fatalf("missing .env should not error: %v", err)
+	}
+}
+
+func TestWebhookDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Webhook.Delivery.Workers != 4 {
+		t.Fatalf("webhook delivery workers default = %d, want 4", cfg.Webhook.Delivery.Workers)
+	}
+	if cfg.Webhook.Delivery.PollInterval != 5*time.Second {
+		t.Fatalf("webhook poll interval default = %v, want 5s", cfg.Webhook.Delivery.PollInterval)
+	}
+	if cfg.Webhook.Delivery.Timeout != 10*time.Second {
+		t.Fatalf("webhook timeout default = %v, want 10s", cfg.Webhook.Delivery.Timeout)
+	}
+	if cfg.Webhook.Retention.DeliveryTTL != 2160*time.Hour {
+		t.Fatalf("webhook delivery TTL default = %v, want 2160h", cfg.Webhook.Retention.DeliveryTTL)
+	}
+	if cfg.Webhook.Retention.BatchSize != 1000 {
+		t.Fatalf("webhook retention batch size default = %d, want 1000", cfg.Webhook.Retention.BatchSize)
+	}
+	if cfg.Webhook.Retention.Interval != time.Hour {
+		t.Fatalf("webhook retention interval default = %v, want 1h", cfg.Webhook.Retention.Interval)
+	}
+}
+
+func TestValidateWebhookConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative delivery workers fails.
+	cfg.Webhook.Delivery.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative webhook delivery workers should fail validation")
+	}
+	cfg.Webhook.Delivery.Workers = 4
+	// Negative retention TTL fails.
+	cfg.Webhook.Retention.DeliveryTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative webhook retention TTL should fail validation")
+	}
+	cfg.Webhook.Retention.DeliveryTTL = 2160 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid webhook config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsWebhookSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+webhook:
+  delivery:
+    workers: 8
+    pollInterval: 10s
+    timeout: 15s
+  retention:
+    enabled: false
+    deliveryTTL: 720h
+    batchSize: 500
+    interval: 30m
+  secretEncryptionKey: "test-key"
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Webhook.Delivery.Workers != 8 {
+		t.Fatalf("webhook delivery workers = %d, want 8", cfg.Webhook.Delivery.Workers)
+	}
+	if cfg.Webhook.Delivery.PollInterval != 10*time.Second {
+		t.Fatalf("webhook poll interval = %v, want 10s", cfg.Webhook.Delivery.PollInterval)
+	}
+	if cfg.Webhook.Retention.Enabled {
+		t.Fatal("webhook retention should be disabled from the file")
+	}
+	if cfg.Webhook.Retention.DeliveryTTL != 720*time.Hour {
+		t.Fatalf("webhook delivery TTL = %v, want 720h", cfg.Webhook.Retention.DeliveryTTL)
+	}
+	if cfg.Webhook.SecretEncryptionKey != "test-key" {
+		t.Fatalf("webhook secret key = %q, want test-key", cfg.Webhook.SecretEncryptionKey)
+	}
+}
+
+func TestObservabilityDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Observability.MaxRangeSeconds != 92*24*3600 {
+		t.Fatalf("observability max range default = %d, want %d", cfg.Observability.MaxRangeSeconds, 92*24*3600)
+	}
+	if cfg.Observability.Status.StaleAfterSeconds != 60 {
+		t.Fatalf("observability status staleAfterSeconds default = %d, want 60", cfg.Observability.Status.StaleAfterSeconds)
+	}
+}
+
+func TestValidateObservabilityConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative max range fails.
+	cfg.Observability.MaxRangeSeconds = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative observability max range should fail validation")
+	}
+	cfg.Observability.MaxRangeSeconds = 92 * 24 * 3600
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid observability config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsObservabilitySection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+observability:
+  maxRangeSeconds: 604800
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Observability.MaxRangeSeconds != 604800 {
+		t.Fatalf("observability max range = %d, want 604800", cfg.Observability.MaxRangeSeconds)
+	}
+}
+
+func TestNotificationDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Notification.Consumer.Workers != 4 {
+		t.Fatalf("notification consumer workers default = %d, want 4", cfg.Notification.Consumer.Workers)
+	}
+	if cfg.Notification.Retention.NotificationTTL != 2160*time.Hour {
+		t.Fatalf("notification retention TTL default = %v, want 2160h", cfg.Notification.Retention.NotificationTTL)
+	}
+	if cfg.Notification.Retention.BatchSize != 1000 {
+		t.Fatalf("notification retention batch size default = %d, want 1000", cfg.Notification.Retention.BatchSize)
+	}
+	if cfg.Notification.Retention.Interval != time.Hour {
+		t.Fatalf("notification retention interval default = %v, want 1h", cfg.Notification.Retention.Interval)
+	}
+}
+
+func TestValidateNotificationConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative consumer workers fails.
+	cfg.Notification.Consumer.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative notification consumer workers should fail validation")
+	}
+	cfg.Notification.Consumer.Workers = 4
+	// Negative retention TTL fails.
+	cfg.Notification.Retention.NotificationTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative notification retention TTL should fail validation")
+	}
+	cfg.Notification.Retention.NotificationTTL = 2160 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid notification config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsNotificationSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+notification:
+  consumer:
+    workers: 8
+  retention:
+    enabled: false
+    notificationTTL: 720h
+    batchSize: 500
+    interval: 30m
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Notification.Consumer.Workers != 8 {
+		t.Fatalf("notification consumer workers = %d, want 8", cfg.Notification.Consumer.Workers)
+	}
+	if cfg.Notification.Retention.Enabled {
+		t.Fatal("notification retention should be disabled from the file")
+	}
+	if cfg.Notification.Retention.NotificationTTL != 720*time.Hour {
+		t.Fatalf("notification retention TTL = %v, want 720h", cfg.Notification.Retention.NotificationTTL)
+	}
+}
+
+func TestTracingDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Tracing.Retention.TraceTTL != 720*time.Hour {
+		t.Fatalf("tracing retention TTL default = %v, want 720h", cfg.Tracing.Retention.TraceTTL)
+	}
+}
+
+func TestValidateTracingConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative retention TTL fails.
+	cfg.Tracing.Retention.TraceTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative tracing retention TTL should fail validation")
+	}
+	cfg.Tracing.Retention.TraceTTL = 720 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid tracing config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsTracingSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+tracing:
+  retention:
+    traceTTL: 360h
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Tracing.Retention.TraceTTL != 360*time.Hour {
+		t.Fatalf("tracing retention TTL = %v, want 360h", cfg.Tracing.Retention.TraceTTL)
+	}
+}
+
+func TestForecastDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Billing.Forecast.HorizonDefaultDays != 30 {
+		t.Fatalf("forecast horizon default days = %d, want 30", cfg.Billing.Forecast.HorizonDefaultDays)
+	}
+	if cfg.Billing.Forecast.HorizonMaxDays != 90 {
+		t.Fatalf("forecast horizon max days = %d, want 90", cfg.Billing.Forecast.HorizonMaxDays)
+	}
+	if cfg.Billing.Forecast.RangeMaxDays != 92 {
+		t.Fatalf("forecast range max days = %d, want 92", cfg.Billing.Forecast.RangeMaxDays)
+	}
+}
+
+func TestParseConfigsForecastSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+billing:
+  forecast:
+    horizonDefaultDays: 14
+    horizonMaxDays: 60
+    rangeMaxDays: 45
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Billing.Forecast.HorizonDefaultDays != 14 {
+		t.Fatalf("forecast horizon default days = %d, want 14", cfg.Billing.Forecast.HorizonDefaultDays)
+	}
+	if cfg.Billing.Forecast.HorizonMaxDays != 60 {
+		t.Fatalf("forecast horizon max days = %d, want 60", cfg.Billing.Forecast.HorizonMaxDays)
+	}
+	if cfg.Billing.Forecast.RangeMaxDays != 45 {
+		t.Fatalf("forecast range max days = %d, want 45", cfg.Billing.Forecast.RangeMaxDays)
 	}
 }

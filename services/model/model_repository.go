@@ -135,6 +135,89 @@ func (r *Repository) LatestVersion(ctx context.Context, modelID string) (*Versio
 	return rows[0], nil
 }
 
+// ActiveVersion returns the active version row of the model, or nil when
+// none is set (feature #32, AD2).
+func (r *Repository) ActiveVersion(ctx context.Context, modelID string) (*Version, error) {
+	var row Version
+	err := r.versions.DB(ctx).
+		Where("model_id = ? AND is_active = ?", modelID, true).
+		First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// VersionWithCount is a version row joined with its non-terminated
+// deployment count (feature #32, AD4).
+type VersionWithCount struct {
+	Version
+	DeploymentCount int64
+}
+
+// ListVersionsWithCounts returns the model's versions newest first
+// (created_at DESC, version DESC) with each version's non-terminated
+// deployment count and the active version string (feature #32, AD4).
+func (r *Repository) ListVersionsWithCounts(ctx context.Context, modelID string) ([]VersionWithCount, string, error) {
+	var rows []VersionWithCount
+	err := r.versions.DB(ctx).
+		Model(&Version{}).
+		Select("model_versions.*, (SELECT COUNT(*) FROM inference_services WHERE inference_services.model_id = model_versions.model_id AND inference_services.model_version = model_versions.version AND inference_services.state != 'terminated') AS deployment_count").
+		Where("model_versions.model_id = ?", modelID).
+		Order("model_versions.created_at DESC, model_versions.version DESC, model_versions.id DESC").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, "", err
+	}
+	active, err := r.ActiveVersion(ctx, modelID)
+	if err != nil {
+		return nil, "", err
+	}
+	activeVersion := ""
+	if active != nil {
+		activeVersion = active.Version
+	}
+	return rows, activeVersion, nil
+}
+
+// ActivateVersion sets the target version active and clears the previous
+// active version in one transaction (feature #32, AD5). Idempotent: if
+// the target is already active, it is a no-op success. The target must
+// be a registered version of the model (10103 otherwise).
+func (r *Repository) ActivateVersion(ctx context.Context, modelID, version string) (string, error) {
+	var activeVersion string
+	err := r.db.WithinTx(ctx, func(ctx context.Context) error {
+		// The target must exist.
+		target, err := r.FindVersion(ctx, modelID, version)
+		if err != nil {
+			return err
+		}
+		// Clear the current active version.
+		if err := r.versions.DB(ctx).
+			Model(&Version{}).
+			Where("model_id = ? AND is_active = ?", modelID, true).
+			Update("is_active", false).Error; err != nil {
+			return err
+		}
+		// Set the target active.
+		if err := r.versions.DB(ctx).
+			Model(&Version{}).
+			Where("id = ?", target.ID).
+			Update("is_active", true).Error; err != nil {
+			return err
+		}
+		activeVersion = target.Version
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return activeVersion, nil
+}
+
 // DeleteModel hard-deletes the model row and cascades its versions and
 // authorization grants in one transaction. The grant rows are deleted
 // with the model (the module owns them; the table carries no foreign

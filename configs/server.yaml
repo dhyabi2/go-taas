@@ -42,6 +42,14 @@ auth:
     parallelism: 1
   localPasswordLogin: true
   autoRegister: true
+  # adminRoles is the set of session roles that make a user an
+  # administrator (feature-22 AD3). A user is an admin iff any session
+  # role is in the set.
+  adminRoles:
+    - platform-admin
+    - org-admin
+    - admin
+    - owner
 
 metering:
   # bufferSize/flushInterval are reserved for the future Redis metering
@@ -89,18 +97,65 @@ billing:
     interval: 60s
     gracePeriod: 5m
     workers: 2
+  # reports (feature-25): the billing-reports runners. The generator
+  # picks up pending reports and renders their CSV; the schedule runner
+  # materializes due schedules into pending report runs.
+  reports:
+    enabled: true
+    generatorInterval: 5s
+    scheduleInterval: 1m
+  # forecast (feature #36): the usage & cost forecasting bounds.
+  forecast:
+    horizonDefaultDays: 30
+    horizonMaxDays: 90
+    rangeMaxDays: 92
 
 infer:
   endpointBaseURL: ""
   statusConsumer:
     enabled: true
     workers: 2
+  # autoscaling (feature #16): the concurrency-metric consumer and the
+  # controller's autoscaling status-report interval.
+  autoscaling:
+    concurrencyConsumer:
+      enabled: true
+      workers: 2
+    statusReportInterval: 5s
 
 tenancy:
   # The organization seeded on first boot (when the organizations table
   # is empty). Must match ^[a-z0-9][a-z0-9-]{2,63}$.
   defaultOrgId: "org-default"
   defaultOrgDisplayName: "Default Organization"
+
+audit:
+  # retention deletes audit events older than eventTTL, in batches
+  # (feature #15, AD6).
+  retention:
+    enabled: true
+    eventTTL: 8760h
+    batchSize: 1000
+    interval: 1h
+  # exportMaxRows caps the synchronous CSV/JSON export (AD7).
+  exportMaxRows: 10000
+
+# Feature #23: outbound webhooks and event subscriptions. The delivery
+# runner applies the retry policy; the retention runner deletes the
+# delivery log older than deliveryTTL (90 days). secretEncryptionKey is
+# the AES-256-GCM master key for secret-at-rest encryption (AD3); empty
+# falls back to a dev-only key derived from the MQ namespace.
+webhook:
+  delivery:
+    workers: 4
+    pollInterval: 5s
+    timeout: 10s
+  retention:
+    enabled: true
+    deliveryTTL: 2160h
+    batchSize: 1000
+    interval: 1h
+  secretEncryptionKey: ""
 
 image:
   registry:
@@ -122,3 +177,58 @@ image:
   warmupStatusConsumer:
     enabled: true
     workers: 2
+  # harbor configures the internal container registry (Harbor) that
+  # imported images are pushed to. Imported images always land in the
+  # configured project (default "taas"). In the compose stack these are
+  # read from the .env file (HARBOR_URL / HARBOR_USERNAME /
+  # HARBOR_PASSWORD).
+  harbor:
+    url: ""
+    username: ""
+    password: ""
+    project: "taas"
+
+model:
+  # weightsDir is the local directory (a JuiceFS mount) where model
+  # weights downloaded from a model hub are written. Empty disables the
+  # model-download feature.
+  weightsDir: ""
+
+# Feature #20: inference load testing. The runner persists a live
+# progress snapshot every progressInterval, keeps terminal runs for
+# retention, and drives traffic with the synthetic platform credential
+# (systemCredentialEnabled is the kill switch; when false CreateLoadTest
+# returns 10311).
+loadtest:
+  progressInterval: 5s
+  retention: 2160h
+  systemCredentialEnabled: true
+
+# Feature #24: model observability. The read-only aggregation over
+# request_logs accepts a range up to maxRangeSeconds (92 days by
+# default, AD7); a longer range returns 10404.
+observability:
+  maxRangeSeconds: 7948800
+  # Feature #30: the system-status health poll is considered stale when
+  # last_checked_at is older than staleAfterSeconds (60s default, AD5).
+  status:
+    staleAfterSeconds: 60
+
+# Feature #26: the in-console notification center. The event consumer
+# fans out the event catalog to enabled users; the retention runner
+# deletes notifications older than notificationTTL (90 days, AD3).
+notification:
+  consumer:
+    workers: 4
+  retention:
+    enabled: true
+    notificationTTL: 2160h
+    batchSize: 1000
+    interval: 1h
+
+# Feature #27: request tracing. The best-effort trace capture writes
+# traces + trace_spans alongside the request log; the retention runner
+# deletes traces older than traceTTL (30 days, AD5).
+tracing:
+  retention:
+    traceTTL: 720h

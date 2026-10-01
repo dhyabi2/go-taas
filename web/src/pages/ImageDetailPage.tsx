@@ -13,6 +13,7 @@ import {
   type WarmupTaskSummary,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { BackLink, ErrorBanner, Pagination, StateBadge } from '../components';
 import { usePolling } from '../components';
 
@@ -32,6 +33,7 @@ const PAGE_SIZE = 20;
 
 export default function ImageDetailPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const id = window.location.pathname.split('/').pop() || '';
   const [image, setImage] = useState<ImageResponse | null>(null);
   const [tasks, setTasks] = useState<WarmupTaskSummary[]>([]);
@@ -55,11 +57,11 @@ export default function ImageDetailPage() {
       setTasks(taskList.tasks || []);
       setTotal(parseInt(taskList.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load image');
+      setError(e instanceof Error ? e.message : t('imagedetail.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [id, orgId, offset]);
+  }, [id, orgId, offset, t]);
 
   useEffect(() => {
     void load();
@@ -69,11 +71,11 @@ export default function ImageDetailPage() {
   // light periodic refresh follows them without manual reloads.
   usePolling(() => void load(), 10000, !loading && !error);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
   if (error)
     return (
       <div>
-        <BackLink to="/admin/images" label="Back to Images" />
+        <BackLink to="/admin/images" label={t('imagedetail.back')} />
         <ErrorBanner message={error} />
       </div>
     );
@@ -81,7 +83,7 @@ export default function ImageDetailPage() {
 
   return (
     <div>
-      <BackLink to="/admin/images" label="Back to Images" />
+      <BackLink to="/admin/images" label={t('imagedetail.back')} />
       <div className="page-header">
         <div>
           <h1 data-testid="image-detail-name">
@@ -93,24 +95,24 @@ export default function ImageDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Metadata</h3>
+        <h3 style={{ marginTop: 0 }}>{t('imagedetail.metadata')}</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <div className="label">Accelerator</div>
+            <div className="label">{t('imagedetail.accelerator')}</div>
             <div className="value">{image.image.accelerator}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Engine</div>
+            <div className="label">{t('imagedetail.engine')}</div>
             <div className="value mono">{image.image.engine}</div>
           </div>
           <div className="detail-item">
-            <div className="label">In-use services</div>
+            <div className="label">{t('imagedetail.inUseServices')}</div>
             <div className="value" data-testid="image-detail-in-use-count">
               {image.inUseServices.length}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Last warmup</div>
+            <div className="label">{t('imagedetail.lastWarmup')}</div>
             <div className="value">
               {image.image.lastWarmupState ? (
                 <StateBadge state={image.image.lastWarmupState} />
@@ -120,12 +122,12 @@ export default function ImageDetailPage() {
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Created</div>
+            <div className="label">{t('imagedetail.created')}</div>
             <div className="value">{formatTime(image.image.createdAt)}</div>
           </div>
           {image.image.description && (
             <div className="detail-item">
-              <div className="label">Description</div>
+              <div className="label">{t('imagedetail.description')}</div>
               <div className="value">{image.image.description}</div>
             </div>
           )}
@@ -133,18 +135,18 @@ export default function ImageDetailPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>In-use services</h3>
+        <h3 style={{ marginTop: 0 }}>{t('imagedetail.servicesSection')}</h3>
         {image.inUseServices.length === 0 ? (
           <div className="empty-state" data-testid="image-detail-no-in-use">
-            No inference services reference this image.
+            {t('imagedetail.servicesEmpty')}
           </div>
         ) : (
           <table className="data" data-testid="image-in-use-table">
             <thead>
               <tr>
-                <th>Service</th>
-                <th>State</th>
-                <th>Actions</th>
+                <th>{t('imagedetail.colService')}</th>
+                <th>{t('imagedetail.colState')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -161,7 +163,7 @@ export default function ImageDetailPage() {
                       className="link"
                       onClick={() => navigate(`/admin/inference-services/${svc.serviceId}`)}
                     >
-                      View
+                      {t('common.view')}
                     </button>
                   </td>
                 </tr>
@@ -172,20 +174,20 @@ export default function ImageDetailPage() {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Warmup tasks</h3>
+        <h3 style={{ marginTop: 0 }}>{t('imagedetail.warmupSection')}</h3>
         {tasks.length === 0 ? (
           <div className="empty-state" data-testid="image-detail-no-tasks">
-            No warmup tasks yet.
+            {t('imagedetail.warmupEmpty')}
           </div>
         ) : (
           <table className="data" data-testid="image-warmup-tasks-table">
             <thead>
               <tr>
-                <th>Task</th>
-                <th>State</th>
-                <th>Node results</th>
-                <th>Failure reason</th>
-                <th>Updated</th>
+                <th>{t('imagedetail.colTask')}</th>
+                <th>{t('imagedetail.colState2')}</th>
+                <th>{t('imagedetail.colNodeResults')}</th>
+                <th>{t('imagedetail.colFailureReason')}</th>
+                <th>{t('imagedetail.colUpdated')}</th>
               </tr>
             </thead>
             <tbody>

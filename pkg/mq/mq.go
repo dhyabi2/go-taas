@@ -72,26 +72,51 @@ type Subjects struct {
 	// InferServiceStatus carries observed-state reports from the
 	// controller back to the infer module (state, endpoints, failures).
 	InferServiceStatus string
+	// InferServiceConcurrency carries gateway-reported in-flight
+	// concurrency per inference service (feature #16, AD11). The
+	// controller consumes it to drive the HPA concurrency metric.
+	InferServiceConcurrency string
 	// ImageWarmups carries image warmup tasks.
 	ImageWarmups string
 	// ImageWarmupStatus carries warmup task status reports from the
 	// controller back to the image module (state, node results).
 	ImageWarmupStatus string
+	// AcceleratorInventory carries the controller's full accelerator
+	// fleet snapshot (feature #18, AD1). The accelerator service
+	// consumes it to maintain its in-memory projection cache.
+	AcceleratorInventory string
 	// MeteringEvents carries token usage events from the data-plane gateway.
 	MeteringEvents string
 	// Settlements carries settlement events from metering to billing.
 	Settlements string
+	// WebhookEvents carries the platform event catalog (feature #23,
+	// AD10). The producing modules (infer for the admin events, billing
+	// for the end-user events) publish a canonical WebhookEvent envelope;
+	// the webhook module subscribes and routes each event to the matching
+	// enabled webhooks.
+	WebhookEvents string
+	// NotificationEvents carries the same platform event catalog for the
+	// in-console notification center (feature #26, AD9). The producing
+	// modules (infer for the admin events, billing for the end-user
+	// events) publish a canonical NotificationEvent envelope; the
+	// notification module subscribes and creates a notification for every
+	// enabled user, and evaluates threshold alerts on the same stream.
+	NotificationEvents string
 }
 
 // DefaultSubjects returns the canonical subject names.
 func DefaultSubjects() Subjects {
 	return Subjects{
-		InferServiceChanges: "infer.services.changes",
-		InferServiceStatus:  "infer.services.status",
-		ImageWarmups:        "image.warmups",
-		ImageWarmupStatus:   "image.warmup.status",
-		MeteringEvents:      "metering.events",
-		Settlements:         "billing.settlements",
+		InferServiceChanges:     "infer.services.changes",
+		InferServiceStatus:      "infer.services.status",
+		InferServiceConcurrency: "infer.services.concurrency",
+		ImageWarmups:            "image.warmups",
+		ImageWarmupStatus:       "image.warmup.status",
+		AcceleratorInventory:    "accelerator.inventory",
+		MeteringEvents:          "metering.events",
+		Settlements:             "billing.settlements",
+		WebhookEvents:           "webhook.events",
+		NotificationEvents:      "notification.events",
 	}
 }
 

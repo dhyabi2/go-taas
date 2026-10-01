@@ -37,6 +37,10 @@ const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:9091';
 // file where chromedriver looks. Non-snap Chrome/Chromium ignores this
 // and works with any path, so the flag is harmless there.
 const snapWritableHome = path.join(os.homedir(), 'snap', 'chromium', 'common');
+// The console localizes to the browser language (en unless the browser is
+// Chinese); the suites assert English copy, so pin the browser locale to
+// English regardless of the host locale.
+const localeArgs = ['--lang=en-US'];
 let chromeArgs;
 if (fs.existsSync(snapWritableHome)) {
   const profileDir = fs.mkdtempSync(path.join(snapWritableHome, 'e2e-profile-'));
@@ -45,10 +49,11 @@ if (fs.existsSync(snapWritableHome)) {
     '--no-sandbox',
     '--disable-gpu',
     '--disable-dev-shm-usage',
+    ...localeArgs,
     `--user-data-dir=${profileDir}`
   ];
 } else {
-  chromeArgs = ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
+  chromeArgs = ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', ...localeArgs];
 }
 
 let chromedriverPath;
@@ -91,7 +96,10 @@ module.exports = {
         browserName: 'chrome',
         'goog:chromeOptions': {
           w3c: true,
-          args: chromeArgs
+          args: chromeArgs,
+          // Also pin the accept-languages preference so navigator.language
+          // is en-US even where --lang is ignored.
+          prefs: {'intl.accept_languages': 'en-US,en'}
         }
       },
       screenshots: {

@@ -31,6 +31,12 @@ module.exports = {
     browser.globals.testSeq = (browser.globals.testSeq || 0) + 1;
     browser.globals.orgA = `org-e2e-rl-${browser.globals.runId}-${browser.globals.testSeq}`;
     api.ensureOrg(browser, browser.globals.orgA);
+    // Seed admin- and user-realm sessions so both the admin and user
+    // protected pages render (feature: unauthenticated pages redirect to
+    // login). The suite navigates to /admin/api-keys (→ /api-keys user)
+    // and /admin/billing/accounts (admin).
+    api.seedSession(browser, 'admin', browser.globals.orgA);
+    api.seedSession(browser, 'user', browser.globals.orgA);
   },
 
   afterEach(browser) {

@@ -16,7 +16,7 @@ import (
 // verification and metering, so a playground call is metered and logged
 // like any other request.
 func (s *Service) PlaygroundInfer(ctx context.Context, req *inferv1.PlaygroundInferRequest) (*inferv1.PlaygroundInferResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

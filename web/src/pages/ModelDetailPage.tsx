@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { navigate } from '../router';
 import { api, formatTime, type ModelSummary } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { usePolling } from '../components';
 import { BackLink, ErrorBanner } from '../components';
 import DeployDialog from '../components/DeployDialog';
@@ -20,6 +21,7 @@ interface ModelResponse {
 
 export default function ModelDetailPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const id = window.location.pathname.split('/').pop() || '';
   const [model, setModel] = useState<ModelResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,11 +34,11 @@ export default function ModelDetailPage() {
       const data = await api.get<ModelResponse>(`/api/v1/admin/models/${id}`, orgId);
       setModel(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load model');
+      setError(e instanceof Error ? e.message : t('modeldetail.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [id, orgId]);
+  }, [id, orgId, t]);
 
   useEffect(() => {
     void load();
@@ -46,11 +48,11 @@ export default function ModelDetailPage() {
   // a light periodic refresh keeps the detail page honest.
   usePolling(() => void load(), 10000, !loading && !error);
 
-  if (loading) return <div className="loading">Loading…</div>;
+  if (loading) return <div className="loading">{t('common.loading')}</div>;
   if (error)
     return (
       <div>
-        <BackLink to="/models" label="Back to Models" />
+        <BackLink to="/models" label={t('modeldetail.back')} />
         <ErrorBanner message={error} />
       </div>
     );
@@ -58,7 +60,7 @@ export default function ModelDetailPage() {
 
   return (
     <div>
-      <BackLink to="/models" label="Back to Models" />
+      <BackLink to="/models" label={t('modeldetail.back')} />
       <div className="page-header">
         <div>
           <h1 data-testid="model-detail-name">
@@ -67,36 +69,47 @@ export default function ModelDetailPage() {
               <span
                 className="badge restricted"
                 data-testid="model-restricted-badge"
-                title="Only the organizations authorized below may deploy or call this model."
+                title={t('modeldetail.restrictedTooltip')}
               >
-                Restricted
+                {t('modeldetail.restricted')}
               </span>
             )}
           </h1>
           <div className="subtitle mono">{model.model.modelId}</div>
         </div>
+        <a
+          className="secondary"
+          data-testid="model-versions-link"
+          href={`/admin/models/${model.model.modelId}/versions`}
+          onClick={(e) => {
+            e.preventDefault();
+            navigate(`/admin/models/${model.model.modelId}/versions`);
+          }}
+        >
+          {t('modelversions.title')}
+        </a>
       </div>
 
       <div className="panel" style={{ marginBottom: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Metadata</h3>
+        <h3 style={{ marginTop: 0 }}>{t('modeldetail.metadata')}</h3>
         <div className="detail-grid">
           <div className="detail-item">
-            <div className="label">Latest version</div>
+            <div className="label">{t('modeldetail.latestVersion')}</div>
             <div className="value mono" data-testid="model-latest-version">
               {model.model.latestVersion}
             </div>
           </div>
           <div className="detail-item">
-            <div className="label">Weight path</div>
+            <div className="label">{t('modeldetail.weightPath')}</div>
             <div className="value mono">{model.model.weightPath}</div>
           </div>
           <div className="detail-item">
-            <div className="label">Created</div>
+            <div className="label">{t('modeldetail.created')}</div>
             <div className="value">{formatTime(model.model.createdAt)}</div>
           </div>
           {model.model.description && (
             <div className="detail-item">
-              <div className="label">Description</div>
+              <div className="label">{t('modeldetail.description')}</div>
               <div className="value">{model.model.description}</div>
             </div>
           )}
@@ -104,15 +117,15 @@ export default function ModelDetailPage() {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0 }}>Versions</h3>
+        <h3 style={{ marginTop: 0 }}>{t('modeldetail.versions')}</h3>
         {model.versions.length === 0 ? (
-          <div className="empty-state">No versions.</div>
+          <div className="empty-state">{t('modeldetail.versionsEmpty')}</div>
         ) : (
           <table className="data" data-testid="model-versions-table">
             <thead>
               <tr>
-                <th>Version</th>
-                <th>Actions</th>
+                <th>{t('modeldetail.colVersion')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -125,7 +138,7 @@ export default function ModelDetailPage() {
                       data-testid={`deploy-version-${v}`}
                       onClick={() => setDeployVersion(v)}
                     >
-                      Deploy this version
+                      {t('modeldetail.deployVersion')}
                     </button>
                   </td>
                 </tr>

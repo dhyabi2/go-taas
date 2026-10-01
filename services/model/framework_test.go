@@ -2,11 +2,14 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 
 	modelv1 "github.com/go-taas/go-taas/proto/taas/model/v1"
 
@@ -74,6 +77,59 @@ func TestServiceNewWithRepository(t *testing.T) {
 func TestServiceMigrateSchemaForFVT(t *testing.T) {
 	db := newModelTestDB(t)
 	require.NoError(t, MigrateSchemaForFVT(db))
+}
+
+// TestMigrateActiveVersionIndex verifies the migration drops the stale
+// GLOBAL (is_active) WHERE is_active index and AutoMigrate recreates it
+// as the per-model (model_id) WHERE is_active index (feature #32, AD2).
+func TestMigrateActiveVersionIndex(t *testing.T) {
+	// A fresh DB without AutoMigrate so we can create the stale global
+	// index first.
+	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.Exec(`CREATE TABLE model_versions (
+		id TEXT PRIMARY KEY,
+		model_id TEXT NOT NULL,
+		version TEXT NOT NULL,
+		weight_path TEXT NOT NULL,
+		is_active BOOLEAN NOT NULL DEFAULT false,
+		created_at DATETIME
+	)`).Error)
+	// Simulate the stale schema: create the global index first, then run
+	// the migration.
+	require.NoError(t, db.Exec(`CREATE UNIQUE INDEX idx_model_versions_active ON model_versions (is_active) WHERE is_active`).Error)
+	require.NoError(t, migrateActiveVersionIndex(db))
+	require.NoError(t, db.AutoMigrate(&Model{}, &Version{}, &Authorization{}))
+
+	// The recreated index must be per-model (model_id, is_active).
+	indexes, err := db.Migrator().GetIndexes(&Version{})
+	require.NoError(t, err)
+	found := false
+	for _, idx := range indexes {
+		if idx.Name() == "idx_model_versions_active" {
+			found = true
+			assert.Equal(t, []string{"model_id", "is_active"}, idx.Columns())
+		}
+	}
+	assert.True(t, found, "idx_model_versions_active must exist after migration")
+}
+
+// TestMigrateActiveVersionIndexIdempotent verifies the migration is a
+// no-op when the index is already per-model.
+func TestMigrateActiveVersionIndexIdempotent(t *testing.T) {
+	db := newModelTestDB(t)
+	require.NoError(t, db.AutoMigrate(&Model{}, &Version{}, &Authorization{}))
+
+	// The per-model index already exists; the migration must not drop it.
+	require.NoError(t, migrateActiveVersionIndex(db))
+	indexes, err := db.Migrator().GetIndexes(&Version{})
+	require.NoError(t, err)
+	for _, idx := range indexes {
+		if idx.Name() == "idx_model_versions_active" {
+			assert.Equal(t, []string{"model_id", "is_active"}, idx.Columns())
+		}
+	}
 }
 
 func TestServiceWithoutComponents(t *testing.T) {

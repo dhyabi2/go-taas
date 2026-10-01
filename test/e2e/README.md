@@ -14,10 +14,32 @@ against the local docker compose stack.
 | Per-tenant model authorization | feature-13 `model-authorization` | `tests/modelAuthorization.js` |
 | Console surface separation | feature-17 `console-surface-separation` | `tests/consoleSurfaces.js` |
 | Payments, invoices & auto-recharge | feature-14 `payments-invoices-auto-recharge` | `tests/paymentsInvoices.js` |
+| Audit logging & activity export | feature-15 `audit-logging` | `tests/auditLogging.js` |
+| Inference autoscaling & scale-to-zero | feature-16 `inference-autoscaling` | `tests/inferenceAutoscaling.js` |
+| Accelerator inventory & health | feature-18 `accelerator-inventory` | `tests/acceleratorInventory.js` |
+| Compatibility matrix | feature-19 `compatibility-matrix` | `tests/compatibilityMatrix.js` |
+| Inference load testing | feature-20 `load-testing` | `tests/loadTesting.js` |
+| SDK / Quickstart | feature-21 `sdk-quickstart` | `tests/sdkQuickstart.js` |
+| Unified login & role-based routing | feature-22 `unified-login-role-routing` | `tests/unifiedLogin.js` |
+| Webhook notifications & event subscriptions | feature-23 `webhook-notifications` | `tests/webhookNotifications.js` |
+| Model observability dashboard | feature-24 `model-observability` | `tests/modelObservability.js` |
+| Billing reports & CSV export | feature-25 `billing-reports` | `tests/billingReports.js` |
+| Notification center & threshold alerts | feature-26 `notification-center` | `tests/notificationCenter.js` |
+| Request tracing & latency breakdown | feature-27 `request-tracing` | `tests/requestTracing.js` |
+| API key usage analytics | feature-28 `api-key-usage-analytics` | `tests/usageKeys.js` |
+| Cost analytics dashboard | feature-29 `cost-analytics-dashboard` | `tests/costAnalytics.js` |
+| System health & status | feature-30 `system-health-status` | `tests/systemStatus.js` |
+| Error analysis | feature-31 `error-analysis` | `tests/errorAnalysis.js` |
+| Model versioning & rollback | feature-32 `model-versioning` | `tests/modelVersioning.js` |
+| Inference service logs viewer | feature-33 `service-logs-viewer` | `tests/serviceLogsViewer.js` |
+| Deployment history & audit | feature-34 `deployment-history-audit` | `tests/deploymentHistoryAudit.js` |
+| Model playground comparison | feature-35 `playground-comparison` | `tests/playgroundComparison.js` |
+| Usage & cost forecasting | feature-36 `usage-cost-forecasting` | `tests/usageCostForecasting.js` |
 
 Cases are derived from the acceptance criteria in
-`docs/design/api-key-management.md` and
-`docs/design/model-catalog-deployment.md` (test names reference the AC
+`docs/design/api-key-management.md`,
+`docs/design/model-catalog-deployment.md` and
+`docs/design/webhook-notifications.md` (test names reference the AC
 numbers). Console-dialog criteria (copy buttons, badge colors, polling) are
 manual/E2E-UI scope and not automated here.
 
@@ -59,6 +81,18 @@ npm test                 # all suites
 npm run test:auth        # feature-01 only
 npm run test:model       # feature-02 model cases (tag)
 npm run test:infer       # feature-02 inference-service cases (tag)
+npm run test:webhook-notifications  # feature-23 only
+npm run test:notification-center    # feature-26 only
+npm run test:request-tracing        # feature-27 only
+npm run test:usage-keys             # feature-28 only
+npm run test:cost-analytics         # feature-29 only
+npm run test:system-status          # feature-30 only
+npm run test:error-analysis         # feature-31 only
+npm run test:model-versioning       # feature-32 only
+npm run test:service-logs-viewer    # feature-33 only
+npm run test:deployment-history-audit  # feature-34 only
+npm run test:playground-comparison  # feature-35 only
+npm run test:usage-cost-forecasting # feature-36 only
 ```
 
 Environment overrides:

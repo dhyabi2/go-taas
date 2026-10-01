@@ -9,6 +9,7 @@ import (
 	commonv1 "github.com/go-taas/go-taas/proto/taas/common/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // GenerateInvoice creates an invoice for an organization's billing
@@ -54,6 +55,25 @@ func (s *Service) GenerateInvoice(ctx context.Context, req *billingv1.GenerateIn
 	if err != nil {
 		return nil, err
 	}
+	// Feature #23 (AD10): publish the billing.invoice_created webhook
+	// event best-effort.
+	s.publishWebhookEvent(ctx, orgID, webhook.EventInvoiceCreated, "inv-"+inv.ID,
+		map[string]any{
+			"invoice_id":      inv.ID,
+			"organization_id": orgID,
+			"amount_cents":    totalCents,
+			"currency":        currency,
+			"period_start":    monthStart,
+		})
+	// Feature #26 (AD9): publish the same event to notification.events.
+	s.publishNotificationEvent(ctx, orgID, webhook.EventInvoiceCreated, "inv-"+inv.ID,
+		map[string]any{
+			"invoice_id":      inv.ID,
+			"organization_id": orgID,
+			"amount_cents":    totalCents,
+			"currency":        currency,
+			"period_start":    monthStart,
+		})
 	return &billingv1.GenerateInvoiceResponse{Response: okResponse(), Invoice: summarizeInvoice(inv)}, nil
 }
 

@@ -39,6 +39,9 @@ module.exports = {
     // Feature #6: the org-scoped APIs validate the org header against the
     // organizations table, so the org id must exist first.
     api.ensureOrg(browser, browser.globals.orgA);
+    // Seed an admin-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'admin', browser.globals.orgA);
   },
 
   afterEach(browser) {

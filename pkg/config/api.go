@@ -113,6 +113,11 @@ type AuthConfig struct {
 	LocalPasswordLogin bool `mapstructure:"localPasswordLogin"`
 	// AutoRegister enables JIT account provisioning on first SSO login.
 	AutoRegister bool `mapstructure:"autoRegister"`
+	// AdminRoles is the set of session roles that make a user an
+	// administrator (feature-22 AD3). A user is an admin iff any session
+	// role is in the set. Defaults to platform-admin, org-admin, admin,
+	// owner.
+	AdminRoles []string `mapstructure:"adminRoles"`
 }
 
 // MeteringConfig holds metering-module specific settings.
@@ -192,6 +197,33 @@ type BillingConfig struct {
 	CycleReset BillingCycleResetConfig `mapstructure:"cycleReset"`
 	// AutoRecharge configures the feature-14 auto-recharge runner.
 	AutoRecharge BillingAutoRechargeConfig `mapstructure:"autoRecharge"`
+	// Reports configures the feature-25 billing-reports runners.
+	Reports BillingReportsConfig `mapstructure:"reports"`
+	// Forecast configures the feature-36 usage & cost forecasting.
+	Forecast BillingForecastConfig `mapstructure:"forecast"`
+}
+
+// BillingForecastConfig holds the feature-36 usage & cost forecasting
+// settings (AD3, AD4).
+type BillingForecastConfig struct {
+	// HorizonDefaultDays is the default forecast horizon in days.
+	HorizonDefaultDays int `mapstructure:"horizonDefaultDays"`
+	// HorizonMaxDays is the maximum forecast horizon in days.
+	HorizonMaxDays int `mapstructure:"horizonMaxDays"`
+	// RangeMaxDays is the maximum forecast range length in days.
+	RangeMaxDays int `mapstructure:"rangeMaxDays"`
+}
+
+// BillingReportsConfig holds the feature-25 billing-reports runner
+// settings (AD1, AD4).
+type BillingReportsConfig struct {
+	// Enabled turns the report generator and schedule runners on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// GeneratorInterval is the report-generator runner's tick interval.
+	GeneratorInterval time.Duration `mapstructure:"generatorInterval"`
+	// ScheduleInterval is the schedule runner's tick interval.
+	ScheduleInterval time.Duration `mapstructure:"scheduleInterval"`
 }
 
 // BillingAutoRechargeConfig holds the auto-recharge runner settings
@@ -245,6 +277,32 @@ type ControllerConfig struct {
 	Workers int `mapstructure:"workers"`
 	// MaxRetries bounds retries for a failed reconcile task.
 	MaxRetries int `mapstructure:"maxRetries"`
+	// Namespace is the Kubernetes namespace the controller manages
+	// inference resources in. Empty defaults to "taas-infer".
+	Namespace string `mapstructure:"namespace"`
+	// Kubeconfig is an explicit kubeconfig path the controller uses to
+	// reach the Kubernetes cluster. Empty means the in-cluster config is
+	// used, falling back to ~/.kube/config for local development.
+	Kubeconfig string `mapstructure:"kubeconfig"`
+	// Weights configures the shared model-weights filesystem the
+	// controller mounts into inference pods. It is backed by a
+	// JuiceFS-backed StorageClass so every inference pod reads the same
+	// model weights the control plane downloads.
+	Weights WeightsConfig `mapstructure:"weights"`
+}
+
+// WeightsConfig holds the model-weights storage settings used by the
+// controller when it mounts model weights into inference pods.
+type WeightsConfig struct {
+	// StorageClass is the JuiceFS-backed StorageClass used to provision
+	// the weights PVC. Empty falls back to the cluster default.
+	StorageClass string `mapstructure:"storageClass"`
+	// PVCName is the name of the PersistentVolumeClaim that backs the
+	// shared model-weights filesystem. Defaults to "model-weights".
+	PVCName string `mapstructure:"pvcName"`
+	// MountPath is the path the weights volume is mounted at inside
+	// inference pods. Defaults to "/data/weights".
+	MountPath string `mapstructure:"mountPath"`
 }
 
 // InferConfig holds infer-module specific settings.
@@ -255,6 +313,29 @@ type InferConfig struct {
 	EndpointBaseURL string `mapstructure:"endpointBaseURL"`
 	// StatusConsumer controls the infer module's status-subject consumer.
 	StatusConsumer StatusConsumerConfig `mapstructure:"statusConsumer"`
+	// Autoscaling controls the infer module's autoscaling consumers and
+	// the controller's status-report interval (feature #16).
+	Autoscaling InferAutoscalingConfig `mapstructure:"autoscaling"`
+}
+
+// InferAutoscalingConfig holds the feature-16 autoscaling settings.
+type InferAutoscalingConfig struct {
+	// ConcurrencyConsumer controls the infer module's concurrency-metric
+	// consumer Runner.
+	ConcurrencyConsumer InferConcurrencyConsumerConfig `mapstructure:"concurrencyConsumer"`
+	// StatusReportInterval is the minimum interval between autoscaling
+	// status reports per service (bounded to avoid flooding the subject).
+	StatusReportInterval time.Duration `mapstructure:"statusReportInterval"`
+}
+
+// InferConcurrencyConsumerConfig holds the kill switch and worker count
+// of the infer concurrency-metric consumer.
+type InferConcurrencyConsumerConfig struct {
+	// Enabled turns the concurrency consumer Runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// Workers is the number of concurrent concurrency handlers.
+	Workers int `mapstructure:"workers"`
 }
 
 // StatusConsumerConfig holds the kill switch and worker count of the
@@ -296,12 +377,71 @@ type ImageWarmupStatusConsumerConfig struct {
 }
 
 // ImageConfig holds the image module settings: the deprecated
-// first-boot registry seed and the warmup status consumer.
+// first-boot registry seed, the warmup status consumer and the internal
+// Harbor registry used by the image import flow.
 type ImageConfig struct {
 	// Registry is the seed list of engine images (first-boot only).
 	Registry []ImageRegistryEntry `mapstructure:"registry"`
 	// WarmupStatusConsumer configures the warmup status Runner.
 	WarmupStatusConsumer ImageWarmupStatusConsumerConfig `mapstructure:"warmupStatusConsumer"`
+	// Compatibility configures the model × engine × card-type
+	// compatibility matrix (feature #19, AD3).
+	Compatibility CompatibilityConfig `mapstructure:"compatibility"`
+	// Harbor configures the internal container registry (Harbor) that
+	// imported images are pushed to. Imported images always land in the
+	// configured project (default "taas").
+	Harbor HarborConfig `mapstructure:"harbor"`
+}
+
+// HarborConfig holds the internal container registry (Harbor) settings
+// used by the image import flow.
+type HarborConfig struct {
+	// URL is the internal Harbor registry host (e.g.
+	// hub.sudoinfotech.com). Empty disables the image import flow.
+	URL string `mapstructure:"url"`
+	// Username is the Harbor account used to push imported images.
+	Username string `mapstructure:"username"`
+	// Password is the Harbor account password.
+	Password string `mapstructure:"password"`
+	// Project is the Harbor project imported images are pushed to.
+	// Defaults to "taas".
+	Project string `mapstructure:"project"`
+}
+
+// CompatibilityConfig holds the compatibility matrix settings (feature
+// #19, AD3).
+type CompatibilityConfig struct {
+	// SeedOnBoot seeds the compatibility_cells table on first boot when
+	// it is empty (AD3). Disable to skip the first-boot seed entirely.
+	SeedOnBoot bool `mapstructure:"seedOnBoot"`
+	// LazySeedDefault is the default status applied to a lazily-created
+	// cell (AD3). It is overridden by the vendor-match rule: vendor-
+	// matched combos default to experimental, vendor-mismatched to
+	// unsupported.
+	LazySeedDefault string `mapstructure:"lazySeedDefault"`
+}
+
+// AcceleratorSnapshotConsumerConfig holds the accelerator snapshot
+// consumer Runner settings (feature #18, AD1).
+type AcceleratorSnapshotConsumerConfig struct {
+	// Enabled turns the snapshot consumer Runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// Workers is the number of concurrent snapshot handlers.
+	Workers int `mapstructure:"workers"`
+}
+
+// AcceleratorConfig holds the accelerator inventory settings (feature
+// #18). The collect interval lives here (not in ControllerConfig)
+// because it is read by both the controller (collection loop) and the
+// accelerator service (snapshot consumer).
+type AcceleratorConfig struct {
+	// CollectInterval is the Controller's node/GPU collection period;
+	// the full snapshot is published on this interval (AD1). Default 30s.
+	CollectInterval time.Duration `mapstructure:"collectInterval"`
+	// SnapshotConsumer configures the accelerator service's snapshot
+	// consumer Runner (kill switch + worker count).
+	SnapshotConsumer AcceleratorSnapshotConsumerConfig `mapstructure:"snapshotConsumer"`
 }
 
 // ModelAuthConfig holds the per-tenant model authorization settings
@@ -317,6 +457,10 @@ type ModelAuthConfig struct {
 type ModelConfig struct {
 	// Auth configures the data-plane model authorization gate.
 	Auth ModelAuthConfig `mapstructure:"auth"`
+	// WeightsDir is the local directory (a JuiceFS mount) where model
+	// weights downloaded from a model hub are written. Empty disables
+	// the model-download feature.
+	WeightsDir string `mapstructure:"weightsDir"`
 }
 
 // LogConfig holds logging settings loaded from configuration files.
@@ -341,20 +485,169 @@ type TenancyConfig struct {
 	InvitationTTL time.Duration `mapstructure:"invitationTTL"`
 }
 
+// AuditConfig holds audit-module specific settings (feature #15).
+type AuditConfig struct {
+	// Retention configures the audit-event retention cleanup runner.
+	Retention AuditRetentionConfig `mapstructure:"retention"`
+	// ExportMaxRows is the export row cap (AD7); default 10000.
+	ExportMaxRows int `mapstructure:"exportMaxRows"`
+}
+
+// AuditRetentionConfig holds the audit retention runner settings
+// (feature #15, AD6).
+type AuditRetentionConfig struct {
+	// Enabled turns the audit retention runner on or off (incident-triage
+	// kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// EventTTL is how long audit events are kept before deletion;
+	// default 365 days.
+	EventTTL time.Duration `mapstructure:"eventTTL"`
+	// BatchSize is the number of rows deleted per retention pass.
+	BatchSize int `mapstructure:"batchSize"`
+	// Interval is the ticker period between retention passes.
+	Interval time.Duration `mapstructure:"interval"`
+}
+
+// WebhookConfig holds webhook-module specific settings (feature #23).
+type WebhookConfig struct {
+	// Delivery configures the delivery runner.
+	Delivery WebhookDeliveryConfig `mapstructure:"delivery"`
+	// Retention configures the delivery-log retention runner (AD8).
+	Retention WebhookRetentionConfig `mapstructure:"retention"`
+	// SecretEncryptionKey is the AES-256-GCM master key for secret-at-rest
+	// encryption (AD3). Empty falls back to a dev-only key derived from
+	// the MQ namespace; production must set it.
+	SecretEncryptionKey string `mapstructure:"secretEncryptionKey"`
+}
+
+// WebhookDeliveryConfig holds the webhook delivery runner settings
+// (feature #23, AD11).
+type WebhookDeliveryConfig struct {
+	// Workers is the number of concurrent delivery attempts.
+	Workers int `mapstructure:"workers"`
+	// PollInterval is how often the delivery runner polls for due pending
+	// deliveries.
+	PollInterval time.Duration `mapstructure:"pollInterval"`
+	// Timeout is the per-attempt HTTP client timeout.
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+// WebhookRetentionConfig holds the webhook delivery-log retention runner
+// settings (feature #23, AD8).
+type WebhookRetentionConfig struct {
+	// Enabled turns the delivery-log retention runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// DeliveryTTL is how long deliveries are kept before deletion;
+	// default 2160h (90 days).
+	DeliveryTTL time.Duration `mapstructure:"deliveryTTL"`
+	// BatchSize is the number of rows deleted per retention pass.
+	BatchSize int `mapstructure:"batchSize"`
+	// Interval is the ticker period between retention passes.
+	Interval time.Duration `mapstructure:"interval"`
+}
+
+// ObservabilityConfig holds observability-module specific settings
+// (feature #24, AD7).
+type ObservabilityConfig struct {
+	// MaxRangeSeconds is the maximum range accepted by the observability
+	// RPCs (AD7). Default 7948800 (92 days), mirroring the metering
+	// maxRangeSeconds constant; kept configurable for operational tuning.
+	MaxRangeSeconds int64 `mapstructure:"maxRangeSeconds"`
+	// Status holds the system-status settings (feature #30, Section 9).
+	Status ObservabilityStatusConfig `mapstructure:"status"`
+}
+
+// ObservabilityStatusConfig holds the system-status settings (feature
+// #30, Section 9).
+type ObservabilityStatusConfig struct {
+	// StaleAfterSeconds is the health-poll staleness threshold: the
+	// console shows a stale marker when last_checked_at is older than
+	// this (AD5). Default 60.
+	StaleAfterSeconds int64 `mapstructure:"staleAfterSeconds"`
+}
+
+// TracingConfig holds tracing-module specific settings (feature #27,
+// Section 9).
+type TracingConfig struct {
+	// Retention configures the trace retention runner (AD5).
+	Retention TracingRetentionConfig `mapstructure:"retention"`
+}
+
+// TracingRetentionConfig holds the trace retention runner settings
+// (feature #27, AD5).
+type TracingRetentionConfig struct {
+	// TraceTTL is how long traces (and their spans) are kept before
+	// deletion; default 720h (30 days), aligned with request logs.
+	TraceTTL time.Duration `mapstructure:"traceTTL"`
+}
+
+// NotificationConfig holds notification-module specific settings
+// (feature #26, Section 9).
+type NotificationConfig struct {
+	// Consumer configures the notification.events event consumer.
+	Consumer NotificationConsumerConfig `mapstructure:"consumer"`
+	// Retention configures the notification retention runner (AD3).
+	Retention NotificationRetentionConfig `mapstructure:"retention"`
+}
+
+// NotificationConsumerConfig holds the notification.events consumer
+// Runner settings (feature #26, AD10).
+type NotificationConsumerConfig struct {
+	// Workers is the number of concurrent event-handling workers.
+	Workers int `mapstructure:"workers"`
+}
+
+// NotificationRetentionConfig holds the notification retention runner
+// settings (feature #26, AD3).
+type NotificationRetentionConfig struct {
+	// Enabled turns the notification retention runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// NotificationTTL is how long notifications are kept before
+	// deletion; default 2160h (90 days).
+	NotificationTTL time.Duration `mapstructure:"notificationTTL"`
+	// BatchSize is the number of rows deleted per retention pass.
+	BatchSize int `mapstructure:"batchSize"`
+	// Interval is the ticker period between retention passes.
+	Interval time.Duration `mapstructure:"interval"`
+}
+
 // Configuration is the root of the merged configuration tree.
 type Configuration struct {
-	Databases  Databases        `mapstructure:"db"`
-	Redis      Redis            `mapstructure:"redis"`
-	MQ         MQConfig         `mapstructure:"mq"`
-	Auth       AuthConfig       `mapstructure:"auth"`
-	Metering   MeteringConfig   `mapstructure:"metering"`
-	Billing    BillingConfig    `mapstructure:"billing"`
-	Controller ControllerConfig `mapstructure:"controller"`
-	Infer      InferConfig      `mapstructure:"infer"`
-	Image      ImageConfig      `mapstructure:"image"`
-	Model      ModelConfig      `mapstructure:"model"`
-	Tenancy    TenancyConfig    `mapstructure:"tenancy"`
-	Log        LogConfig        `mapstructure:"log"`
+	Databases     Databases           `mapstructure:"db"`
+	Redis         Redis               `mapstructure:"redis"`
+	MQ            MQConfig            `mapstructure:"mq"`
+	Auth          AuthConfig          `mapstructure:"auth"`
+	Metering      MeteringConfig      `mapstructure:"metering"`
+	Billing       BillingConfig       `mapstructure:"billing"`
+	Controller    ControllerConfig    `mapstructure:"controller"`
+	Infer         InferConfig         `mapstructure:"infer"`
+	Image         ImageConfig         `mapstructure:"image"`
+	Model         ModelConfig         `mapstructure:"model"`
+	Tenancy       TenancyConfig       `mapstructure:"tenancy"`
+	Audit         AuditConfig         `mapstructure:"audit"`
+	Accelerator   AcceleratorConfig   `mapstructure:"accelerator"`
+	LoadTest      LoadTestConfig      `mapstructure:"loadtest"`
+	Webhook       WebhookConfig       `mapstructure:"webhook"`
+	Observability ObservabilityConfig `mapstructure:"observability"`
+	Notification  NotificationConfig  `mapstructure:"notification"`
+	Tracing       TracingConfig       `mapstructure:"tracing"`
+	Log           LogConfig           `mapstructure:"log"`
+}
+
+// LoadTestConfig holds the feature-20 load-testing settings.
+type LoadTestConfig struct {
+	// ProgressInterval is how often the runner persists a live-progress
+	// snapshot to the load_tests row (AD12). Default 5s.
+	ProgressInterval time.Duration `mapstructure:"progressInterval"`
+	// Retention is how long terminal runs are kept before the cleanup
+	// runner deletes them (AD9). Default 2160h (90 days).
+	Retention time.Duration `mapstructure:"retention"`
+	// SystemCredentialEnabled is the kill switch for the synthetic
+	// platform credential (AD11). When false, CreateLoadTest returns
+	// 10311 because there is no credential to drive with.
+	SystemCredentialEnabled bool `mapstructure:"systemCredentialEnabled"`
 }
 
 // Validate checks semantic constraints that cannot be expressed as struct
@@ -378,11 +671,43 @@ func (c *Configuration) Validate() error {
 	if c.Auth.APIKeyHash.Time < 0 || c.Auth.APIKeyHash.MemoryMiB < 0 || c.Auth.APIKeyHash.Parallelism < 0 {
 		return &FieldError{Field: "auth.apiKeyHash", Reason: "argon2 parameters must be non-negative"}
 	}
+	// Feature-22 (AD3): the admin-role set must be a non-empty list of
+	// non-empty strings. applyDefaults fills the default before Validate
+	// in the production path; a raw zero-value config (as built by
+	// tests) is allowed through so the empty default is not rejected.
+	if len(c.Auth.AdminRoles) > 0 {
+		for _, r := range c.Auth.AdminRoles {
+			if strings.TrimSpace(r) == "" {
+				return &FieldError{Field: "auth.adminRoles", Reason: "must be a non-empty list of non-empty strings"}
+			}
+		}
+	}
 	if c.Infer.StatusConsumer.Workers < 0 {
 		return &FieldError{Field: "infer.statusConsumer.workers", Reason: "must not be negative"}
 	}
+	if c.Controller.Weights.MountPath != "" && !strings.HasPrefix(c.Controller.Weights.MountPath, "/") {
+		return &FieldError{Field: "controller.weights.mountPath", Reason: "must be an absolute path"}
+	}
+	if c.Infer.Autoscaling.ConcurrencyConsumer.Workers < 0 {
+		return &FieldError{Field: "infer.autoscaling.concurrencyConsumer.workers", Reason: "must not be negative"}
+	}
+	if c.Infer.Autoscaling.StatusReportInterval < 0 {
+		return &FieldError{Field: "infer.autoscaling.statusReportInterval", Reason: "must not be negative"}
+	}
+	if c.LoadTest.ProgressInterval < 0 {
+		return &FieldError{Field: "loadtest.progressInterval", Reason: "must not be negative"}
+	}
+	if c.LoadTest.Retention < 0 {
+		return &FieldError{Field: "loadtest.retention", Reason: "must not be negative"}
+	}
 	if c.Image.WarmupStatusConsumer.Workers < 0 {
 		return &FieldError{Field: "image.warmupStatusConsumer.workers", Reason: "must not be negative"}
+	}
+	if c.Accelerator.CollectInterval < 0 {
+		return &FieldError{Field: "accelerator.collectInterval", Reason: "must not be negative"}
+	}
+	if c.Accelerator.SnapshotConsumer.Workers < 0 {
+		return &FieldError{Field: "accelerator.snapshotConsumer.workers", Reason: "must not be negative"}
 	}
 	if c.Model.Auth.CacheTTL < 0 {
 		return &FieldError{Field: "model.auth.cacheTTL", Reason: "must not be negative"}
@@ -443,6 +768,54 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Billing.CycleReset.Interval < 0 {
 		return &FieldError{Field: "billing.cycleReset.interval", Reason: "must be non-negative"}
+	}
+	if c.Audit.Retention.EventTTL < 0 {
+		return &FieldError{Field: "audit.retention.eventTTL", Reason: "must not be negative"}
+	}
+	if c.Audit.Retention.BatchSize < 0 {
+		return &FieldError{Field: "audit.retention.batchSize", Reason: "must not be negative"}
+	}
+	if c.Audit.Retention.Interval < 0 {
+		return &FieldError{Field: "audit.retention.interval", Reason: "must not be negative"}
+	}
+	if c.Audit.ExportMaxRows < 0 {
+		return &FieldError{Field: "audit.exportMaxRows", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.Workers < 0 {
+		return &FieldError{Field: "webhook.delivery.workers", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.PollInterval < 0 {
+		return &FieldError{Field: "webhook.delivery.pollInterval", Reason: "must not be negative"}
+	}
+	if c.Webhook.Delivery.Timeout < 0 {
+		return &FieldError{Field: "webhook.delivery.timeout", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.DeliveryTTL < 0 {
+		return &FieldError{Field: "webhook.retention.deliveryTTL", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.BatchSize < 0 {
+		return &FieldError{Field: "webhook.retention.batchSize", Reason: "must not be negative"}
+	}
+	if c.Webhook.Retention.Interval < 0 {
+		return &FieldError{Field: "webhook.retention.interval", Reason: "must not be negative"}
+	}
+	if c.Observability.MaxRangeSeconds < 0 {
+		return &FieldError{Field: "observability.maxRangeSeconds", Reason: "must not be negative"}
+	}
+	if c.Notification.Consumer.Workers < 0 {
+		return &FieldError{Field: "notification.consumer.workers", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.NotificationTTL < 0 {
+		return &FieldError{Field: "notification.retention.notificationTTL", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.BatchSize < 0 {
+		return &FieldError{Field: "notification.retention.batchSize", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.Interval < 0 {
+		return &FieldError{Field: "notification.retention.interval", Reason: "must not be negative"}
+	}
+	if c.Tracing.Retention.TraceTTL < 0 {
+		return &FieldError{Field: "tracing.retention.traceTTL", Reason: "must not be negative"}
 	}
 	return nil
 }

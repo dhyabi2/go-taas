@@ -37,8 +37,16 @@ func TestSSORepositoryProviderCRUD(t *testing.T) {
 	prov := &SSOProvider{ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Okta", Enabled: false}
 	require.NoError(t, repo.CreateProvider(ctx, prov))
 
+	// An explicit allow_auto_provision: false is preserved on create
+	// (feature-22: GORM's default:true tag would otherwise coerce it).
+	noJIT := &SSOProvider{ID: "nojit", Type: ProviderTypeOIDC, DisplayName: "NoJIT", AllowAutoProvision: false}
+	require.NoError(t, repo.CreateProvider(ctx, noJIT))
+	noJITFound, err := repo.FindProvider(ctx, "nojit")
+	require.NoError(t, err)
+	assert.False(t, noJITFound.AllowAutoProvision, "allow_auto_provision: false must be preserved on create")
+
 	// Duplicate id maps to 10020.
-	err := repo.CreateProvider(ctx, &SSOProvider{ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Dup"})
+	err = repo.CreateProvider(ctx, &SSOProvider{ID: "okta", Type: ProviderTypeOIDC, DisplayName: "Dup"})
 	assert.EqualValues(t, apierrors.CodeSSOProviderExists, apierrors.CodeOf(err))
 
 	// Find.
@@ -69,6 +77,25 @@ func TestSSORepositoryProviderCRUD(t *testing.T) {
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 	_, err = repo.SetProviderEnabled(ctx, "missing", true)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+// TestSSORepositoryCreateProviderDefaultAttributeMapping reproduces
+// BUG-UL-001: creating a provider without an explicit attribute_mapping
+// must fall back to the DB default '{}' instead of writing the empty
+// string into the jsonb column (which Postgres rejects with SQLSTATE
+// 22P02). The map-based insert must omit the column when empty.
+func TestSSORepositoryCreateProviderDefaultAttributeMapping(t *testing.T) {
+	db := newSSOTestDB(t)
+	repo := NewSSORepository(db)
+	ctx := context.Background()
+
+	prov := &SSOProvider{ID: "no-mapping", Type: ProviderTypeOIDC, DisplayName: "NoMapping"}
+	require.NoError(t, repo.CreateProvider(ctx, prov))
+
+	found, err := repo.FindProvider(ctx, "no-mapping")
+	require.NoError(t, err)
+	assert.Equal(t, "{}", found.AttributeMapping,
+		"omitted attribute_mapping must fall back to the DB default '{}'")
 }
 
 func TestSSORepositoryListProviders(t *testing.T) {

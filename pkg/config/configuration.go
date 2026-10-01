@@ -57,6 +57,20 @@ func ParseConfigs(pathPattern string) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.SetEnvPrefix("CONFIG")
 
+	// Feature #19: the compatibility matrix seeds on first boot by
+	// default (AD3). The default is applied here (not in applyDefaults)
+	// so an explicit `seedOnBoot: false` in a config file or a
+	// CONFIG_IMAGE_COMPATIBILITY_SEEDONBOOT=false override is preserved,
+	// while an absent key still defaults to true.
+	v.SetDefault("image.compatibility.seedOnBoot", true)
+
+	// Feature #20: the load-test system credential is enabled by
+	// default (AD11). Applied here (not in applyDefaults) so an explicit
+	// `systemCredentialEnabled: false` in a config file or a
+	// CONFIG_LOADTEST_SYSTEMCREDENTIALENABLED=false override is
+	// preserved, while an absent key still defaults to true.
+	v.SetDefault("loadtest.systemCredentialEnabled", true)
+
 	for _, configFile := range matches {
 		// Skip hidden files such as editor backups.
 		if strings.HasPrefix(filepath.Base(configFile), ".") {
@@ -105,8 +119,33 @@ func (c *Configuration) applyDefaults() {
 	if c.Auth.SessionTTL == 0 {
 		c.Auth.SessionTTL = 24 * time.Hour
 	}
+	// Feature-22 (AD3): the admin-role set defaults to the tenancy and
+	// platform role vocabulary. A deployment can override it.
+	if len(c.Auth.AdminRoles) == 0 {
+		c.Auth.AdminRoles = []string{"platform-admin", "org-admin", "admin", "owner"}
+	}
 	if c.Image.WarmupStatusConsumer.Workers == 0 {
 		c.Image.WarmupStatusConsumer.Workers = 2
+	}
+	// Feature #19: the compatibility matrix defaults. seedOnBoot is true
+	// by default; lazySeedDefault is "experimental" (the vendor-match
+	// rule's experimental branch; the unsupported branch is always
+	// unsupported regardless of this value).
+	if c.Image.Compatibility.LazySeedDefault == "" {
+		c.Image.Compatibility.LazySeedDefault = "experimental"
+	}
+	if c.Accelerator.CollectInterval == 0 {
+		c.Accelerator.CollectInterval = 30 * time.Second
+	}
+	if c.Accelerator.SnapshotConsumer.Workers == 0 {
+		c.Accelerator.SnapshotConsumer.Workers = 1
+	}
+	// Feature #20: load-test runner defaults.
+	if c.LoadTest.ProgressInterval == 0 {
+		c.LoadTest.ProgressInterval = 5 * time.Second
+	}
+	if c.LoadTest.Retention == 0 {
+		c.LoadTest.Retention = 90 * 24 * time.Hour
 	}
 	if c.Model.Auth.CacheTTL == 0 {
 		c.Model.Auth.CacheTTL = 5 * time.Second
@@ -164,6 +203,94 @@ func (c *Configuration) applyDefaults() {
 	}
 	if c.Billing.CycleReset.Interval == 0 {
 		c.Billing.CycleReset.Interval = time.Minute
+	}
+	// Feature-25: the billing-reports runner defaults (AD1, AD4).
+	if c.Billing.Reports.GeneratorInterval == 0 {
+		c.Billing.Reports.GeneratorInterval = 5 * time.Second
+	}
+	if c.Billing.Reports.ScheduleInterval == 0 {
+		c.Billing.Reports.ScheduleInterval = time.Minute
+	}
+	// Feature-36: the usage & cost forecasting defaults (AD3, AD4).
+	if c.Billing.Forecast.HorizonDefaultDays == 0 {
+		c.Billing.Forecast.HorizonDefaultDays = 30
+	}
+	if c.Billing.Forecast.HorizonMaxDays == 0 {
+		c.Billing.Forecast.HorizonMaxDays = 90
+	}
+	if c.Billing.Forecast.RangeMaxDays == 0 {
+		c.Billing.Forecast.RangeMaxDays = 92
+	}
+	if c.Audit.Retention.EventTTL == 0 {
+		c.Audit.Retention.EventTTL = 365 * 24 * time.Hour
+	}
+	if c.Audit.Retention.BatchSize == 0 {
+		c.Audit.Retention.BatchSize = 1000
+	}
+	if c.Audit.Retention.Interval == 0 {
+		c.Audit.Retention.Interval = time.Hour
+	}
+	if c.Audit.ExportMaxRows == 0 {
+		c.Audit.ExportMaxRows = 10000
+	}
+	// Feature #23: webhook module defaults (AD4, AD8, AD11).
+	if c.Webhook.Delivery.Workers == 0 {
+		c.Webhook.Delivery.Workers = 4
+	}
+	if c.Webhook.Delivery.PollInterval == 0 {
+		c.Webhook.Delivery.PollInterval = 5 * time.Second
+	}
+	if c.Webhook.Delivery.Timeout == 0 {
+		c.Webhook.Delivery.Timeout = 10 * time.Second
+	}
+	if c.Webhook.Retention.DeliveryTTL == 0 {
+		c.Webhook.Retention.DeliveryTTL = 2160 * time.Hour
+	}
+	if c.Webhook.Retention.BatchSize == 0 {
+		c.Webhook.Retention.BatchSize = 1000
+	}
+	if c.Webhook.Retention.Interval == 0 {
+		c.Webhook.Retention.Interval = time.Hour
+	}
+	// Feature #24: the observability max range defaults to 92 days
+	// (AD7), mirroring the metering maxRangeSeconds constant.
+	if c.Observability.MaxRangeSeconds == 0 {
+		c.Observability.MaxRangeSeconds = 92 * 24 * 3600
+	}
+	// Feature #30: the system-status staleness threshold defaults to 60
+	// seconds (AD5).
+	if c.Observability.Status.StaleAfterSeconds == 0 {
+		c.Observability.Status.StaleAfterSeconds = 60
+	}
+	// Feature #26: notification module defaults (Section 9).
+	if c.Notification.Consumer.Workers == 0 {
+		c.Notification.Consumer.Workers = 4
+	}
+	if c.Notification.Retention.NotificationTTL == 0 {
+		c.Notification.Retention.NotificationTTL = 2160 * time.Hour
+	}
+	if c.Notification.Retention.BatchSize == 0 {
+		c.Notification.Retention.BatchSize = 1000
+	}
+	if c.Notification.Retention.Interval == 0 {
+		c.Notification.Retention.Interval = time.Hour
+	}
+	// Feature #27: tracing module defaults (Section 9). Traces are kept
+	// for 30 days (720h), aligned with request logs (AD5).
+	if c.Tracing.Retention.TraceTTL == 0 {
+		c.Tracing.Retention.TraceTTL = 720 * time.Hour
+	}
+	// The image-import Harbor project defaults to "taas" so imported
+	// images always land in the platform's own project.
+	if c.Image.Harbor.Project == "" {
+		c.Image.Harbor.Project = "taas"
+	}
+	// The controller's weights PVC and mount path defaults.
+	if c.Controller.Weights.PVCName == "" {
+		c.Controller.Weights.PVCName = "model-weights"
+	}
+	if c.Controller.Weights.MountPath == "" {
+		c.Controller.Weights.MountPath = "/data/weights"
 	}
 }
 

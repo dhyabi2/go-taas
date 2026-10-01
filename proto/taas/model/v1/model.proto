@@ -74,15 +74,52 @@ service ModelService {
   rpc ListAvailableModels(ListAvailableModelsRequest) returns (ListAvailableModelsResponse) {
     option (google.api.http) = {get: "/api/v1/models"};
   }
+
+  // GetAvailableModel returns one available model's masked projection
+  // plus its read-only autoscaling summary (feature #16, AD13). The
+  // projection carries no operator fields (no cooldown, no target
+  // concurrency, no service identifiers).
+  // User-surface API: served under /api/v1.
+  rpc GetAvailableModel(GetAvailableModelRequest) returns (GetAvailableModelResponse) {
+    option (google.api.http) = {get: "/api/v1/models/{model_id}"};
+  }
+
+  // ListModelVersions returns the full version history of a model,
+  // newest first, with per-version metadata and deployment counts
+  // (feature #32, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListModelVersions(ListModelVersionsRequest) returns (ListModelVersionsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/models/{model_id}/versions"};
+  }
+
+  // ActivateModelVersion sets a version active and clears the previous
+  // active version. Idempotent: activating the already-active version is
+  // a no-op success (feature #32, AD5).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ActivateModelVersion(ActivateModelVersionRequest) returns (ActivateModelVersionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/models/{model_id}/versions/{version}:activate"
+      body: "*"
+    };
+  }
 }
 
 message RegisterModelRequest {
   string name = 1;
   string version = 2;
   // weight_path is the object-storage path of the model weights, mounted
-  // by inference pods through the shared filesystem.
+  // by inference pods through the shared filesystem. When source is set,
+  // the weights are downloaded from the hub and weight_path is derived
+  // from the download.
   string weight_path = 3;
   string description = 4;
+  // source names the model hub the weights are downloaded from
+  // ("modelscope" or "huggingface"). Empty means no download: the caller
+  // supplies weight_path directly.
+  string source = 5;
+  // source_model_id is the model id on the hub (e.g.
+  // "Qwen/Qwen2.5-0.5B-Instruct"). Required when source is set.
+  string source_model_id = 6;
 }
 
 message RegisterModelResponse {
@@ -177,9 +214,82 @@ message AvailableModel {
   string model_id = 1;
   string name = 2;
   string latest_version = 3;
+  // autoscaling is the read-only autoscaling projection (feature #16,
+  // AD13). Nil when the model is not autoscaled.
+  ModelAutoscaling autoscaling = 4;
+  // compatibility is the masked compatibility summary (feature #19,
+  // AD12): a compact string of the model's supported/experimental
+  // engine/card-type combos (e.g. "vLLM · A800, H800"). Empty when the
+  // model has no supported/experimental combos.
+  string compatibility = 5;
 }
 message ListAvailableModelsResponse {
   taas.common.v1.Response response = 1;
   repeated AvailableModel models = 2;
   taas.common.v1.PageMeta page_meta = 3;
+}
+
+// ModelAutoscaling is the masked user-realm autoscaling projection
+// (feature #16, AD13): it carries no operator fields (no cooldown, no
+// target concurrency, no service identifiers).
+message ModelAutoscaling {
+  bool autoscaled = 1;
+  int32 current_replicas = 2;
+  int32 min_replicas = 3;
+  int32 max_replicas = 4;
+  bool scale_to_zero = 5;
+  // state is steady | scaling | scaled-to-zero | warming-up | fixed.
+  string state = 6;
+}
+
+message GetAvailableModelRequest {
+  string model_id = 1; // path
+}
+
+message GetAvailableModelResponse {
+  taas.common.v1.Response response = 1;
+  AvailableModel model = 2;
+  ModelAutoscaling autoscaling = 3;
+}
+
+// ListModelVersions returns the full version history of a model, newest
+// first, with per-version metadata and deployment counts (feature #32,
+// AD4).
+message ListModelVersionsRequest {
+  string model_id = 1; // path
+  taas.common.v1.PageRequest page = 2;
+}
+
+// ModelVersion is one version row of a model's history (feature #32).
+message ModelVersion {
+  string version = 1;
+  string weight_path = 2;
+  int64 created_at = 3;
+  bool is_active = 4;
+  // deployment_count is the number of non-terminated inference services
+  // pinned to this version.
+  int64 deployment_count = 5;
+}
+
+message ListModelVersionsResponse {
+  taas.common.v1.Response response = 1;
+  string model_id = 2;
+  string name = 3;
+  // active_version is the currently active version string, empty when
+  // none is set.
+  string active_version = 4;
+  repeated ModelVersion versions = 5;
+  taas.common.v1.PageMeta page_meta = 6;
+}
+
+// ActivateModelVersion sets a version active and clears the previous
+// active version (feature #32, AD5).
+message ActivateModelVersionRequest {
+  string model_id = 1; // path
+  string version = 2;  // path
+}
+
+message ActivateModelVersionResponse {
+  taas.common.v1.Response response = 1;
+  string active_version = 2;
 }

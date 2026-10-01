@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -668,4 +669,75 @@ func TestServiceAdminSSOCallbackMintsAdminRealm(t *testing.T) {
 	sess2, err := svc.sessionStore.Get(ctx, resp2.GetSessionToken())
 	require.NoError(t, err)
 	assert.Equal(t, RealmUser, sess2.Realm)
+}
+
+// TestResolveIdentityJITExistingUser verifies that JIT provisioning
+// binds to an existing user with the same username instead of failing
+// with CodeUserExists (feature-22 AD10): the compose seed creates the
+// admin user before the binding is resolvable, so the first login must
+// bind to it rather than error.
+func TestResolveIdentityJITExistingUser(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	// A provider with auto-provision enabled.
+	require.NoError(t, svc.ssoRepo.CreateProvider(ctx, &SSOProvider{
+		ID: "keycloak", Type: ProviderTypeOIDC, DisplayName: "Keycloak",
+		Issuer: "http://keycloak:8080/realms/go-taas", ClientID: "go-taas-console",
+		ClientSecret: "secret", RedirectURI: "http://localhost:9091/api/v1/auth/sso/*",
+		Enabled: true, AllowAutoProvision: true,
+	}))
+
+	// The seed pre-creates the admin user (no binding yet).
+	adminUser := &User{ID: uuid.NewString(), Username: "admin", Email: "admin@example.com"}
+	require.NoError(t, svc.ssoRepo.CreateUser(ctx, adminUser))
+
+	// The first login JIT-provisions the identity whose username already
+	// exists; it must bind to the existing user, not fail.
+	user, err := svc.resolveIdentity(ctx, svc.ssoRepo, &SSOProvider{
+		ID: "keycloak", Type: ProviderTypeOIDC, AllowAutoProvision: true,
+	}, &Identity{
+		ExternalSubject: "http://keycloak:8080/realms/go-taas:admin-subject",
+		Username:        "admin",
+		Email:           "admin@example.com",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, adminUser.ID, user.ID, "bound to the existing admin user")
+
+	// The binding now exists for the resolved subject.
+	binding, err := svc.ssoRepo.FindBindingBySubject(ctx, "keycloak", "http://keycloak:8080/realms/go-taas:admin-subject")
+	require.NoError(t, err)
+	assert.Equal(t, adminUser.ID, binding.UserID)
+}
+
+// TestResolveIdentityBindingFound verifies that a pre-existing binding
+// resolves to the bound user without JIT provisioning.
+func TestResolveIdentityBindingFound(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	user := &User{ID: uuid.NewString(), Username: "alice", Email: "alice@x.com"}
+	require.NoError(t, svc.ssoRepo.CreateUser(ctx, user))
+	require.NoError(t, svc.ssoRepo.CreateBinding(ctx, &IdentityBinding{
+		ID: uuid.NewString(), ProviderID: "keycloak",
+		ExternalSubject: "http://keycloak:8080/realms/go-taas:sub-1", UserID: user.ID,
+	}))
+
+	got, err := svc.resolveIdentity(ctx, svc.ssoRepo, &SSOProvider{
+		ID: "keycloak", Type: ProviderTypeOIDC, AllowAutoProvision: true,
+	}, &Identity{ExternalSubject: "http://keycloak:8080/realms/go-taas:sub-1"})
+	require.NoError(t, err)
+	assert.Equal(t, user.ID, got.ID, "resolved to the bound user")
+}
+
+// TestResolveIdentityNoProvision verifies that JIT provisioning disabled
+// with no binding returns 10025.
+func TestResolveIdentityNoProvision(t *testing.T) {
+	svc, _ := newSSOService(t)
+	ctx := context.Background()
+
+	_, err := svc.resolveIdentity(ctx, svc.ssoRepo, &SSOProvider{
+		ID: "keycloak", Type: ProviderTypeOIDC, AllowAutoProvision: false,
+	}, &Identity{ExternalSubject: "http://keycloak:8080/realms/go-taas:sub-1"})
+	assert.EqualValues(t, apierrors.CodeSSONoAccount, apierrors.CodeOf(err))
 }

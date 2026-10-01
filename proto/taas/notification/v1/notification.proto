@@ -1,0 +1,293 @@
+syntax = "proto3";
+
+package taas.notification.v1;
+
+import "google/api/annotations.proto";
+import "taas/common/v1/common.proto";
+
+option go_package = "github.com/go-taas/go-taas/proto/taas/notification/v1;notificationv1";
+
+// NotificationService manages the in-console notification center: the
+// notification list with read/unread state, per-user event-type
+// preferences, and configurable threshold alerts. Every RPC is
+// dual-bound: an admin binding under /api/v1/admin/notifications/* and
+// a user binding under /api/v1/notifications/*. The surface is derived
+// from the request path (console-surface-separation §3.3).
+service NotificationService {
+  // ListNotifications returns the surface's notifications, newest
+  // first, filterable by read state and event type, and paginated.
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications"
+      additional_bindings: {get: "/api/v1/notifications"}
+    };
+  }
+
+  // GetNotification returns one notification with its full data payload.
+  rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications/{notification_id}"
+      additional_bindings: {get: "/api/v1/notifications/{notification_id}"}
+    };
+  }
+
+  // MarkNotificationRead marks one notification read.
+  rpc MarkNotificationRead(MarkNotificationReadRequest) returns (MarkNotificationReadResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/notifications/{notification_id}:mark-read"
+      additional_bindings: {post: "/api/v1/notifications/{notification_id}:mark-read"}
+    };
+  }
+
+  // MarkAllNotificationsRead marks all of the caller's notifications
+  // read.
+  rpc MarkAllNotificationsRead(MarkAllNotificationsReadRequest) returns (MarkAllNotificationsReadResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/notifications:mark-all-read"
+      additional_bindings: {post: "/api/v1/notifications:mark-all-read"}
+    };
+  }
+
+  // DeleteNotification deletes one notification.
+  rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/notifications/{notification_id}"
+      additional_bindings: {delete: "/api/v1/notifications/{notification_id}"}
+    };
+  }
+
+  // GetUnreadCount returns the caller's unread count for the bell badge.
+  rpc GetUnreadCount(GetUnreadCountRequest) returns (GetUnreadCountResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications/unread-count"
+      additional_bindings: {get: "/api/v1/notifications/unread-count"}
+    };
+  }
+
+  // GetNotificationPreferences returns the caller's preferences: for
+  // each event type in the surface's catalog, an enabled boolean
+  // (default all enabled).
+  rpc GetNotificationPreferences(GetNotificationPreferencesRequest) returns (GetNotificationPreferencesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications/preferences"
+      additional_bindings: {get: "/api/v1/notifications/preferences"}
+    };
+  }
+
+  // UpdateNotificationPreferences updates the caller's preferences.
+  rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest) returns (UpdateNotificationPreferencesResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/notifications/preferences"
+      body: "*"
+      additional_bindings: {
+        put: "/api/v1/notifications/preferences"
+        body: "*"
+      }
+    };
+  }
+
+  // CreateNotificationThreshold creates a threshold from name, metric,
+  // operator, and value.
+  rpc CreateNotificationThreshold(CreateNotificationThresholdRequest) returns (CreateNotificationThresholdResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/notifications/thresholds"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/notifications/thresholds"
+        body: "*"
+      }
+    };
+  }
+
+  // ListNotificationThresholds returns the caller's thresholds,
+  // filterable by enabled state.
+  rpc ListNotificationThresholds(ListNotificationThresholdsRequest) returns (ListNotificationThresholdsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/notifications/thresholds"
+      additional_bindings: {get: "/api/v1/notifications/thresholds"}
+    };
+  }
+
+  // UpdateNotificationThreshold updates the threshold's name, operator,
+  // value, or enabled state.
+  rpc UpdateNotificationThreshold(UpdateNotificationThresholdRequest) returns (UpdateNotificationThresholdResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/notifications/thresholds/{threshold_id}"
+      body: "*"
+      additional_bindings: {
+        put: "/api/v1/notifications/thresholds/{threshold_id}"
+        body: "*"
+      }
+    };
+  }
+
+  // DeleteNotificationThreshold deletes the threshold.
+  rpc DeleteNotificationThreshold(DeleteNotificationThresholdRequest) returns (DeleteNotificationThresholdResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/notifications/thresholds/{threshold_id}"
+      additional_bindings: {delete: "/api/v1/notifications/thresholds/{threshold_id}"}
+    };
+  }
+}
+
+enum NotificationSeverity {
+  NOTIFICATION_SEVERITY_UNSPECIFIED = 0;
+  NOTIFICATION_SEVERITY_INFO = 1;
+  NOTIFICATION_SEVERITY_WARNING = 2;
+  NOTIFICATION_SEVERITY_CRITICAL = 3;
+}
+
+enum ThresholdOperator {
+  THRESHOLD_OPERATOR_UNSPECIFIED = 0;
+  THRESHOLD_OPERATOR_LT = 1;
+  THRESHOLD_OPERATOR_GT = 2;
+}
+
+message Notification {
+  string notification_id = 1;
+  string organization_id = 2;
+  string user_id = 3;
+  string surface = 4; // "admin" / "user"
+  string event_type = 5;
+  string title = 6;
+  string body = 7;
+  NotificationSeverity severity = 8;
+  bool read = 9;
+  string data = 10; // JSON event payload or threshold metric/value
+  string link = 11; // optional deep link
+  int64 created_at = 12; // unix seconds
+}
+
+message NotificationPreference {
+  string event_type = 1;
+  bool enabled = 2;
+}
+
+message NotificationThreshold {
+  string threshold_id = 1;
+  string organization_id = 2;
+  string user_id = 3;
+  string surface = 4; // "admin" / "user"
+  string name = 5;
+  string metric = 6;
+  ThresholdOperator operator = 7;
+  double value = 8;
+  bool enabled = 9;
+  int64 created_at = 10; // unix seconds
+  int64 updated_at = 11; // unix seconds
+}
+
+message ListNotificationsRequest {
+  taas.common.v1.PageRequest page = 1;
+  bool read_filter = 2; // set to filter by read state
+  bool read = 3; // the read state to filter by
+  string event_type = 4; // filter; empty = all
+}
+
+message ListNotificationsResponse {
+  taas.common.v1.Response response = 1;
+  repeated Notification notifications = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message GetNotificationRequest {
+  string notification_id = 1;
+}
+
+message GetNotificationResponse {
+  taas.common.v1.Response response = 1;
+  Notification notification = 2;
+}
+
+message MarkNotificationReadRequest {
+  string notification_id = 1;
+}
+
+message MarkNotificationReadResponse {
+  taas.common.v1.Response response = 1;
+  Notification notification = 2;
+}
+
+message MarkAllNotificationsReadRequest {}
+
+message MarkAllNotificationsReadResponse {
+  taas.common.v1.Response response = 1;
+  int64 marked_count = 2;
+}
+
+message DeleteNotificationRequest {
+  string notification_id = 1;
+}
+
+message DeleteNotificationResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message GetUnreadCountRequest {}
+
+message GetUnreadCountResponse {
+  taas.common.v1.Response response = 1;
+  int64 unread_count = 2;
+}
+
+message GetNotificationPreferencesRequest {}
+
+message GetNotificationPreferencesResponse {
+  taas.common.v1.Response response = 1;
+  repeated NotificationPreference preferences = 2;
+}
+
+message UpdateNotificationPreferencesRequest {
+  repeated NotificationPreference preferences = 1;
+}
+
+message UpdateNotificationPreferencesResponse {
+  taas.common.v1.Response response = 1;
+  repeated NotificationPreference preferences = 2;
+}
+
+message CreateNotificationThresholdRequest {
+  string name = 1;
+  string metric = 2;
+  ThresholdOperator operator = 3;
+  double value = 4;
+  bool enabled = 5; // default true
+}
+
+message CreateNotificationThresholdResponse {
+  taas.common.v1.Response response = 1;
+  NotificationThreshold threshold = 2;
+}
+
+message ListNotificationThresholdsRequest {
+  taas.common.v1.PageRequest page = 1;
+  bool enabled_filter = 2; // set to filter by enabled state
+  bool enabled = 3; // the enabled state to filter by
+}
+
+message ListNotificationThresholdsResponse {
+  taas.common.v1.Response response = 1;
+  repeated NotificationThreshold thresholds = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message UpdateNotificationThresholdRequest {
+  string threshold_id = 1;
+  string name = 2;
+  ThresholdOperator operator = 3;
+  double value = 4;
+  bool enabled = 5;
+}
+
+message UpdateNotificationThresholdResponse {
+  taas.common.v1.Response response = 1;
+  NotificationThreshold threshold = 2;
+}
+
+message DeleteNotificationThresholdRequest {
+  string threshold_id = 1;
+}
+
+message DeleteNotificationThresholdResponse {
+  taas.common.v1.Response response = 1;
+}

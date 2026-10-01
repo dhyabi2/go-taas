@@ -169,6 +169,7 @@ func (s *commonServer) Init() {
 		s.gatewayMux = runtime.NewServeMux(
 			runtime.WithErrorHandler(gatewayErrorHandler),
 			runtime.WithIncomingHeaderMatcher(incomingHeaderMatcher),
+			runtime.WithMetadata(PathMetadataAnnotator),
 		)
 		s.initGateway()
 	}

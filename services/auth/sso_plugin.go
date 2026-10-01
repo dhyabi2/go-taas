@@ -37,6 +37,13 @@ type IDPPlugin interface {
 	// the code/assertion or performs the LDAP bind, and returns the
 	// extracted external identity.
 	Callback(ctx context.Context, p *SSOProvider, req *authv1.SSOCallbackRequest) (*Identity, error)
+
+	// PasswordGrant authenticates a username/password against the
+	// provider and returns the extracted external identity (feature-22).
+	// OIDC uses the OAuth2 resource-owner password grant; LDAP uses a
+	// directory bind. SAML returns CodeSSOProviderInvalid (no password
+	// grant exists).
+	PasswordGrant(ctx context.Context, p *SSOProvider, username, password string) (*Identity, error)
 }
 
 // AuthorizeResult is the outcome of Authorize.

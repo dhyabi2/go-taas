@@ -32,7 +32,7 @@ service AuthService {
   rpc ListAPIKeys(ListAPIKeysRequest) returns (ListAPIKeysResponse) {
     option (google.api.http) = {
       get: "/api/v1/auth/api-keys"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         get: "/api/v1/admin/auth/api-keys"
@@ -48,7 +48,7 @@ service AuthService {
     option (google.api.http) = {
       post: "/api/v1/auth/api-keys"
       body: "*"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         post: "/api/v1/admin/auth/api-keys"
@@ -65,7 +65,7 @@ service AuthService {
     option (google.api.http) = {
       post: "/api/v1/auth/api-keys/{key_id}:revoke"
       body: "*"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         post: "/api/v1/admin/auth/api-keys/{key_id}:revoke"
@@ -83,7 +83,7 @@ service AuthService {
     option (google.api.http) = {
       put: "/api/v1/auth/api-keys/{key_id}"
       body: "*"
-      additional_bindings {
+      additional_bindings: {
         // Deprecated (console-surface-separation): kept functional for
         // the transitional migration window.
         put: "/api/v1/admin/auth/api-keys/{key_id}"
@@ -176,13 +176,57 @@ service AuthService {
     option (google.api.http) = {get: "/api/v1/auth/sso/providers"};
   }
 
+  // SSOPasswordLogin authenticates a username/password against a
+  // selected provider: the OIDC resource-owner password grant (Keycloak
+  // Direct Access Grants) or the LDAP bind. The realm is derived from
+  // the authenticated role (feature-22 AD2), never from a request field.
+  // The password is used only for the exchange/bind and is never
+  // persisted or echoed. SAML providers cannot use this flow and keep
+  // the redirect flow (SSOAuthorize/SSOCallback).
+  // User-surface API: served under /api/v1; the admin binding is an
+  // additional_bindings with identical behaviour.
+  rpc SSOPasswordLogin(SSOPasswordLoginRequest) returns (SSOPasswordLoginResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/sso/{provider_id}/login"
+      body: "*"
+      additional_bindings: {
+        post: "/api/v1/admin/auth/sso/{provider_id}/login"
+        body: "*"
+      }
+    };
+  }
+
+  // SwitchSurface mints a session for the target realm for the current
+  // user. switch-to-admin (user prefix) validates the caller has an
+  // admin role (10036 otherwise) and mints an admin-realm session;
+  // switch-to-user (admin prefix) mints a user-realm session. Each
+  // binding requires an authenticated session of its own realm (the
+  // gateway realm guard enforces this). The source session is left
+  // intact so the user can switch back.
+  // User-surface API: served under /api/v1.
+  rpc SwitchSurface(SwitchSurfaceRequest) returns (SwitchSurfaceResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/session:switch-to-admin"
+      body: "*"
+    };
+  }
+
+  // SwitchSurface mints a user-realm session for the current user.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc SwitchSurfaceAdmin(SwitchSurfaceRequest) returns (SwitchSurfaceResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/auth/session:switch-to-user"
+      body: "*"
+    };
+  }
+
   // GetSession returns the current session of the realm the request
   // arrived on (user realm on this binding, admin realm on the
   // additional binding, enforced by the gateway realm guard).
   rpc GetSession(GetSessionRequest) returns (GetSessionResponse) {
     option (google.api.http) = {
       get: "/api/v1/auth/session"
-      additional_bindings { get: "/api/v1/admin/auth/session" }
+      additional_bindings: {get: "/api/v1/admin/auth/session"}
     };
   }
 
@@ -191,7 +235,7 @@ service AuthService {
     option (google.api.http) = {
       post: "/api/v1/auth/session/org"
       body: "*"
-      additional_bindings {
+      additional_bindings: {
         post: "/api/v1/admin/auth/session/org"
         body: "*"
       }
@@ -203,7 +247,7 @@ service AuthService {
     option (google.api.http) = {
       post: "/api/v1/auth/logout"
       body: "*"
-      additional_bindings {
+      additional_bindings: {
         post: "/api/v1/admin/auth/logout"
         body: "*"
       }
@@ -525,4 +569,28 @@ message DeleteIdentityBindingRequest {
 }
 message DeleteIdentityBindingResponse {
   taas.common.v1.Response response = 1;
+}
+
+// ---- Unified login & role-based routing (feature-22) ----
+
+// SSOPasswordLoginRequest authenticates a username/password against a
+// selected provider via the OIDC password grant or the LDAP bind.
+message SSOPasswordLoginRequest {
+  string provider_id = 1; // path
+  string username = 2; // required, 1-128 chars, trimmed
+  string password = 3; // required, 1-256 chars; never persisted or echoed
+}
+message SSOPasswordLoginResponse {
+  taas.common.v1.Response response = 1;
+  string session_token = 2; // the session id, stored under the realm-matching key
+  string realm = 3; // user | admin, derived from the role (AD2)
+  int64 expires_at = 4; // unix seconds
+}
+
+message SwitchSurfaceRequest {}
+message SwitchSurfaceResponse {
+  taas.common.v1.Response response = 1;
+  string session_token = 2; // the target-realm session id
+  string realm = 3; // the target realm (admin for switch-to-admin, user for switch-to-user)
+  int64 expires_at = 4; // unix seconds
 }

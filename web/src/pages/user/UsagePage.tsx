@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { formatTime, type BalanceResponse, type UsageDashboardResponse } from '../../api';
 
 export default function UsagePage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [dashboard, setDashboard] = useState<UsageDashboardResponse | null>(null);
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [error, setError] = useState('');
@@ -17,38 +19,38 @@ export default function UsagePage() {
     api
       .get<UsageDashboardResponse>('/api/v1/metering/usage-dashboard', orgId)
       .then(setDashboard)
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load usage'));
+      .catch((e) => setError(e instanceof Error ? e.message : t('uusage.loadFailed')));
     api
       .get<BalanceResponse>('/api/v1/billing/balance', orgId)
       .then(setBalance)
       .catch(() => {
         // Balance may be absent (no account); not fatal.
       });
-  }, [api, orgId]);
+  }, [api, orgId, t]);
 
   const cards = dashboard?.cards;
 
   return (
     <div className="page" data-testid="usage-dashboard-cards">
-      <h1>Usage</h1>
+      <h1>{t('uusage.title')}</h1>
       {error && <div className="error">{error}</div>}
       {balance && (
         <div className="balance-widget" data-testid="usage-balance-widget">
           {balance.mode === 'prepaid'
-            ? `Balance: ${balance.balance} ${balance.currency}`
-            : `Quota: ${balance.monthlyQuotaCents} (used ${balance.usedThisCycleCents})`}
+            ? t('uusage.balance', { balance: balance.balance, currency: balance.currency })
+            : t('uusage.quota', { quota: balance.monthlyQuotaCents, used: balance.usedThisCycleCents })}
         </div>
       )}
       {cards && (
         <div className="cards">
           <div className="card" data-testid="usage-metric-cost">
-            Cost: {cards.totalCostCents}
+            {t('uusage.cost', { n: cards.totalCostCents })}
           </div>
           <div className="card" data-testid="usage-metric-tokens">
-            Tokens: {Number(cards.promptTokens) + Number(cards.completionTokens)}
+            {t('uusage.tokens', { n: Number(cards.promptTokens) + Number(cards.completionTokens) })}
           </div>
           <div className="card" data-testid="usage-metric-requests">
-            Requests: {cards.requestCount}
+            {t('uusage.requests', { n: cards.requestCount })}
           </div>
         </div>
       )}
@@ -56,10 +58,10 @@ export default function UsagePage() {
         <table className="table" data-testid="usage-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Group</th>
-              <th>Cost</th>
-              <th>Tokens</th>
+              <th>{t('uusage.colDate')}</th>
+              <th>{t('uusage.colGroup')}</th>
+              <th>{t('uusage.colCost')}</th>
+              <th>{t('uusage.colTokens')}</th>
             </tr>
           </thead>
           <tbody>
@@ -76,7 +78,7 @@ export default function UsagePage() {
           </tbody>
         </table>
       ) : (
-        <div className="empty" data-testid="usage-empty">No usage yet.</div>
+        <div className="empty" data-testid="usage-empty">{t('uusage.empty')}</div>
       )}
     </div>
   );

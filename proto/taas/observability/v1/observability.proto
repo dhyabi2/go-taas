@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package taas.observability.v1;
+
+import "google/api/annotations.proto";
+import "taas/common/v1/common.proto";
+
+option go_package = "github.com/go-taas/go-taas/proto/taas/observability/v1;observabilityv1";
+
+// ObservabilityService serves read-only model performance metrics
+// aggregated from request_logs. GetObservabilityOverview is admin-only
+// (fleet view); GetModelObservability is dual-bound (admin drill-down
+// and tenant-scoped single-model view).
+service ObservabilityService {
+  // GetObservabilityOverview returns fleet-wide observability: summary
+  // cards, a per-model table, and a model-filtered time series.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetObservabilityOverview(GetObservabilityOverviewRequest) returns (GetObservabilityOverviewResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/observability"};
+  }
+
+  // GetModelObservability returns single-model observability: summary
+  // cards, a time series, and a per-API-key breakdown. The admin
+  // binding covers all orgs; the user binding is tenant-scoped.
+  rpc GetModelObservability(GetModelObservabilityRequest) returns (GetModelObservabilityResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/observability/models/{model_id}"
+      additional_bindings: {get: "/api/v1/models/{model_id}/observability"}
+    };
+  }
+
+  // GetSystemStatus returns the platform component health: an overall
+  // status, a per-component health list, uptime, dependency status, and
+  // a status-page summary. It is admin-only (no user binding) and takes
+  // no range parameters (it is a point-in-time snapshot).
+  rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/status"};
+  }
+}
+
+message GetObservabilityOverviewRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD4).
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // model_id optionally filters the cards and series to one model.
+  string model_id = 4;
+}
+
+message GetObservabilityOverviewResponse {
+  taas.common.v1.Response response = 1;
+  ObservabilityCard cards = 2;
+  repeated ModelObservabilityRow models = 3;
+  repeated ObservabilitySeriesPoint series = 4;
+}
+
+message GetModelObservabilityRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // model_id is the path parameter.
+  string model_id = 2;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 3;
+  int64 until = 4;
+}
+
+message GetModelObservabilityResponse {
+  taas.common.v1.Response response = 1;
+  ObservabilityCard cards = 2;
+  repeated ObservabilitySeriesPoint series = 3;
+  repeated ObservabilityKeyRow keys = 4;
+}
+
+// ObservabilityCard is the headline summary of the range. error_rate is
+// derived client-side as error_count / request_count; the wire carries
+// integer counts and integer milliseconds only.
+message ObservabilityCard {
+  int64 request_count = 1;
+  int64 error_count = 2;
+  int64 avg_latency_ms = 3;
+  int64 p95_latency_ms = 4;
+  int64 output_tokens_per_sec = 5;
+  int64 input_tokens_per_sec = 6;
+  // data_through is the start of the last complete bucket covered by
+  // request logs (AD8); buckets past it are pending.
+  int64 data_through = 7;
+}
+
+// ModelObservabilityRow is one model's aggregate in the fleet table.
+message ModelObservabilityRow {
+  string model_id = 1;
+  string model_name = 2;
+  int64 request_count = 3;
+  int64 error_count = 4;
+  int64 avg_latency_ms = 5;
+  int64 p95_latency_ms = 6;
+  int64 output_tokens_per_sec = 7;
+  // data_through is the model's last complete bucket (AD8).
+  int64 data_through = 8;
+}
+
+// ObservabilitySeriesPoint is one time bucket of the series.
+message ObservabilitySeriesPoint {
+  // bucket is the bucket start, unix seconds (hourly for ranges <= 7
+  // days, daily otherwise, AD7).
+  int64 bucket = 1;
+  int64 request_count = 2;
+  int64 error_count = 3;
+  int64 avg_latency_ms = 4;
+  int64 p95_latency_ms = 5;
+  int64 output_tokens_per_sec = 6;
+  int64 input_tokens_per_sec = 7;
+}
+
+// ObservabilityKeyRow is one API key's aggregate in the per-key table.
+message ObservabilityKeyRow {
+  string api_key_id = 1;
+  string api_key_name = 2;
+  int64 request_count = 3;
+  int64 error_count = 4;
+  int64 avg_latency_ms = 5;
+  int64 p95_latency_ms = 6;
+  int64 output_tokens_per_sec = 7;
+}
+
+// ---- System health & status (feature #30) ----
+
+message GetSystemStatusRequest {}
+
+message GetSystemStatusResponse {
+  taas.common.v1.Response response = 1;
+  // overall_status is operational / degraded / outage, derived
+  // server-side (AD2).
+  string overall_status = 2;
+  repeated SystemComponent components = 3;
+  SystemStatusPage status_page = 4;
+  // last_checked_at is the most recent health poll (AD5).
+  int64 last_checked_at = 5;
+}
+
+// SystemComponent is one platform component's health.
+message SystemComponent {
+  string component_id = 1;
+  string component_name = 2;
+  // component_type is gateway / grpc_service / mq / postgresql / redis /
+  // controller.
+  string component_type = 3;
+  // status is healthy / degraded / unhealthy.
+  string status = 4;
+  int64 uptime_seconds = 5;
+  int64 last_checked_at = 6;
+  repeated SystemDependency dependencies = 7;
+}
+
+// SystemDependency is one dependency of a component.
+message SystemDependency {
+  string dependency_id = 1;
+  string dependency_name = 2;
+  // status is healthy / degraded / unhealthy.
+  string status = 3;
+}
+
+// SystemStatusPage is the status-page summary (AD4).
+message SystemStatusPage {
+  string overall_status = 1;
+  int64 last_checked_at = 2;
+  int64 component_count = 3;
+}

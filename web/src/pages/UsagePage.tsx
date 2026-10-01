@@ -14,6 +14,7 @@ import {
   type VoucherSummary,
 } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination, StateBadge, usePolling } from '../components';
 import UsageChart, { type ChartMetric } from '../components/UsageChart';
 import BalanceWidget from '../components/BalanceWidget';
@@ -31,10 +32,10 @@ interface VouchersResponse {
 
 const PAGE_SIZE = 20;
 const RANGE_PRESETS = [
-  { id: '24h', label: 'Last 24 hours', hours: 24 },
-  { id: '7d', label: 'Last 7 days', hours: 7 * 24 },
-  { id: '30d', label: 'Last 30 days', hours: 30 * 24 },
-  { id: 'custom', label: 'Custom range', hours: 0 },
+  { id: '24h', labelKey: 'usage.range24h', hours: 24 },
+  { id: '7d', labelKey: 'usage.range7d', hours: 7 * 24 },
+  { id: '30d', labelKey: 'usage.range30d', hours: 30 * 24 },
+  { id: 'custom', labelKey: 'usage.customRange', hours: 0 },
 ];
 
 // formatCents renders integer minor units as a currency string.
@@ -89,6 +90,7 @@ function exportCSV(buckets: DailyBucket[]) {
 
 export default function UsagePage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [preset, setPreset] = useState('24h');
   const [customSince, setCustomSince] = useState('');
   const [customUntil, setCustomUntil] = useState('');
@@ -121,11 +123,11 @@ export default function UsagePage() {
       );
       setRows(data.rows || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load usage summary');
+      setError(e instanceof Error ? e.message : t('usage.summaryFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, range.since, range.until]);
+  }, [orgId, range.since, range.until, t]);
 
   // Load the dashboard cards + daily buckets (feature #9, AC1).
   const loadDashboard = useCallback(async () => {
@@ -142,9 +144,9 @@ export default function UsagePage() {
       setDashboard(data);
     } catch (e) {
       // The dashboard is additive; a failure should not blank the page.
-      setError(e instanceof Error ? e.message : 'failed to load dashboard');
+      setError(e instanceof Error ? e.message : t('usage.dashboardFailed'));
     }
-  }, [orgId, range.since, range.until, groupBy]);
+  }, [orgId, range.since, range.until, groupBy, t]);
 
   useEffect(() => {
     setLoading(true);
@@ -171,11 +173,8 @@ export default function UsagePage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Usage</h1>
-          <div className="subtitle">
-            Token consumption and cost per API key. Usage appears within the
-            hour; the current hour is pending.
-          </div>
+          <h1>{t('usage.title')}</h1>
+          <div className="subtitle">{t('usage.subtitle')}</div>
         </div>
         <BalanceWidget />
       </div>
@@ -190,7 +189,7 @@ export default function UsagePage() {
             data-testid={`usage-range-${p.id}`}
             onClick={() => setPreset(p.id)}
           >
-            {p.label}
+            {t(p.labelKey)}
           </button>
         ))}
         {preset === 'custom' && (
@@ -211,7 +210,7 @@ export default function UsagePage() {
         )}
         <span className="toolbar-spacer" />
         <label className="muted" htmlFor="usage-groupby">
-          Group by
+          {t('usage.groupBy')}
         </label>
         <select
           id="usage-groupby"
@@ -219,36 +218,36 @@ export default function UsagePage() {
           value={groupBy}
           onChange={(e) => setGroupBy(e.target.value)}
         >
-          <option value="api_key">API key</option>
-          <option value="model">Model</option>
-          <option value="accelerator_type">Accelerator</option>
+          <option value="api_key">{t('usage.groupApiKey')}</option>
+          <option value="model">{t('usage.groupModel')}</option>
+          <option value="accelerator_type">{t('usage.groupAccelerator')}</option>
         </select>
         <button
           className="secondary"
           data-testid="usage-export-csv"
           onClick={() => exportCSV(buckets)}
         >
-          Export CSV
+          {t('usage.exportCsv')}
         </button>
       </div>
 
       {/* Dashboard cards (feature #9, AC1) */}
       <div className="dashboard-cards" data-testid="usage-dashboard-cards">
         <div className="dashboard-card">
-          <div className="label">Total cost</div>
+          <div className="label">{t('usage.totalCost')}</div>
           <div className="value">
             {cards ? `${formatCents(cards.totalCostCents)} ${cards.currency || 'USD'}` : '—'}
           </div>
           {unpriced && (
             <div className="sub">
               <span className="unpriced-badge" data-testid="usage-unpriced-badge">
-                Unpriced
+                {t('usage.unpriced')}
               </span>
             </div>
           )}
         </div>
         <div className="dashboard-card">
-          <div className="label">Tokens</div>
+          <div className="label">{t('usage.tokens')}</div>
           <div className="value">
             {cards
               ? (
@@ -268,13 +267,13 @@ export default function UsagePage() {
           </div>
         </div>
         <div className="dashboard-card">
-          <div className="label">Requests</div>
+          <div className="label">{t('usage.requests')}</div>
           <div className="value">
             {cards ? parseInt(cards.requestCount || '0', 10).toLocaleString() : '—'}
           </div>
         </div>
         <div className="dashboard-card">
-          <div className="label">Avg cost / request</div>
+          <div className="label">{t('usage.avgCost')}</div>
           <div className="value">
             {cards && parseInt(cards.requestCount || '0', 10) > 0
               ? formatCents(
@@ -300,12 +299,12 @@ export default function UsagePage() {
               data-testid={`usage-metric-${m}`}
               onClick={() => setMetric(m)}
             >
-              {m === 'cost' ? 'Cost' : m === 'tokens' ? 'Tokens' : 'Requests'}
+              {m === 'cost' ? t('usage.metricCost') : m === 'tokens' ? t('usage.metricTokens') : t('usage.metricRequests')}
             </button>
           ))}
           {pending && (
             <span className="pending-badge" data-testid="usage-pending-badge">
-              Pending
+              {t('usage.pending')}
             </span>
           )}
         </div>
@@ -314,23 +313,22 @@ export default function UsagePage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : rows.length === 0 ? (
           <div className="empty-state" data-testid="usage-empty">
-            No usage in this range. Usage appears after the first inference
-            calls.
+            {t('usage.empty')}
           </div>
         ) : (
           <table className="data" data-testid="usage-table">
             <thead>
               <tr>
-                <th>API Key</th>
-                <th>Input tokens</th>
-                <th>Output tokens</th>
-                <th>Cached tokens</th>
-                <th>Requests</th>
-                <th>Settled</th>
-                <th>Actions</th>
+                <th>{t('usage.colApiKey')}</th>
+                <th>{t('usage.colInputTokens')}</th>
+                <th>{t('usage.colOutputTokens')}</th>
+                <th>{t('usage.colCachedTokens')}</th>
+                <th>{t('usage.colRequests')}</th>
+                <th>{t('usage.colSettled')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -349,7 +347,10 @@ export default function UsagePage() {
                     />
                     <span className="muted">
                       {' '}
-                      {row.settledHours}h settled / {row.pendingHours}h pending
+                      {t('usage.settledText', {
+                        settled: row.settledHours,
+                        pending: row.pendingHours,
+                      })}
                     </span>
                   </td>
                   <td>
@@ -358,14 +359,14 @@ export default function UsagePage() {
                       data-testid={`by-model-${row.groupKey}`}
                       onClick={() => setByModelKey(row.groupKey)}
                     >
-                      By model
+                      {t('usage.byModel')}
                     </button>
                     <button
                       className="link"
                       data-testid={`vouchers-${row.groupKey}`}
                       onClick={() => setVoucherKey(row.groupKey)}
                     >
-                      Vouchers
+                      {t('usage.vouchers')}
                     </button>
                   </td>
                 </tr>
@@ -407,6 +408,7 @@ function ByModelDialog({
   range: { since: number; until: number };
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [rows, setRows] = useState<UsageSummaryRow[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -420,26 +422,26 @@ function ByModelDialog({
     api
       .get<SummaryResponse>(`/api/v1/admin/metering/usage-summary?${params.toString()}`, orgId)
       .then((data) => setRows(data.rows || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('usage.loadFailed')))
       .finally(() => setLoading(false));
-  }, [orgId, range.since, range.until]);
+  }, [orgId, range.since, range.until, t]);
 
   return (
-    <Dialog title={`Usage by model — ${apiKeyId}`} onClose={onClose}>
+    <Dialog title={t('usage.byModelTitle', { apiKeyId })} onClose={onClose}>
       {error && <ErrorBanner message={error} />}
       {loading ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">{t('common.loading')}</div>
       ) : rows.length === 0 ? (
-        <div className="empty-state">No usage in this range.</div>
+        <div className="empty-state">{t('usage.byModelEmpty')}</div>
       ) : (
         <table className="data" data-testid="by-model-table">
           <thead>
             <tr>
-              <th>Model</th>
-              <th>Input tokens</th>
-              <th>Output tokens</th>
-              <th>Cached tokens</th>
-              <th>Requests</th>
+              <th>{t('usage.colModel')}</th>
+              <th>{t('usage.colInputTokens2')}</th>
+              <th>{t('usage.colOutputTokens2')}</th>
+              <th>{t('usage.colCachedTokens2')}</th>
+              <th>{t('usage.colRequests2')}</th>
             </tr>
           </thead>
           <tbody>
@@ -474,6 +476,7 @@ function VouchersDialog({
   range: { since: number; until: number };
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [vouchers, setVouchers] = useState<VoucherSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -495,28 +498,28 @@ function VouchersDialog({
         setVouchers(data.vouchers || []);
         setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('usage.loadFailed')))
       .finally(() => setLoading(false));
-  }, [orgId, apiKeyId, range.since, range.until, offset]);
+  }, [orgId, apiKeyId, range.since, range.until, offset, t]);
 
   return (
-    <Dialog title={`Vouchers — ${apiKeyId}`} onClose={onClose}>
+    <Dialog title={t('usage.vouchersTitle', { apiKeyId })} onClose={onClose}>
       {error && <ErrorBanner message={error} />}
       {loading ? (
-        <div className="loading">Loading…</div>
+        <div className="loading">{t('common.loading')}</div>
       ) : vouchers.length === 0 ? (
-        <div className="empty-state">No vouchers in this range.</div>
+        <div className="empty-state">{t('usage.vouchersEmpty')}</div>
       ) : (
         <>
           <table className="data" data-testid="vouchers-table">
             <thead>
               <tr>
-                <th>Completed</th>
-                <th>Request</th>
-                <th>Model</th>
-                <th>In / Out / Cached</th>
-                <th>Est. cost</th>
-                <th>Settled</th>
+                <th>{t('usage.colCompleted')}</th>
+                <th>{t('usage.colRequest')}</th>
+                <th>{t('usage.colModel2')}</th>
+                <th>{t('usage.colInOutCached')}</th>
+                <th>{t('usage.colEstCost')}</th>
+                <th>{t('usage.colSettled2')}</th>
               </tr>
             </thead>
             <tbody>
@@ -534,7 +537,7 @@ function VouchersDialog({
                     {v.priced === false ? (
                       <>
                         <span className="muted">—</span>
-                        <span className="unpriced-badge">Unpriced</span>
+                        <span className="unpriced-badge">{t('usage.unpriced')}</span>
                       </>
                     ) : (
                       formatCents(v.estimatedCostCents || '0')

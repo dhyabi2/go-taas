@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type InferenceServiceSummary, type PlaygroundInferResponse } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { ErrorBanner } from '../components';
 
 interface ServiceListResponse {
@@ -19,6 +20,7 @@ interface KeyListResponse {
 
 export default function PlaygroundPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [services, setServices] = useState<InferenceServiceSummary[]>([]);
   const [keys, setKeys] = useState<{ keyId: string; name: string }[]>([]);
   const [serviceId, setServiceId] = useState('');
@@ -59,7 +61,7 @@ export default function PlaygroundPage() {
       );
       setResponse(data);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'inference failed');
+      setError(e instanceof ApiError ? e.message : t('playground.failed'));
     } finally {
       setSending(false);
     }
@@ -69,11 +71,8 @@ export default function PlaygroundPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>API Playground</h1>
-          <div className="subtitle">
-            Send a test inference through a deployed service. The call is metered
-            and logged like any other request.
-          </div>
+          <h1>{t('playground.title')}</h1>
+          <div className="subtitle">{t('playground.subtitle')}</div>
         </div>
       </div>
 
@@ -82,14 +81,14 @@ export default function PlaygroundPage() {
       <div className="panel">
         <div className="form-grid">
           <div className="form-field">
-            <label htmlFor="playground-service">Service</label>
+            <label htmlFor="playground-service">{t('playground.service')}</label>
             <select
               id="playground-service"
               data-testid="playground-service-select"
               value={serviceId}
               onChange={(e) => setServiceId(e.target.value)}
             >
-              <option value="">Select a service</option>
+              <option value="">{t('playground.placeholderService')}</option>
               {services.map((s) => (
                 <option key={s.serviceId} value={s.serviceId}>
                   {s.name} ({s.state})
@@ -98,14 +97,14 @@ export default function PlaygroundPage() {
             </select>
           </div>
           <div className="form-field">
-            <label htmlFor="playground-key">API Key</label>
+            <label htmlFor="playground-key">{t('playground.apiKey')}</label>
             <select
               id="playground-key"
               data-testid="playground-key-select"
               value={keyId}
               onChange={(e) => setKeyId(e.target.value)}
             >
-              <option value="">Select a key</option>
+              <option value="">{t('playground.placeholderKey')}</option>
               {keys.map((k) => (
                 <option key={k.keyId} value={k.keyId}>
                   {k.name}
@@ -115,14 +114,14 @@ export default function PlaygroundPage() {
           </div>
         </div>
         <div className="form-field" style={{ marginTop: 12 }}>
-          <label htmlFor="playground-prompt">Prompt</label>
+          <label htmlFor="playground-prompt">{t('playground.prompt')}</label>
           <textarea
             id="playground-prompt"
             data-testid="playground-prompt-input"
             rows={6}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Write a prompt to send…"
+            placeholder={t('playground.placeholderPrompt')}
           />
         </div>
         <div className="dialog-actions">
@@ -131,7 +130,7 @@ export default function PlaygroundPage() {
             disabled={!canSend}
             onClick={() => void send()}
           >
-            {sending ? 'Sending…' : 'Send'}
+            {sending ? t('playground.sending') : t('playground.send')}
           </button>
         </div>
       </div>
@@ -140,27 +139,31 @@ export default function PlaygroundPage() {
         {response ? (
           <div>
             <div className="detail-item">
-              <div className="label">Completion</div>
+              <div className="label">{t('playground.completion')}</div>
               <div className="value" style={{ whiteSpace: 'pre-wrap' }}>
                 {response.completion || '—'}
               </div>
             </div>
             <div className="detail-grid" style={{ marginTop: 12 }}>
               <div className="detail-item">
-                <div className="label">Tokens</div>
+                <div className="label">{t('playground.tokens')}</div>
                 <div className="value">
-                  {response.promptTokens} in / {response.completionTokens} out /{' '}
-                  {response.cachedTokens} cached / {response.reasoningTokens} reasoning
+                  {t('playground.tokensText', {
+                    in: response.promptTokens,
+                    out: response.completionTokens,
+                    cached: response.cachedTokens,
+                    reasoning: response.reasoningTokens,
+                  })}
                 </div>
               </div>
               <div className="detail-item">
-                <div className="label">Latency</div>
+                <div className="label">{t('playground.latency')}</div>
                 <div className="value">{response.latencyMs} ms</div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="muted">Send a prompt to see the response here.</div>
+          <div className="muted">{t('playground.emptyResponse')}</div>
         )}
       </div>
     </div>

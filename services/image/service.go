@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
@@ -22,7 +23,10 @@ import (
 	"github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/mq"
+	"github.com/go-taas/go-taas/pkg/registry"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/model"
 )
 
 // ServiceName is the unique name of this service.
@@ -38,6 +42,36 @@ type DeleteGuard func(ctx context.Context, imageID string) error
 // the image module stays free of an infer dependency.
 type InUseProvider func(ctx context.Context, imageID string) ([]*imagev1.InUseService, error)
 
+// SessionOrgResolver resolves the session's active organization
+// (feature #19, AD7). It is implemented by the auth module and injected
+// at wiring time. Nil until wired: the transitional X-Organization-Id
+// header is used.
+type SessionOrgResolver interface {
+	// SessionActiveOrg returns the session's active organization, or
+	// ("", nil) when no session is present (transitional access).
+	SessionActiveOrg(ctx context.Context) (string, error)
+}
+
+// organizationMetadataKey is the gRPC metadata key carrying the
+// transitional caller organization (set by the gateway from the
+// X-Organization-Id header).
+const organizationMetadataKey = "x-organization-id"
+
+// resolveOrganizationID reads the transitional caller organization from
+// the x-organization-id gRPC metadata. Missing or empty values are
+// unauthorized.
+func resolveOrganizationID(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", errors.New(errors.CodeUnauthorized)
+	}
+	values := md.Get(organizationMetadataKey)
+	if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
+		return "", errors.New(errors.CodeUnauthorized)
+	}
+	return strings.TrimSpace(values[0]), nil
+}
+
 // Service implements the image registry gRPC service.
 type Service struct {
 	imagev1.UnimplementedImageServiceServer
@@ -49,12 +83,63 @@ type Service struct {
 	repo  *Repository
 	tasks *WarmupTaskRepository
 
+	// compatRepo is the compatibility matrix repository (feature #19).
+	// Production resolves it lazily from the shared components; tests
+	// and FVT inject it directly.
+	compatRepo *CompatibilityRepository
+
+	// cardTypesProvider returns the live card-type set from the
+	// accelerator inventory (feature #19, AD11). Nil until wired: the
+	// card-type axis is empty.
+	cardTypesProvider CardTypesProvider
+
+	// compatLazyDefault is the configured lazy-seed default status
+	// (feature #19, AD3). Empty falls back to experimental.
+	compatLazyDefault string
+
+	// modelRepo is the model repository used by the user-realm masked
+	// projection (feature #19, AD7). Production resolves it lazily.
+	modelRepo *model.Repository
+
+	// sessionOrgResolver resolves the session's active organization for
+	// the user-realm masked projection (feature #19, AD7). Nil until
+	// wired: the transitional X-Organization-Id header is used.
+	sessionOrgResolver SessionOrgResolver
+
 	// publisher is the optional direct MQ client injection point used
 	// by FVT; production resolves the client from the components.
 	publisher mq.Client
 
 	deleteGuard DeleteGuard
 	inUse       InUseProvider
+
+	// importer copies an engine image from a source registry into the
+	// internal Harbor project (feature: import image). Nil until wired:
+	// the import RPC fails closed.
+	importer Importer
+
+	// auditRecorder is the best-effort audit recorder (feature #15, AD3).
+	// Nil until wired: no audit events are produced.
+	auditRecorder AuditRecorder
+}
+
+// Importer copies a container image from a source reference to a
+// destination reference. It is implemented by the registry package and
+// injected at wiring time, keeping the image module free of a registry
+// dependency.
+type Importer interface {
+	// Import copies the image at srcRef to dstRef, authenticating with
+	// the given credentials.
+	Import(ctx context.Context, srcRef string, srcCreds *registry.Credentials, dstRef string, dstCreds *registry.Credentials) error
+}
+
+// AuditRecorder is the best-effort, non-fatal audit recorder seam
+// (feature #15, AD3). It is implemented by the audit module and injected
+// at wiring time.
+type AuditRecorder interface {
+	// Record writes one audit event best-effort; it never returns an
+	// error.
+	Record(ctx context.Context, ev *audit.AuditEvent)
 }
 
 // New constructs the image registry service. The repositories are
@@ -63,6 +148,19 @@ type Service struct {
 // construction).
 func New(components server.Components) *Service {
 	return &Service{components: components}
+}
+
+// SetAuditRecorder injects the best-effort audit recorder (feature #15,
+// AD3). Production wires the audit module; unit tests may inject a fake.
+func (s *Service) SetAuditRecorder(r AuditRecorder) { s.auditRecorder = r }
+
+// recordAudit writes one audit event best-effort (feature #15, AD3). A
+// recorder failure is logged and never fails or rolls back the mutation.
+func (s *Service) recordAudit(ctx context.Context, ev *audit.AuditEvent) {
+	if s.auditRecorder == nil {
+		return
+	}
+	s.auditRecorder.Record(ctx, ev)
 }
 
 // NewWithRepositories constructs an image service bound directly to
@@ -84,19 +182,114 @@ func (s *Service) SetInUseProvider(provider InUseProvider) {
 	s.inUse = provider
 }
 
+// SetImporter installs the image importer used by the import RPC. It
+// must be called before serving.
+func (s *Service) SetImporter(imp Importer) {
+	s.importer = imp
+}
+
+// SetCardTypesProvider installs the live card-type provider from the
+// accelerator inventory (feature #19, AD11). It must be called before
+// serving.
+func (s *Service) SetCardTypesProvider(p CardTypesProvider) {
+	s.cardTypesProvider = p
+}
+
+// SetCompatibilityLazyDefault sets the lazy-seed default status
+// (feature #19, AD3). Empty falls back to experimental.
+func (s *Service) SetCompatibilityLazyDefault(v string) {
+	s.compatLazyDefault = v
+}
+
+// SetModelRepository injects the model repository used by the user-realm
+// masked projection (feature #19, AD7). Production resolves it lazily
+// from the shared components; tests and FVT inject it directly.
+func (s *Service) SetModelRepository(r *model.Repository) {
+	s.modelRepo = r
+}
+
+// SetSessionOrgResolver injects the session-organization resolver used
+// by the user-realm masked projection (feature #19, AD7). Production
+// wires the auth service; unit tests may inject a fake.
+func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) {
+	s.sessionOrgResolver = r
+}
+
+// compatibilityRepository lazily wires and returns the compatibility
+// matrix repository.
+func (s *Service) compatibilityRepository() (*CompatibilityRepository, error) {
+	if s.compatRepo != nil {
+		return s.compatRepo, nil
+	}
+	db, err := s.gormDB()
+	if err != nil {
+		return nil, err
+	}
+	s.compatRepo = NewCompatibilityRepository(db)
+	return s.compatRepo, nil
+}
+
+// modelRepository lazily wires and returns the model repository.
+func (s *Service) modelRepository() (*model.Repository, error) {
+	if s.modelRepo != nil {
+		return s.modelRepo, nil
+	}
+	db, err := s.gormDB()
+	if err != nil {
+		return nil, err
+	}
+	s.modelRepo = model.NewRepository(db)
+	return s.modelRepo, nil
+}
+
+// resolveOrg returns the organization context for the user-realm masked
+// projection (feature #19, AD7): the session's active org when a session
+// is present, otherwise the transitional X-Organization-Id header.
+func (s *Service) resolveOrg(ctx context.Context) (string, error) {
+	if s.sessionOrgResolver != nil {
+		if org, err := s.sessionOrgResolver.SessionActiveOrg(ctx); err != nil {
+			return "", err
+		} else if org != "" {
+			return org, nil
+		}
+	}
+	return resolveOrganizationID(ctx)
+}
+
 // NewForFVT constructs an image service bound to a caller-provided GORM
 // database and MQ client. It exists so full-verification tests can
 // wire the real service stack against a disposable database and bus.
 func NewForFVT(db *gorm.DB, publisher mq.Client) *Service {
-	svc := &Service{repo: NewRepository(db), tasks: NewWarmupTaskRepository(db), publisher: publisher}
+	svc := &Service{
+		repo:       NewRepository(db),
+		tasks:      NewWarmupTaskRepository(db),
+		compatRepo: NewCompatibilityRepository(db),
+		modelRepo:  model.NewRepository(db),
+		publisher:  publisher,
+	}
 	wireRegistry(db)
 	return svc
 }
 
-// MigrateSchemaForFVT applies the image schema (images, warmup_tasks)
-// onto a caller-provided database for full-verification tests.
+// WarmupTasksForNodeProvider returns warmup tasks that targeted a node
+// (feature #18, Section 5.3). It is the narrow cross-module read seam
+// the accelerator service consumes.
+type WarmupTasksForNodeProvider interface {
+	ListWarmupTasksForNode(ctx context.Context, nodeID string, limit int) ([]*WarmupTask, error)
+}
+
+// NewWarmupTasksForNodeProvider builds a WarmupTasksForNodeProvider over
+// the shared database. It mirrors the infer.NewDeleteImageGuard narrow-
+// interface constructor pattern.
+func NewWarmupTasksForNodeProvider(db *gorm.DB) WarmupTasksForNodeProvider {
+	return NewWarmupTaskRepository(db)
+}
+
+// MigrateSchemaForFVT applies the image schema (images, warmup_tasks,
+// compatibility_cells) onto a caller-provided database for
+// full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	if err := db.AutoMigrate(&Image{}, &WarmupTask{}); err != nil {
+	if err := db.AutoMigrate(&Image{}, &WarmupTask{}, &CompatibilityCell{}); err != nil {
 		return err
 	}
 	return db.Exec(oneActivePartialIndex).Error
@@ -125,7 +318,7 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&Image{}, &WarmupTask{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&Image{}, &WarmupTask{}, &CompatibilityCell{}); err != nil {
 		return err
 	}
 	if err := db.WithContext(ctx).Exec(oneActivePartialIndex).Error; err != nil {
@@ -145,16 +338,44 @@ func (s *Service) Migrate(ctx context.Context) error {
 	}
 	if count > 0 {
 		logger.S().Infow("image: table non-empty, skipping first-boot seed", "rows", count)
-		return nil
+	} else {
+		cfg := config.GetConfig()
+		if cfg != nil && len(cfg.Image.Registry) > 0 {
+			if err := repo.SeedFromConfig(ctx, cfg.Image.Registry); err != nil {
+				return fmt.Errorf("image: first-boot seed failed: %w", err)
+			}
+			logger.S().Infow("image: first-boot seed complete", "seeded", len(cfg.Image.Registry))
+		}
 	}
+
+	// Feature #19: the compatibility matrix first-boot seed (AD3). It
+	// runs when the compatibility_cells table is empty and the
+	// compatibility.seedOnBoot config is enabled.
+	return s.seedCompatibility(ctx)
+}
+
+// seedCompatibility runs the compatibility matrix first-boot seed when
+// the table is empty and seedOnBoot is enabled (feature #19, AD3).
+func (s *Service) seedCompatibility(ctx context.Context) error {
 	cfg := config.GetConfig()
-	if cfg == nil || len(cfg.Image.Registry) == 0 {
+	if cfg != nil && !cfg.Image.Compatibility.SeedOnBoot {
 		return nil
 	}
-	if err := repo.SeedFromConfig(ctx, cfg.Image.Registry); err != nil {
-		return fmt.Errorf("image: first-boot seed failed: %w", err)
+	repo, err := s.compatibilityRepository()
+	if err != nil {
+		return err
 	}
-	logger.S().Infow("image: first-boot seed complete", "seeded", len(cfg.Image.Registry))
+	cardTypes, err := s.cardTypes()
+	if err != nil {
+		return err
+	}
+	seeded, err := repo.SeedIfEmpty(ctx, cardTypes, s.lazySeedDefault())
+	if err != nil {
+		return fmt.Errorf("image: compatibility first-boot seed failed: %w", err)
+	}
+	if seeded > 0 {
+		logger.S().Infow("image: compatibility matrix first-boot seed complete", "seeded", seeded)
+	}
 	return nil
 }
 
@@ -288,7 +509,110 @@ func (s *Service) RegisterImage(ctx context.Context, req *imagev1.RegisterImageR
 	if err := repo.CreateImage(ctx, img); err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful registration best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: "",
+		ActorUserID:    "admin",
+		ActorType:      "user",
+		Action:         "image.register",
+		ResourceType:   "image",
+		ResourceID:     img.ID,
+		Result:         "success",
+	})
 	return &imagev1.RegisterImageResponse{Response: okResponse(), ImageId: img.ID}, nil
+}
+
+// ImportImage pulls an engine image from a source registry and pushes
+// it into the internal Harbor project, then registers it in the catalog
+// with the Harbor reference. All imported images land in the configured
+// Harbor project (default "taas"). The import fails closed when the
+// Harbor registry or the importer is not configured.
+func (s *Service) ImportImage(ctx context.Context, req *imagev1.ImportImageRequest) (*imagev1.ImportImageResponse, error) {
+	sourceRef := strings.TrimSpace(req.GetSourceReference())
+	accelerator := strings.ToLower(strings.TrimSpace(req.GetAccelerator()))
+	engine := strings.TrimSpace(req.GetEngine())
+	description := strings.TrimSpace(req.GetDescription())
+	srcUser := strings.TrimSpace(req.GetSourceUsername())
+	srcPass := req.GetSourcePassword()
+
+	if sourceRef == "" {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: source_reference is required")
+	}
+	if !IsValidAccelerator(accelerator) {
+		return nil, errors.New(errors.CodeImageIncompatible)
+	}
+	if len(engine) < 1 || len(engine) > maxEngineLen {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: engine must be 1-%d characters", maxEngineLen)
+	}
+	if len(description) > maxDescriptionLen {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: description must be at most %d characters", maxDescriptionLen)
+	}
+
+	cfg := config.GetConfig()
+	if cfg == nil || cfg.Image.Harbor.URL == "" {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: internal Harbor registry is not configured")
+	}
+	if s.importer == nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: image import is not configured")
+	}
+
+	// Derive the destination reference: the source repository name and
+	// tag are preserved, but the registry host is replaced by the
+	// internal Harbor and the image lands in the configured project.
+	_, repo, tag, err := registry.ParseReference(sourceRef)
+	if err != nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: %v", err)
+	}
+	destRef := registry.JoinReference(cfg.Image.Harbor.URL, cfg.Image.Harbor.Project+"/"+repo, tag)
+
+	// The catalog name is the Harbor reference (host/project/repo) so
+	// the deployed pods pull from the internal registry.
+	name := cfg.Image.Harbor.URL + "/" + cfg.Image.Harbor.Project + "/" + repo
+
+	repoHandle, err := s.repository()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := repoHandle.FindByTriple(ctx, name, tag, accelerator); err == nil {
+		return nil, errors.New(errors.CodeImageExists)
+	}
+
+	var srcCreds *registry.Credentials
+	if srcUser != "" {
+		srcCreds = &registry.Credentials{Username: srcUser, Password: srcPass}
+	}
+	dstCreds := &registry.Credentials{Username: cfg.Image.Harbor.Username, Password: cfg.Image.Harbor.Password}
+
+	if err := s.importer.Import(ctx, sourceRef, srcCreds, destRef, dstCreds); err != nil {
+		return nil, errors.Newf(errors.CodeImageReferenceInvalid, "image: import %s failed: %v", sourceRef, err)
+	}
+
+	img := &Image{
+		ID:          uuid.NewString(),
+		Name:        name,
+		Tag:         tag,
+		Accelerator: accelerator,
+		Engine:      engine,
+		Description: description,
+	}
+	if err := repoHandle.CreateImage(ctx, img); err != nil {
+		return nil, err
+	}
+	// Feature #15: record the successful import best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: "",
+		ActorUserID:    "admin",
+		ActorType:      "user",
+		Action:         "image.import",
+		ResourceType:   "image",
+		ResourceID:     img.ID,
+		Result:         "success",
+	})
+	return &imagev1.ImportImageResponse{
+		Response:  okResponse(),
+		ImageId:   img.ID,
+		Reference: destRef,
+	}, nil
 }
 
 // ListImages returns registered images, optionally filtered by the
@@ -420,6 +744,16 @@ func (s *Service) DeleteImage(ctx context.Context, req *imagev1.DeleteImageReque
 	if err := repo.Delete(ctx, req.GetImageId()); err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful deletion best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: "",
+		ActorUserID:    "admin",
+		ActorType:      "user",
+		Action:         "image.delete",
+		ResourceType:   "image",
+		ResourceID:     req.GetImageId(),
+		Result:         "success",
+	})
 	return &imagev1.DeleteImageResponse{Response: okResponse()}, nil
 }
 

@@ -58,6 +58,64 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// SessionUserResolver resolves the authenticated caller's user id from
+// the session (feature #10). It is implemented by the auth module and
+// injected at wiring time.
+type SessionUserResolver interface {
+	// SessionUserID returns the authenticated caller's user id.
+	SessionUserID(ctx context.Context) (string, error)
+}
+
+// RoleGuard enforces the minimum org role on the admin metering RPCs
+// (feature #28 AD9, feature #31 AD9). It is implemented by
+// tenancy.RoleGuard.
+type RoleGuard interface {
+	RequireRole(ctx context.Context, orgID, userID, minRole string) error
+}
+
+// roleAdmin is the minimum org role for the admin metering RPCs (AD9):
+// the fleet view is operator-scoped.
+const roleAdmin = "admin"
+
+// Surface constants derived from the request path (feature #28, §3.3).
+const (
+	// SurfaceAdmin is the admin console surface.
+	SurfaceAdmin = "admin"
+	// SurfaceUser is the end-user console surface.
+	SurfaceUser = "user"
+)
+
+// TraceCapturer captures an inference request's trace best-effort
+// (feature #27, AD3). It is implemented by the tracing module and
+// injected at wiring time. Nil until wired: no trace is captured.
+type TraceCapturer interface {
+	// CaptureTrace writes the trace and its spans best-effort; a failure
+	// is logged and never fails or retries the voucher or the request
+	// log.
+	CaptureTrace(ctx context.Context, ev *TraceCaptureEvent)
+}
+
+// TraceCaptureEvent is the metering event projection the trace capture
+// reads (feature #27, AD3). It carries the request identity, token
+// counts, latency, status, error, and the per-phase timings.
+type TraceCaptureEvent struct {
+	RequestID        string
+	OrganizationID   string
+	APIKeyID         string
+	ModelID          string
+	ServiceID        string
+	PromptTokens     int64
+	CompletionTokens int64
+	CachedTokens     int64
+	ReasoningTokens  int64
+	LatencyMs        int64
+	TTFTMs           int64
+	GenerationMs     int64
+	Status           string
+	Error            string
+	CompletedAt      int64
+}
+
 // Service implements the metering gRPC service.
 type Service struct {
 	meteringv1.UnimplementedMeteringServiceServer
@@ -83,6 +141,19 @@ type Service struct {
 	// the user-realm reads (feature-17 AD6). Nil until wired: the
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
+
+	// traceCapturer captures an inference request's trace best-effort
+	// (feature #27, AD3). Nil until wired: no trace is captured.
+	traceCapturer TraceCapturer
+
+	// sessionUserResolver resolves the caller's user id for the admin
+	// role check (feature #10). Nil until wired: no role check.
+	sessionUserResolver SessionUserResolver
+
+	// roleGuard gates the admin metering RPCs by the caller's role in
+	// the resolved org context (AD9). Nil until wired: no role check
+	// (unit tests).
+	roleGuard RoleGuard
 }
 
 // New constructs the metering service. The repository is wired lazily
@@ -102,6 +173,19 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
 
+// SetTraceCapturer injects the best-effort trace capturer (feature #27,
+// AD3). Production and FVT wire the tracing service; unit tests leave it
+// nil so no trace is captured.
+func (s *Service) SetTraceCapturer(c TraceCapturer) { s.traceCapturer = c }
+
+// SetSessionUserResolver injects the session-user resolver used by the
+// admin role check (feature #10).
+func (s *Service) SetSessionUserResolver(r SessionUserResolver) { s.sessionUserResolver = r }
+
+// SetRoleGuard injects the org role guard that gates the admin metering
+// RPCs by the caller's role (AD9).
+func (s *Service) SetRoleGuard(g RoleGuard) { s.roleGuard = g }
+
 // resolveOrg returns the organization context for a user-realm read
 // (feature-17 AD6): the session's active org when a session is present,
 // otherwise the transitional X-Organization-Id header.
@@ -114,6 +198,58 @@ func (s *Service) resolveOrg(ctx context.Context) (string, error) {
 		}
 	}
 	return resolveOrganizationID(ctx)
+}
+
+// surfaceFromContext derives the metering surface from the request path.
+// The surface is a property of the binding, never a request field
+// (feature #28, §3.3). The gateway forwards the request path in the
+// x-request-path metadata; the admin prefix maps to "admin", everything
+// else to "user".
+func surfaceFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return SurfaceUser
+	}
+	paths := md.Get("x-request-path")
+	if len(paths) > 0 && strings.HasPrefix(paths[0], "/api/v1/admin/") {
+		return SurfaceAdmin
+	}
+	return SurfaceUser
+}
+
+// resolveSessionActor returns the caller's user id and whether a session
+// is present.
+func (s *Service) resolveSessionActor(ctx context.Context) (string, bool, error) {
+	if s.sessionUserResolver == nil {
+		return "", false, nil
+	}
+	userID, err := s.sessionUserResolver.SessionUserID(ctx)
+	if err == nil && userID != "" {
+		return userID, true, nil
+	}
+	if err != nil && apierrors.CodeOf(err) != apierrors.CodeSessionInvalid {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+// requireAdminRole enforces the minimum org role on the admin metering
+// RPCs (AD9). The RoleGuard resolves the caller from a session; in the
+// transitional (session-less) path there is no session user to check, so
+// the check is skipped and the org header itself is the access boundary
+// (feature-17 AD6).
+func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
 }
 
 // SetCostAttributor injects the per-request cost attributor (feature
@@ -298,7 +434,37 @@ func (s *Service) handleEvent(ctx context.Context, ev *meteringEvent) (string, e
 	// Feature #12: write the request log best-effort and non-fatal
 	// (AD2). A failure is logged and never fails or retries the voucher.
 	s.writeRequestLog(ctx, repo, ev)
+	// Feature #27: capture the trace best-effort and non-fatal (AD3). A
+	// trace-write failure is logged and never fails or retries the
+	// voucher or the request log.
+	s.captureTrace(ctx, ev)
 	return stored.ID, nil
+}
+
+// captureTrace forwards the metering event to the tracing module's
+// best-effort trace capture (feature #27, AD3). No-op when the capturer
+// is not wired.
+func (s *Service) captureTrace(ctx context.Context, ev *meteringEvent) {
+	if s.traceCapturer == nil {
+		return
+	}
+	s.traceCapturer.CaptureTrace(ctx, &TraceCaptureEvent{
+		RequestID:        ev.RequestID,
+		OrganizationID:   ev.OrganizationID,
+		APIKeyID:         ev.APIKeyID,
+		ModelID:          ev.ModelID,
+		ServiceID:        ev.ServiceID,
+		PromptTokens:     ev.Usage.PromptTokens,
+		CompletionTokens: ev.Usage.CompletionTokens,
+		CachedTokens:     ev.Usage.CachedTokens,
+		ReasoningTokens:  ev.Usage.ReasoningTokens,
+		LatencyMs:        ev.LatencyMs,
+		TTFTMs:           ev.TTFTMs,
+		GenerationMs:     ev.GenerationMs,
+		Status:           ev.Status,
+		Error:            ev.Error,
+		CompletedAt:      ev.CompletedAt,
+	})
 }
 
 // writeRequestLog builds and writes a request-log row best-effort
@@ -376,6 +542,8 @@ func (s *Service) IngestMeteringEvent(ctx context.Context, req *meteringv1.Inges
 		LatencyMs:      req.GetLatencyMs(),
 		Status:         requestLogStatusString(req.GetStatus()),
 		Error:          req.GetError(),
+		TTFTMs:         req.GetTtftMs(),
+		GenerationMs:   req.GetGenerationMs(),
 	}
 	if usage := req.GetUsage(); usage != nil {
 		ev.Usage = tokenUsage{
@@ -450,7 +618,7 @@ func (s *Service) ListVouchers(ctx context.Context, req *meteringv1.ListVouchers
 
 // GetVoucher returns one voucher; unknown ids return 10403 (FR4.3).
 func (s *Service) GetVoucher(ctx context.Context, req *meteringv1.GetVoucherRequest) (*meteringv1.GetVoucherResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}

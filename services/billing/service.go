@@ -20,6 +20,9 @@ import (
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/notification"
+	"github.com/go-taas/go-taas/services/webhook"
 
 	"github.com/go-taas/go-taas/services/infer"
 	"github.com/go-taas/go-taas/services/tenancy"
@@ -58,6 +61,24 @@ type SessionOrgResolver interface {
 	SessionActiveOrg(ctx context.Context) (string, error)
 }
 
+// SessionUserResolver resolves the authenticated caller's user id from
+// the session (feature #10). It is implemented by the auth module and
+// injected at wiring time.
+type SessionUserResolver interface {
+	// SessionUserID returns the authenticated caller's user id.
+	SessionUserID(ctx context.Context) (string, error)
+}
+
+// RoleGuard enforces the minimum org role on the admin billing-report
+// RPCs (feature-25 AD6). It is implemented by tenancy.RoleGuard.
+type RoleGuard interface {
+	RequireRole(ctx context.Context, orgID, userID, minRole string) error
+}
+
+// roleAdmin is the minimum org role for the admin billing-report RPCs
+// (feature-25 AD6): the fleet view is operator-scoped.
+const roleAdmin = "admin"
+
 // Service implements the billing gRPC service.
 type Service struct {
 	billingv1.UnimplementedBillingServiceServer
@@ -82,12 +103,34 @@ type Service struct {
 	// transitional X-Organization-Id header is used.
 	sessionOrgResolver SessionOrgResolver
 
+	// sessionUserResolver resolves the caller's user id for the admin
+	// role check (feature #10). Nil until wired: no role check.
+	sessionUserResolver SessionUserResolver
+
+	// roleGuard gates the admin billing-report RPCs by the caller's role
+	// in the resolved org context (feature-25 AD6). Nil until wired: no
+	// role check (unit tests).
+	roleGuard RoleGuard
+
 	// paymentRepo and invoiceRepo are the feature-14 repositories,
 	// wired lazily from the shared database.
 	paymentRepo *PaymentRepository
 	invoiceRepo *InvoiceRepository
 	// accounts is the feature-#8 account repository, wired lazily.
 	accounts *AccountRepository
+
+	// auditRecorder is the best-effort audit recorder (feature #15, AD3).
+	// Nil until wired: no audit events are produced.
+	auditRecorder AuditRecorder
+}
+
+// AuditRecorder is the best-effort, non-fatal audit recorder seam
+// (feature #15, AD3). It is implemented by the audit module and injected
+// at wiring time.
+type AuditRecorder interface {
+	// Record writes one audit event best-effort; it never returns an
+	// error.
+	Record(ctx context.Context, ev *audit.AuditEvent)
 }
 
 // New constructs the billing service. The repository is wired lazily
@@ -106,6 +149,47 @@ func (s *Service) SetOrgGuard(g *tenancy.OrgGuard) { s.orgGuard = g }
 // by the user-realm reads (feature-17 AD6). Production and FVT wire the
 // auth service; unit tests may inject a fake.
 func (s *Service) SetSessionOrgResolver(r SessionOrgResolver) { s.sessionOrgResolver = r }
+
+// SetSessionUserResolver injects the session-user resolver used by the
+// admin role check (feature #10).
+func (s *Service) SetSessionUserResolver(r SessionUserResolver) { s.sessionUserResolver = r }
+
+// SetRoleGuard injects the org role guard that gates the admin
+// billing-report RPCs by the caller's role (feature-25 AD6).
+func (s *Service) SetRoleGuard(g RoleGuard) { s.roleGuard = g }
+
+// SetAuditRecorder injects the best-effort audit recorder (feature #15,
+// AD3). Production wires the audit module; unit tests may inject a fake.
+func (s *Service) SetAuditRecorder(r AuditRecorder) { s.auditRecorder = r }
+
+// recordAudit writes one audit event best-effort (feature #15, AD3). A
+// recorder failure is logged and never fails or rolls back the mutation.
+func (s *Service) recordAudit(ctx context.Context, ev *audit.AuditEvent) {
+	if s.auditRecorder == nil {
+		return
+	}
+	s.auditRecorder.Record(ctx, ev)
+}
+
+// publishWebhookEvent publishes a billing webhook event best-effort
+// (feature #23, AD10). A publish failure is logged and never fails the
+// producing mutation.
+func (s *Service) publishWebhookEvent(ctx context.Context, orgID, eventType, eventID string, data any) {
+	if s.publisher == nil {
+		return
+	}
+	webhook.PublishEvent(ctx, s.publisher, orgID, eventType, eventID, data)
+}
+
+// publishNotificationEvent publishes a billing notification event
+// best-effort (feature #26, AD9). A publish failure is logged and never
+// fails the producing mutation.
+func (s *Service) publishNotificationEvent(ctx context.Context, orgID, eventType, eventID string, data any) {
+	if s.publisher == nil {
+		return
+	}
+	notification.PublishEvent(ctx, s.publisher, orgID, eventType, eventID, data)
+}
 
 // resolveOrg returns the organization context for a user-realm read
 // (feature-17 AD6): the session's active org when a session is present,
@@ -133,6 +217,85 @@ func (s *Service) checkOrg(ctx context.Context, orgID string, requireActive bool
 	return s.orgGuard.RequireExists(ctx, orgID)
 }
 
+// resolveSessionActor returns the caller's user id and whether a session
+// is present.
+func (s *Service) resolveSessionActor(ctx context.Context) (string, bool, error) {
+	if s.sessionUserResolver == nil {
+		return "", false, nil
+	}
+	userID, err := s.sessionUserResolver.SessionUserID(ctx)
+	if err == nil && userID != "" {
+		return userID, true, nil
+	}
+	if err != nil && apierrors.CodeOf(err) != apierrors.CodeSessionInvalid {
+		return "", false, err
+	}
+	return "", false, nil
+}
+
+// requireAdminRole enforces the minimum org role on the admin
+// billing-report RPCs (feature-25 AD6). The RoleGuard resolves the
+// caller from a session; in the transitional (session-less) path there
+// is no session user to check, so the check is skipped and the org
+// header itself is the access boundary (feature-17 AD6).
+func (s *Service) requireAdminRole(ctx context.Context, orgID string) error {
+	if s.roleGuard == nil || orgID == "" {
+		return nil
+	}
+	userID, hasSession, err := s.resolveSessionActor(ctx)
+	if err != nil {
+		return err
+	}
+	if !hasSession {
+		return nil
+	}
+	return s.roleGuard.RequireRole(ctx, orgID, userID, roleAdmin)
+}
+
+// Surface constants derived from the request path (feature #29, §3.3).
+const (
+	// SurfaceAdmin is the admin console surface.
+	SurfaceAdmin = "admin"
+	// SurfaceUser is the end-user console surface.
+	SurfaceUser = "user"
+)
+
+// surfaceFromContext derives the billing surface from the request path.
+// The surface is a property of the binding, never a request field
+// (feature #29, §3.3). The gateway forwards the request path in the
+// x-request-path metadata; the admin prefix maps to "admin", everything
+// else to "user".
+func surfaceFromContext(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return SurfaceUser
+	}
+	paths := md.Get("x-request-path")
+	if len(paths) > 0 && strings.HasPrefix(paths[0], "/api/v1/admin/") {
+		return SurfaceAdmin
+	}
+	return SurfaceUser
+}
+
+// validateRange checks and defaults the since/until pair: until defaults
+// to now, since to until-24h; since > until or a range > 92 days returns
+// 10404 (the metering range contract, AD6).
+func validateRange(since, until int64) (int64, int64, error) {
+	if since == 0 && until == 0 {
+		until = time.Now().Unix()
+		since = until - 24*3600
+	} else if until == 0 {
+		until = time.Now().Unix()
+	}
+	if since > until {
+		return 0, 0, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	if until-since > 92*24*3600 {
+		return 0, 0, apierrors.New(apierrors.CodeMeteringRangeInvalid)
+	}
+	return since, until, nil
+}
+
 // NewForFVT constructs a billing service bound to a caller-provided
 // GORM database and MQ client. It exists so full-verification tests can
 // wire the real service stack against a disposable database and bus.
@@ -141,10 +304,11 @@ func NewForFVT(db *gorm.DB, publisher mq.Client) *Service {
 }
 
 // MigrateSchemaForFVT applies the billing schema (price_entries,
-// usage_lines, charge_records, accounts, transactions) onto a
+// usage_lines, charge_records, accounts, transactions, and the
+// feature-25 billing_reports / billing_report_schedules tables) onto a
 // caller-provided database for full-verification tests.
 func MigrateSchemaForFVT(db *gorm.DB) error {
-	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{})
+	return db.AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}, &Report{}, &ReportSchedule{})
 }
 
 // AttachToServer implements server.Service.
@@ -161,14 +325,15 @@ func (s *Service) GetServiceHandlerRegisterFn() server.ServiceHandlerRegisterFn 
 }
 
 // Migrate implements server.Migrator: it creates/updates the
-// price_entries, usage_lines, charge_records, accounts and
-// transactions tables via GORM AutoMigrate. There is nothing to seed.
+// price_entries, usage_lines, charge_records, accounts, transactions
+// and the feature-25 billing_reports / billing_report_schedules tables
+// via GORM AutoMigrate. There is nothing to seed.
 func (s *Service) Migrate(ctx context.Context) error {
 	db, err := s.gormDB()
 	if err != nil {
 		return err
 	}
-	if err := db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&PriceEntry{}, &UsageLine{}, &ChargeRecord{}, &Account{}, &Transaction{}, &PaymentChannel{}, &PaymentIntent{}, &Invoice{}, &Report{}, &ReportSchedule{}); err != nil {
 		return err
 	}
 	// Seed the mock payment channel (feature-14 AD1).

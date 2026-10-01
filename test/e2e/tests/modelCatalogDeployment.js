@@ -46,6 +46,9 @@ module.exports = {
     // organizations table, so the org ids must exist first.
     api.ensureOrg(browser, browser.globals.orgA);
     api.ensureOrg(browser, browser.globals.orgB);
+    // Seed a user-realm session so the protected pages render (feature:
+    // unauthenticated pages redirect to login).
+    api.seedSession(browser, 'user', browser.globals.orgA);
   },
 
   afterEach(browser) {
@@ -208,7 +211,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '1',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create inference service');
@@ -252,7 +256,8 @@ module.exports = {
         modelVersion: 'v1',
         imageId: NVIDIA_IMAGE,
         replicas: '1',
-        accelerator: 'nvidia'
+        accelerator: 'nvidia',
+        acceleratorType: 'gpu'
       };
 
       // Unknown model id -> 10101 MODEL_NOT_FOUND.
@@ -339,7 +344,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '1',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create service for scale');
@@ -398,7 +404,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '1',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create referencing service');
@@ -479,7 +486,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '1',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create service in org A');
@@ -555,7 +563,8 @@ module.exports = {
           modelVersion: 'v1',
           imageId: NVIDIA_IMAGE,
           replicas: '2',
-          accelerator: 'nvidia'
+          accelerator: 'nvidia',
+          acceleratorType: 'gpu'
         }
       }, (res2) => {
         const created = api.assertOk(browser, res2, 'create service for list');

@@ -20,6 +20,33 @@ func newModelTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&Model{}, &Version{}, &Authorization{}))
+	// The version-history deployment count joins inference_services
+	// (feature #32, AD4). The model module owns no infer schema, so the
+	// test creates a minimal inference_services table for the join.
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS inference_services (
+		id TEXT PRIMARY KEY,
+		organization_id TEXT,
+		name TEXT,
+		model_id TEXT,
+		model_version TEXT,
+		image_id TEXT,
+		replicas INTEGER,
+		accelerator TEXT,
+		accelerator_type TEXT,
+		state TEXT,
+		failure_reason TEXT,
+		endpoints TEXT,
+		autoscaling TEXT,
+		autoscaling_state TEXT,
+		autoscaling_current_replicas INTEGER,
+		autoscaling_desired_replicas INTEGER,
+		autoscaling_current_concurrency INTEGER,
+		autoscaling_target_concurrency INTEGER,
+		autoscaling_last_scaling_event_at DATETIME,
+		autoscaling_error_reason TEXT,
+		created_at DATETIME,
+		updated_at DATETIME
+	)`).Error)
 	t.Cleanup(func() {
 		sqlDB, _ := db.DB()
 		_ = sqlDB.Close()
@@ -136,6 +163,128 @@ func TestRepositoryVersions(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, latest)
 	assert.Equal(t, "v2", latest.Version)
+}
+
+func TestRepositoryActiveVersionAndActivate(t *testing.T) {
+	repo := newModelTestRepo(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := &Model{Name: "qwen-3b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, m))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: m.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: m.ID, Version: "v2", WeightPath: "qwen/v2", CreatedAt: base.Add(time.Hour)}))
+
+	// No active version initially.
+	active, err := repo.ActiveVersion(ctx, m.ID)
+	require.NoError(t, err)
+	assert.Nil(t, active)
+
+	// Activate v1.
+	activeVersion, err := repo.ActivateVersion(ctx, m.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	active, err = repo.ActiveVersion(ctx, m.ID)
+	require.NoError(t, err)
+	require.NotNil(t, active)
+	assert.Equal(t, "v1", active.Version)
+
+	// Activating the already-active version is a no-op success.
+	activeVersion, err = repo.ActivateVersion(ctx, m.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	// Activating v2 clears v1 (one active per model).
+	activeVersion, err = repo.ActivateVersion(ctx, m.ID, "v2")
+	require.NoError(t, err)
+	assert.Equal(t, "v2", activeVersion)
+
+	active, err = repo.ActiveVersion(ctx, m.ID)
+	require.NoError(t, err)
+	require.NotNil(t, active)
+	assert.Equal(t, "v2", active.Version)
+
+	// Only one active row.
+	var count int64
+	require.NoError(t, repo.db.DB(ctx).Model(&Version{}).Where("model_id = ? AND is_active = ?", m.ID, true).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+
+	// Unknown version → 10103.
+	_, err = repo.ActivateVersion(ctx, m.ID, "nope")
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeModelVersionNotFound, ae.Code)
+}
+
+// TestRepositoryActiveVersionPerModel verifies the one-active-per-model
+// invariant (feature #32, AD2): activating a version on one model must
+// never be blocked by an active version on a different model. This is
+// enforced by the partial unique index (model_id) WHERE is_active, which
+// SQLite does not enforce the same way as PostgreSQL, so the invariant
+// is asserted at the repository layer.
+func TestRepositoryActiveVersionPerModel(t *testing.T) {
+	repo := newModelTestRepo(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	modelA := &Model{Name: "qwen-3b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, modelA))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: modelA.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+
+	modelB := &Model{Name: "qwen-7b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, modelB))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: modelB.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+
+	// Activate v1 on model A.
+	activeVersion, err := repo.ActivateVersion(ctx, modelA.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	// Activating v1 on model B succeeds independently of model A's
+	// active version (the per-model invariant).
+	activeVersion, err = repo.ActivateVersion(ctx, modelB.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+
+	// Both models have exactly one active version each.
+	for _, id := range []string{modelA.ID, modelB.ID} {
+		var count int64
+		require.NoError(t, repo.db.DB(ctx).Model(&Version{}).Where("model_id = ? AND is_active = ?", id, true).Count(&count).Error)
+		assert.Equal(t, int64(1), count)
+	}
+
+	// Re-activating on model A does not disturb model B's active row.
+	activeVersion, err = repo.ActivateVersion(ctx, modelA.ID, "v1")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+	var count int64
+	require.NoError(t, repo.db.DB(ctx).Model(&Version{}).Where("model_id = ? AND is_active = ?", modelB.ID, true).Count(&count).Error)
+	assert.Equal(t, int64(1), count)
+}
+
+func TestRepositoryListVersionsWithCounts(t *testing.T) {
+	repo := newModelTestRepo(t)
+	ctx := context.Background()
+	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	m := &Model{Name: "qwen-3b", CreatedAt: base}
+	require.NoError(t, repo.CreateModel(ctx, m))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: m.ID, Version: "v1", WeightPath: "qwen/v1", CreatedAt: base}))
+	require.NoError(t, repo.CreateVersion(ctx, &Version{ModelID: m.ID, Version: "v2", WeightPath: "qwen/v2", CreatedAt: base.Add(time.Hour)}))
+	_, err := repo.ActivateVersion(ctx, m.ID, "v1")
+	require.NoError(t, err)
+
+	rows, activeVersion, err := repo.ListVersionsWithCounts(ctx, m.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "v1", activeVersion)
+	require.Len(t, rows, 2)
+	// Newest first.
+	assert.Equal(t, "v2", rows[0].Version.Version)
+	assert.Equal(t, "v1", rows[1].Version.Version)
+	assert.Equal(t, true, rows[1].IsActive)
+	assert.Equal(t, int64(0), rows[0].DeploymentCount)
 }
 
 func TestRepositoryDeleteModelCascadesVersions(t *testing.T) {

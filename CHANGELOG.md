@@ -1,3 +1,329 @@
+## [1.41.1](https://github.com/go-taas/go-taas/compare/v1.41.0...v1.41.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **infer:** gate admin log/deployment and compare RPCs by role ([5b771c4](https://github.com/go-taas/go-taas/commit/5b771c4bde705db9c6b23f8dfac42ee71e061c3b)), closes [#33](https://github.com/go-taas/go-taas/issues/33) [#34](https://github.com/go-taas/go-taas/issues/34) [#35](https://github.com/go-taas/go-taas/issues/35)
+* **model:** gate admin model-version RPCs by caller role ([9206d7e](https://github.com/go-taas/go-taas/commit/9206d7e64e2ab0e83df9f1d46eaab7b32660fb99)), closes [#32](https://github.com/go-taas/go-taas/issues/32)
+* **model:** make active-version unique index per-model ([0d4ea31](https://github.com/go-taas/go-taas/commit/0d4ea31a94fb442a1a378edd45858b326526521a)), closes [#32](https://github.com/go-taas/go-taas/issues/32)
+* **service:** surface error state when service logs pod enumeration fails ([3626c72](https://github.com/go-taas/go-taas/commit/3626c72161d54ecc572f90761bba90b9666b4c29)), closes [#33](https://github.com/go-taas/go-taas/issues/33)
+
+# [1.41.0](https://github.com/go-taas/go-taas/compare/v1.40.0...v1.41.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **fvt:** remove duplicate package declaration in playground compare test ([0026c9e](https://github.com/go-taas/go-taas/commit/0026c9e014f887334e62b209d2afef2c57eb8cf5))
+
+
+### Features
+
+* **forecast:** usage & cost forecasting with confidence bands ([22495e2](https://github.com/go-taas/go-taas/commit/22495e277a043ef6e518cc0843456e504cb5c389))
+
+# [1.40.0](https://github.com/go-taas/go-taas/compare/v1.39.0...v1.40.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **fvt:** remove duplicate package declarations in fvt tests ([585e325](https://github.com/go-taas/go-taas/commit/585e325bd6eb7f488b9cc5c5af65829378b5812f))
+
+
+### Features
+
+* **playground:** model playground comparison (feature-35) ([888c7fa](https://github.com/go-taas/go-taas/commit/888c7facc31a198ce9603d324e70d1787c08fda1))
+
+# [1.39.0](https://github.com/go-taas/go-taas/compare/v1.38.0...v1.39.0) (2026-10-01)
+
+
+### Features
+
+* **deploy:** deployment history & audit with rollback (feature-34) ([303ebd8](https://github.com/go-taas/go-taas/commit/303ebd8c2f361d26530f1ccd76596b5652a07301))
+
+# [1.38.0](https://github.com/go-taas/go-taas/compare/v1.37.1...v1.38.0) (2026-10-01)
+
+
+### Features
+
+* **model:** model versioning & rollback (feature-32) ([1818c19](https://github.com/go-taas/go-taas/commit/1818c19854b873cde2fa21164fb8b790ca668a7e))
+* **service:** inference service logs viewer (feature-33) ([fbdeba5](https://github.com/go-taas/go-taas/commit/fbdeba5dd3078a4eb819bc359cfb80aafa6f9c7a))
+
+## [1.37.1](https://github.com/go-taas/go-taas/compare/v1.37.0...v1.37.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **cost:** bind GetCostAnalyticsOverview on the user prefix ([6cea6b3](https://github.com/go-taas/go-taas/commit/6cea6b3d5212286265209735a5baf62627e6ffe3))
+* **errors:** bind GetErrorAnalysisOverview on the user prefix ([8cdf8ae](https://github.com/go-taas/go-taas/commit/8cdf8aee5e966cf694cb274bc864284e1a732aa7))
+* **usage:** bind GetUsageKeysOverview on the user prefix ([e48e2c3](https://github.com/go-taas/go-taas/commit/e48e2c348d413efac123c5aa7134283e96135cfa))
+
+# [1.37.0](https://github.com/go-taas/go-taas/compare/v1.36.0...v1.37.0) (2026-10-01)
+
+
+### Features
+
+* **errors:** error analysis (feature-31) ([5fffd81](https://github.com/go-taas/go-taas/commit/5fffd81e24a1145ecfd807ee0a45e364501271f0))
+
+# [1.36.0](https://github.com/go-taas/go-taas/compare/v1.35.0...v1.36.0) (2026-10-01)
+
+
+### Features
+
+* **cost:** cost analytics dashboard (feature-29) ([cef0698](https://github.com/go-taas/go-taas/commit/cef06982e19fb1c20268ea4d5f52b45cd53ed871))
+* **status:** system health and service status (feature-30) ([7bb5357](https://github.com/go-taas/go-taas/commit/7bb53571fbd3dabf2d50212abb18d93da8dd490c))
+
+# [1.35.0](https://github.com/go-taas/go-taas/compare/v1.34.0...v1.35.0) (2026-10-01)
+
+
+### Features
+
+* **usage:** API key usage analytics (feature-28) ([8dc3273](https://github.com/go-taas/go-taas/commit/8dc32738f515ca6976eaae3602955e2f02f05f57))
+
+# [1.34.0](https://github.com/go-taas/go-taas/compare/v1.33.1...v1.34.0) (2026-10-01)
+
+
+### Features
+
+* **tracing:** request tracing with latency breakdown ([a5c2909](https://github.com/go-taas/go-taas/commit/a5c290992ff6628a40fbfa2876bb76f51fb2aabe))
+
+## [1.33.1](https://github.com/go-taas/go-taas/compare/v1.33.0...v1.33.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **notification:** refresh bell badge immediately after mark-all-read ([9cb896b](https://github.com/go-taas/go-taas/commit/9cb896bb31a01258c109c71f497b32ef74644945))
+
+# [1.33.0](https://github.com/go-taas/go-taas/compare/v1.32.2...v1.33.0) (2026-10-01)
+
+
+### Features
+
+* **notification:** add notification center & threshold alerts (feature 26) ([255a546](https://github.com/go-taas/go-taas/commit/255a546aa32804b5fcb2c6108c81a978030c9ca7))
+
+## [1.32.2](https://github.com/go-taas/go-taas/compare/v1.32.1...v1.32.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **billing:** gate admin billing-reports RPCs by org role ([ad4d26d](https://github.com/go-taas/go-taas/commit/ad4d26de2d8f4ecde327db045fb9ac2a1ab7b5aa))
+
+## [1.32.1](https://github.com/go-taas/go-taas/compare/v1.32.0...v1.32.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **billing:** use realm-scoped api client on user billing reports page ([7c66c49](https://github.com/go-taas/go-taas/commit/7c66c493c36c8c8c99d3c8ae6168fbecc49d18ce))
+
+# [1.32.0](https://github.com/go-taas/go-taas/compare/v1.31.1...v1.32.0) (2026-09-30)
+
+
+### Features
+
+* **billing:** billing reports and CSV export (feature 25) ([c62a916](https://github.com/go-taas/go-taas/commit/c62a916cea73c4be3b25446976133b3ceb42a5fe))
+
+## [1.31.1](https://github.com/go-taas/go-taas/compare/v1.31.0...v1.31.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **observability:** extract model id from second-to-last path segment ([8bc05ca](https://github.com/go-taas/go-taas/commit/8bc05cac8a5078fedcf419f31f90effc705016cb))
+
+# [1.31.0](https://github.com/go-taas/go-taas/compare/v1.30.0...v1.31.0) (2026-09-30)
+
+
+### Features
+
+* **observability:** model observability dashboard (feature 24) ([b32643f](https://github.com/go-taas/go-taas/commit/b32643f6237c5ab24861665c19f68dcb609a5670))
+
+# [1.30.0](https://github.com/go-taas/go-taas/compare/v1.29.0...v1.30.0) (2026-09-29)
+
+
+### Features
+
+* **webhook:** webhook notifications and event subscriptions (feature 23) ([f612da2](https://github.com/go-taas/go-taas/commit/f612da25f5918c0fb27ce32faacb15bfc8ebd8f5))
+
+# [1.29.0](https://github.com/go-taas/go-taas/compare/v1.28.0...v1.29.0) (2026-09-28)
+
+
+### Features
+
+* **compose:** create and clean up cluster resources on up/down ([f38b4d1](https://github.com/go-taas/go-taas/commit/f38b4d1a11402be7084984a887a450e1df4c5954))
+
+# [1.28.0](https://github.com/go-taas/go-taas/compare/v1.27.0...v1.28.0) (2026-09-28)
+
+
+### Bug Fixes
+
+* **compose:** share the JuiceFS FUSE mount with the control plane ([9d131f8](https://github.com/go-taas/go-taas/commit/9d131f81f0bbff990f27ad770e9f99c5c7043a2e))
+* **controller:** request accelerator resources and serve model from weights FS ([bea8e71](https://github.com/go-taas/go-taas/commit/bea8e7103edd58b73b5c7a388685695f51634358))
+* **image:** apply the vendor-match rule across all engine accelerators ([b1c8aa0](https://github.com/go-taas/go-taas/commit/b1c8aa0a1153b96d0f9ba6826d2641ebd7c995c9))
+
+
+### Features
+
+* **compose:** mount JuiceFS weights and wire Harbor config from .env ([209de32](https://github.com/go-taas/go-taas/commit/209de32160c1ed61007fe2d13a398b6df062f3bd))
+* **config:** add harbor, model weightsDir and controller weights config ([87e9525](https://github.com/go-taas/go-taas/commit/87e9525deee8ae3c4914df11dce4d7b6ab7505f5))
+* **console:** redesign UI and add English/Chinese i18n ([3a48d82](https://github.com/go-taas/go-taas/commit/3a48d82d237ca6bce49999b6104fb1c32758fba4))
+* **controller:** provision JuiceFS-backed weights PVC for inference pods ([8fad31d](https://github.com/go-taas/go-taas/commit/8fad31d354b33b09e89cfd36741e2b9934b64660))
+* **image:** import engine images into internal Harbor project ([e6c752b](https://github.com/go-taas/go-taas/commit/e6c752bad8cceee50b7139003639f93d1bb680e0))
+* **model:** download weights from ModelScope and HuggingFace hubs ([3771400](https://github.com/go-taas/go-taas/commit/37714004d676f947465366ce97b9697bed767697))
+
+# [1.27.0](https://github.com/go-taas/go-taas/compare/v1.26.2...v1.27.0) (2026-09-27)
+
+
+### Features
+
+* **controller:** manage a real cluster via kubeconfig in compose ([283f5b4](https://github.com/go-taas/go-taas/commit/283f5b4ef5589aa9f1c0eb5af80d5606a151df98))
+
+## [1.26.2](https://github.com/go-taas/go-taas/compare/v1.26.1...v1.26.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** omit empty attribute_mapping on provider create ([6c8a3d7](https://github.com/go-taas/go-taas/commit/6c8a3d7a7d7500d310b54fe42dc47e35b711ccf4))
+
+## [1.26.1](https://github.com/go-taas/go-taas/compare/v1.26.0...v1.26.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** seed admin org membership and harden compose login e2e ([f163acd](https://github.com/go-taas/go-taas/commit/f163acd4390ccc14158b6eba11f1f9e4f15e16cb))
+
+# [1.26.0](https://github.com/go-taas/go-taas/compare/v1.25.0...v1.26.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **auth:** resolve lint issues and harden compose-seed coverage ([642ddd6](https://github.com/go-taas/go-taas/commit/642ddd689aa58d91125d49fddebd438ecc40f6b7))
+
+
+### Features
+
+* **auth:** implement SSOPasswordLogin and SwitchSurface ([2d01206](https://github.com/go-taas/go-taas/commit/2d0120604041f68b7c077cf14763a6e57d180344))
+* **auth:** seed the compose Keycloak provider and admin user ([1bcd67a](https://github.com/go-taas/go-taas/commit/1bcd67ac4f21d0667174e66472bd32b28e64dd7e))
+* **compose:** seed Keycloak admin user and Direct Access Grants ([50c28f4](https://github.com/go-taas/go-taas/commit/50c28f47f59274d555dd81f14a12443edfb13f0d))
+* **web:** add custom login pages and surface switch buttons ([a48d800](https://github.com/go-taas/go-taas/commit/a48d8007fe72faa64cc5a422c650d8a4c050d04d))
+
+# [1.25.0](https://github.com/go-taas/go-taas/compare/v1.24.0...v1.25.0) (2026-09-27)
+
+
+### Features
+
+* **auth:** add PasswordGrant to the IdP plugin framework ([32c0489](https://github.com/go-taas/go-taas/commit/32c04894a5f0e036dfe04a491febbb9731a2453f))
+* **auth:** add SSOPasswordLogin and SwitchSurface RPCs ([cc43e8a](https://github.com/go-taas/go-taas/commit/cc43e8a3168bd5b6f61faf4c98f6fa2cd6a9f763))
+* **config:** add auth.adminRoles admin-role set ([3500cd5](https://github.com/go-taas/go-taas/commit/3500cd5c0fbc7325875bf092df4ce9e070375158))
+
+# [1.24.0](https://github.com/go-taas/go-taas/compare/v1.23.0...v1.24.0) (2026-09-27)
+
+
+### Bug Fixes
+
+* **services:** resolve org from session when present ([730b4ed](https://github.com/go-taas/go-taas/commit/730b4ed514e8c328435101df229315c4423c718c)), closes [#7](https://github.com/go-taas/go-taas/issues/7)
+
+
+### Features
+
+* **console:** redirect unauthenticated pages to login ([eebd05d](https://github.com/go-taas/go-taas/commit/eebd05d801575af4e647d0d797870cc8416ae108))
+
+# [1.23.0](https://github.com/go-taas/go-taas/compare/v1.22.0...v1.23.0) (2026-09-27)
+
+
+### Features
+
+* **ui:** use logo in the console ([0c419b6](https://github.com/go-taas/go-taas/commit/0c419b6d16bfd0da3c95836ebef6f2ba8b3dc8b3))
+
+# [1.22.0](https://github.com/go-taas/go-taas/compare/v1.21.0...v1.22.0) (2026-09-26)
+
+
+### Features
+
+* **infer:** add SDK quickstart inference endpoint and page ([a6e4a99](https://github.com/go-taas/go-taas/commit/a6e4a99b3b65eb8f91c15662a6ec291232432d32)), closes [#21](https://github.com/go-taas/go-taas/issues/21)
+
+# [1.21.0](https://github.com/go-taas/go-taas/compare/v1.20.0...v1.21.0) (2026-09-26)
+
+
+### Features
+
+* **controller:** make reconcile namespace configurable ([53f3fe3](https://github.com/go-taas/go-taas/commit/53f3fe346c7ba36a809c447ca4b033b089ee1696))
+
+# [1.20.0](https://github.com/go-taas/go-taas/compare/v1.19.0...v1.20.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **infer:** create load_tests in Migrate and index it by model+state ([f421ae8](https://github.com/go-taas/go-taas/commit/f421ae89383a5729b4588d9e4e67468ac01186ea))
+* **infer:** guard malformed identifiers in load-test lookups ([2b6875a](https://github.com/go-taas/go-taas/commit/2b6875a3b52a1f67672653a60b6b89bf2ff7d245))
+* **infer:** return 10311 for an unknown load-test target ([94fd8a3](https://github.com/go-taas/go-taas/commit/94fd8a3388cd1394d046793b93d4c2b74f674696))
+
+
+### Features
+
+* **infer:** add inference load testing with async runner ([82ee1f7](https://github.com/go-taas/go-taas/commit/82ee1f7eb23a2c57ffe7c5dd9d25f73c8b0c75b0))
+* **web:** add load testing pages on both console surfaces ([74f4e3d](https://github.com/go-taas/go-taas/commit/74f4e3d8433d2fb7d5a047b8f2005660605cb0a0))
+
+# [1.19.0](https://github.com/go-taas/go-taas/compare/v1.18.1...v1.19.0) (2026-09-26)
+
+
+### Features
+
+* **web:** redesign console with AI-native SaaS design system ([0c63483](https://github.com/go-taas/go-taas/commit/0c6348371893ce9923b98a67cb7f1e7d1ea2742d)), closes [#7c3](https://github.com/go-taas/go-taas/issues/7c3) [#0891b2](https://github.com/go-taas/go-taas/issues/0891b2)
+
+## [1.18.1](https://github.com/go-taas/go-taas/compare/v1.18.0...v1.18.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **image:** render departed card types in compatibility grid ([5353146](https://github.com/go-taas/go-taas/commit/53531466084d1b126d66e2c0afc136b27ff47917))
+
+# [1.18.0](https://github.com/go-taas/go-taas/compare/v1.17.0...v1.18.0) (2026-09-26)
+
+
+### Features
+
+* **image:** add model x engine x card-type compatibility matrix ([fef65a0](https://github.com/go-taas/go-taas/commit/fef65a0260ee014a8b9c1e469ec613c1f4e8b5a5))
+
+# [1.17.0](https://github.com/go-taas/go-taas/compare/v1.16.1...v1.17.0) (2026-09-26)
+
+
+### Features
+
+* **auth:** resolve OIDC endpoints via discovery for Keycloak ([4d1ee5d](https://github.com/go-taas/go-taas/commit/4d1ee5d09d95bc800ada166254d233a5fd0365f5))
+
+## [1.16.1](https://github.com/go-taas/go-taas/compare/v1.16.0...v1.16.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* **accelerator:** share projection cache between consumer and service ([bc1e5df](https://github.com/go-taas/go-taas/commit/bc1e5df2757e0d362bfee9bfe21c15373d67b471))
+
+# [1.16.0](https://github.com/go-taas/go-taas/compare/v1.15.0...v1.16.0) (2026-09-26)
+
+
+### Features
+
+* **accelerator:** add inventory proto, projection cache and admin RPCs ([3331911](https://github.com/go-taas/go-taas/commit/3331911d39b95eb28a08f7926ab4ff4f1b02cc82)), closes [#18](https://github.com/go-taas/go-taas/issues/18)
+* **config:** add accelerator inventory config section ([afba0d0](https://github.com/go-taas/go-taas/commit/afba0d04435aecbfe3f70b6076521715d98b9ea3))
+* **controller:** collect and publish accelerator inventory snapshot ([557f161](https://github.com/go-taas/go-taas/commit/557f1617fda0c96a1497fbcd5368ed13721c9913))
+* **image:** add warmup-task-for-node narrow read provider ([787adbc](https://github.com/go-taas/go-taas/commit/787adbcfddda6daa582269c1c1ba4627af94263d))
+* **web:** add accelerator inventory pages on the admin console ([5be3371](https://github.com/go-taas/go-taas/commit/5be3371a5459ca5a4a753b1e9b11f7089b2d0307))
+
+# [1.15.0](https://github.com/go-taas/go-taas/compare/v1.14.0...v1.15.0) (2026-09-25)
+
+
+### Features
+
+* **controller:** reconcile HPA lifecycle and scale-to-zero ([3ce9f75](https://github.com/go-taas/go-taas/commit/3ce9f75d1e3ca82bcd7993f94f73406e0f103704)), closes [#16](https://github.com/go-taas/go-taas/issues/16)
+* **infer:** add autoscaling policy proto, error code and config ([b3e4cf7](https://github.com/go-taas/go-taas/commit/b3e4cf7c16806fc1baa6c19a90e1c1f79d7a7dfc))
+* **infer:** implement autoscaling policy RPCs and concurrency consumer ([449ca5a](https://github.com/go-taas/go-taas/commit/449ca5af0715a4ab53996ab0f7fd01218ecf190e))
+* **model:** add user-realm autoscaling projection and GetAvailableModel ([fbd10fe](https://github.com/go-taas/go-taas/commit/fbd10feaa9e9ad9f2e1f5e321722f1421777478a)), closes [#16](https://github.com/go-taas/go-taas/issues/16)
+* **web:** add autoscaling pages on both console surfaces ([6a15c4b](https://github.com/go-taas/go-taas/commit/6a15c4bd2a499be1f6c48d9b0c0f290c234aa9f1))
+
+# [1.14.0](https://github.com/go-taas/go-taas/compare/v1.13.0...v1.14.0) (2026-09-25)
+
+
+### Features
+
+* **audit:** add audit logging and activity export ([cafac59](https://github.com/go-taas/go-taas/commit/cafac59f1e6666ce40ec772fbacb8a50b4795663))
+
 # [1.13.0](https://github.com/go-taas/go-taas/compare/v1.12.1...v1.13.0) (2026-09-25)
 
 

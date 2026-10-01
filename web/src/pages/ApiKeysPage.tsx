@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, formatTime, type ApiKeySummary, type PageMeta } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import {
   CopyButton,
   Dialog,
@@ -36,17 +37,21 @@ function keyStatus(k: ApiKeySummary): string {
 }
 
 // formatRateLimit renders the key's rate limits or "Unlimited".
-function formatRateLimit(k: ApiKeySummary): string {
+function formatRateLimit(
+  k: ApiKeySummary,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const rpm = parseInt(k.rateLimitRpm || '0', 10);
   const tpm = parseInt(k.rateLimitTpm || '0', 10);
-  if (rpm === 0 && tpm === 0) return 'Unlimited';
-  const rpmStr = rpm > 0 ? `${rpm} rpm` : '∞ rpm';
-  const tpmStr = tpm > 0 ? `${(tpm / 1000).toFixed(0)}k tpm` : '∞ tpm';
+  if (rpm === 0 && tpm === 0) return t('common.rateLimitUnlimited');
+  const rpmStr = rpm > 0 ? `${rpm} rpm` : t('common.rateLimitRpm');
+  const tpmStr = tpm > 0 ? `${(tpm / 1000).toFixed(0)}k tpm` : t('common.rateLimitTpm');
   return `${rpmStr} · ${tpmStr}`;
 }
 
 export default function ApiKeysPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [keys, setKeys] = useState<ApiKeySummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -70,11 +75,11 @@ export default function ApiKeysPage() {
       setKeys(data.keys || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load API keys');
+      setError(e instanceof Error ? e.message : t('apikeys.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     void load();
@@ -84,14 +89,11 @@ export default function ApiKeysPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>API Keys</h1>
-          <div className="subtitle">
-            Keys authenticate Agents against the Inference Gateway. The secret is
-            shown only once at creation.
-          </div>
+          <h1>{t('apikeys.title')}</h1>
+          <div className="subtitle">{t('apikeys.subtitle')}</div>
         </div>
         <button data-testid="create-api-key" onClick={() => setCreateOpen(true)}>
-          Create API Key
+          {t('apikeys.create')}
         </button>
       </div>
 
@@ -99,22 +101,22 @@ export default function ApiKeysPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : keys.length === 0 ? (
           <div className="empty-state" data-testid="api-keys-empty">
-            No API keys yet. Create one to authenticate Agent calls.
+            {t('apikeys.empty')}
           </div>
         ) : (
           <table className="data" data-testid="api-keys-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Key</th>
-                <th>Status</th>
-                <th>Rate limit</th>
-                <th>Created</th>
-                <th>Expires</th>
-                <th>Actions</th>
+                <th>{t('apikeys.colName')}</th>
+                <th>{t('apikeys.colKey')}</th>
+                <th>{t('apikeys.colStatus')}</th>
+                <th>{t('apikeys.colRateLimit')}</th>
+                <th>{t('apikeys.colCreated')}</th>
+                <th>{t('apikeys.colExpires')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +128,10 @@ export default function ApiKeysPage() {
                     <StateBadge state={keyStatus(k)} />
                   </td>
                   <td data-testid={`rate-limit-cell-${k.keyId}`}>
-                    {formatRateLimit(k)}
+                    {formatRateLimit(k, t)}
                   </td>
                   <td>{formatTime(k.createdAt)}</td>
-                  <td>{k.expiresAt && k.expiresAt !== '0' ? formatTime(k.expiresAt) : 'Never'}</td>
+                  <td>{k.expiresAt && k.expiresAt !== '0' ? formatTime(k.expiresAt) : t('common.never')}</td>
                   <td>
                     {!k.revoked && (
                       <>
@@ -138,14 +140,14 @@ export default function ApiKeysPage() {
                           data-testid={`edit-rate-limit-${k.keyId}`}
                           onClick={() => setEditTarget(k)}
                         >
-                          Edit
+                          {t('common.edit')}
                         </button>
                         <button
                           className="link danger"
                           data-testid={`revoke-${k.keyId}`}
                           onClick={() => setRevokeTarget(k)}
                         >
-                          Revoke
+                          {t('apikeys.revoke')}
                         </button>
                       </>
                     )}
@@ -229,10 +231,11 @@ function CreateDialog({
   const [tpm, setTpm] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     if (!name.trim()) {
-      setError('Name is required (1-64 characters).');
+      setError(t('apikeys.nameRequired'));
       return;
     }
     setSubmitting(true);
@@ -252,42 +255,42 @@ function CreateDialog({
       );
       onCreated(res);
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to create key');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('apikeys.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Create API Key" onClose={onClose} testId="create-dialog">
+    <Dialog title={t('apikeys.createTitle')} onClose={onClose} testId="create-dialog">
       <div className="form-grid">
         <div className="form-field full">
-          <label htmlFor="key-name">Name</label>
+          <label htmlFor="key-name">{t('apikeys.fieldName')}</label>
           <input
             id="key-name"
             data-testid="key-name-input"
             value={name}
             maxLength={64}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. production-agent"
+            placeholder={t('apikeys.placeholderName')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="key-expiry">Expiry</label>
+          <label htmlFor="key-expiry">{t('apikeys.fieldExpiry')}</label>
           <select
             id="key-expiry"
             data-testid="key-expiry-select"
             value={expiryDays}
             onChange={(e) => setExpiryDays(e.target.value)}
           >
-            <option value="never">Never</option>
-            <option value="30">30 days</option>
-            <option value="90">90 days</option>
-            <option value="365">365 days</option>
+            <option value="never">{t('common.never')}</option>
+            <option value="30">{t('common.30days')}</option>
+            <option value="90">{t('common.90days')}</option>
+            <option value="365">{t('common.365days')}</option>
           </select>
         </div>
         <div className="form-field">
-          <label htmlFor="rate-limit-rpm">Rate limit RPM</label>
+          <label htmlFor="rate-limit-rpm">{t('apikeys.fieldRpm')}</label>
           <input
             id="rate-limit-rpm"
             data-testid="rate-limit-rpm"
@@ -295,11 +298,11 @@ function CreateDialog({
             min={0}
             value={rpm}
             onChange={(e) => setRpm(e.target.value)}
-            placeholder="0 = unlimited"
+            placeholder={t('apikeys.placeholderZero')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="rate-limit-tpm">Rate limit TPM</label>
+          <label htmlFor="rate-limit-tpm">{t('apikeys.fieldTpm')}</label>
           <input
             id="rate-limit-tpm"
             data-testid="rate-limit-tpm"
@@ -307,21 +310,21 @@ function CreateDialog({
             min={0}
             value={tpm}
             onChange={(e) => setTpm(e.target.value)}
-            placeholder="0 = unlimited"
+            placeholder={t('apikeys.placeholderZero')}
           />
         </div>
       </div>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="submit-create-key"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Creating…' : 'Create'}
+          {submitting ? t('common.creating') : t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -346,10 +349,11 @@ function EditDialog({
   const [tpm, setTpm] = useState(apiKey.rateLimitTpm || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     if (!name.trim()) {
-      setError('Name is required (1-64 characters).');
+      setError(t('apikeys.nameRequired'));
       return;
     }
     setSubmitting(true);
@@ -361,20 +365,18 @@ function EditDialog({
       await api.put(`/api/v1/admin/auth/api-keys/${apiKey.keyId}`, orgId, body);
       onUpdated();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update key');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('apikeys.updateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Edit API Key" onClose={onClose} testId="edit-dialog">
-      <p className="muted">
-        The secret is unchanged. Rate limits apply at the gateway (429 + Retry-After).
-      </p>
+    <Dialog title={t('apikeys.editTitle')} onClose={onClose} testId="edit-dialog">
+      <p className="muted">{t('apikeys.editNote')}</p>
       <div className="form-grid">
         <div className="form-field full">
-          <label htmlFor="edit-key-name">Name</label>
+          <label htmlFor="edit-key-name">{t('apikeys.fieldName')}</label>
           <input
             id="edit-key-name"
             data-testid="edit-key-name-input"
@@ -384,7 +386,7 @@ function EditDialog({
           />
         </div>
         <div className="form-field">
-          <label htmlFor="edit-rate-limit-rpm">Rate limit RPM</label>
+          <label htmlFor="edit-rate-limit-rpm">{t('apikeys.fieldRpm')}</label>
           <input
             id="edit-rate-limit-rpm"
             data-testid="edit-rate-limit-rpm"
@@ -392,11 +394,11 @@ function EditDialog({
             min={0}
             value={rpm}
             onChange={(e) => setRpm(e.target.value)}
-            placeholder="0 = unlimited"
+            placeholder={t('apikeys.placeholderZero')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="edit-rate-limit-tpm">Rate limit TPM</label>
+          <label htmlFor="edit-rate-limit-tpm">{t('apikeys.fieldTpm')}</label>
           <input
             id="edit-rate-limit-tpm"
             data-testid="edit-rate-limit-tpm"
@@ -404,21 +406,21 @@ function EditDialog({
             min={0}
             value={tpm}
             onChange={(e) => setTpm(e.target.value)}
-            placeholder="0 = unlimited"
+            placeholder={t('apikeys.placeholderZero')}
           />
         </div>
       </div>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="submit-edit-key"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -438,19 +440,20 @@ function CreatedDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <Dialog
-      title="API Key Created"
+      title={t('apikeys.createdTitle')}
       onClose={confirmed ? onClose : () => undefined}
       testId="created-dialog"
     >
       <p>
-        Copy your key now. <strong>This key will not be shown again.</strong>
+        {t('apikeys.createdBody')} <strong>{t('apikeys.createdWarning')}</strong>
       </p>
       <div className="secret-box" data-testid="secret-display">
         {secret}
       </div>
-      <CopyButton text={secret} label="Copy key" />
+      <CopyButton text={secret} label={t('apikeys.copyKey')} />
       <div style={{ marginTop: 18 }}>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -459,7 +462,7 @@ function CreatedDialog({
             checked={confirmed}
             onChange={onConfirm}
           />
-          I have saved the key securely
+          {t('apikeys.savedCheckbox')}
         </label>
       </div>
       <div className="dialog-actions">
@@ -468,7 +471,7 @@ function CreatedDialog({
           disabled={!confirmed}
           onClick={onClose}
         >
-          Done
+          {t('common.done')}
         </button>
       </div>
     </Dialog>
@@ -488,6 +491,7 @@ function RevokeDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const revoke = async () => {
     setSubmitting(true);
@@ -496,25 +500,24 @@ function RevokeDialog({
       await api.post(`/api/v1/admin/auth/api-keys/${apiKey.keyId}:revoke`, orgId);
       onRevoked();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to revoke key');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('apikeys.revokeFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Revoke API Key" onClose={onClose} testId="revoke-dialog">
-      <p>
-        Revoke <strong>{apiKey.name}</strong> ({apiKey.prefix}…)?
-      </p>
-      <div className="error-banner">
-        Agents using this key will immediately receive 401 errors (within the
-        gateway cache TTL, at most 30 seconds). This cannot be undone.
-      </div>
+    <Dialog title={t('apikeys.revokeTitle')} onClose={onClose} testId="revoke-dialog">
+      <p
+        dangerouslySetInnerHTML={{
+          __html: t('apikeys.revokeBody', { name: apiKey.name, prefix: apiKey.prefix }),
+        }}
+      />
+      <div className="error-banner">{t('apikeys.revokeWarning')}</div>
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className="danger"
@@ -522,7 +525,7 @@ function RevokeDialog({
           disabled={submitting}
           onClick={() => void revoke()}
         >
-          {submitting ? 'Revoking…' : 'Revoke'}
+          {submitting ? t('apikeys.revoking') : t('apikeys.revoke')}
         </button>
       </div>
     </Dialog>

@@ -63,7 +63,7 @@ flowchart TD
         subgraph cp["Control Plane (standard network)"]
             direction TB
             CGW["Control Gateway (HTTP)<br/>platform management API"]
-            GRPC["gRPC Server (single Deployment)<br/>microservices: auth · model · image · infer · billing · metering"]
+            GRPC["gRPC Server (single Deployment)<br/>microservices: auth · model · image · infer · billing · metering · webhook"]
             MQ["Message Queue (Kafka / NATS)"]
             CTRL["Controller<br/>(K8s resource reconciliation)"]
             CGW --> GRPC
@@ -119,7 +119,7 @@ flowchart TD
 
 - Traffic is split by audience: administrators enter through the **Control Gateway** (HTTP, generated from the Protobuf contract by `grpc-gateway`), while agents and SDKs call the **Inference Gateway** (Envoy + Wasm).
 - The two gateways are deployed as separate workloads, so control plane APIs and inference APIs scale, upgrade, and fail independently.
-- All microservice gRPC servers (`auth`, `model`, `image`, `infer`, `billing`, `metering`) run in a **single Deployment** and hand work to the Controller through a **message queue** (Kafka / NATS), decoupling API serving from Kubernetes reconciliation.
+- All microservice gRPC servers (`auth`, `model`, `image`, `infer`, `billing`, `metering`, `webhook`) run in a **single Deployment** and hand work to the Controller through a **message queue** (Kafka / NATS), decoupling API serving from Kubernetes reconciliation.
 - Authentication, metering, and routing run in **Wasm plugins** at the Inference Gateway, so inference traffic never passes through business processes.
 - The Inference Gateway verifies every API Key by **calling the `auth` module over gRPC**, backed by a two-level cache (Wasm-local TTL cache, then Redis); on timeout or `auth` unavailability it fails closed.
 - Inference services and the control plane share **one Kubernetes cluster**, isolated through Namespaces, node labels, and taints/tolerations.
@@ -167,14 +167,36 @@ make build   # build the binary
 
 ### Docker Compose
 
-A one-command experience environment: control plane (with console), PostgreSQL, Redis, and the message queue.
+A one-command experience environment: control plane (with console), PostgreSQL, Redis, the message queue, and a JuiceFS client that mounts the shared model-weights filesystem.
 
 ```bash
+cp .env.example .env   # fill in Harbor + JuiceFS/MinIO values (see below)
 make compose-up    # build images (console included) and start the local stack
 make compose-ps    # show stack status
 make compose-logs  # follow logs (or: make compose-logs SERVICE=taas-server)
 make compose-down  # stop and remove the stack
 ```
+
+The stack reads `.env` (git-ignored; see `.env.example` for the full list):
+
+- `HARBOR_URL` / `HARBOR_USERNAME` / `HARBOR_PASSWORD` — the internal
+  container registry the image-import flow pushes engine images into
+  (all imports land in the `taas` project).
+- `JUICE_FS_*` — the JuiceFS model-weights filesystem (MinIO bucket +
+  Redis metadata) that the control plane mounts at `/data/weights` and
+  the inference pods read through the cluster StorageClass.
+- `WEIGHTS_STORAGE_CLASS` — the JuiceFS-backed StorageClass the
+  controller provisions the shared `model-weights` PVC from.
+
+`make compose-up` creates the Kubernetes resources the stack needs
+automatically (via `deploy/compose/scripts/cluster-up.sh`): the MinIO
+bucket, the JuiceFS filesystem, the `taas` namespace, the
+`juicefs-taas-models` StorageClass + secret, the `model-weights` PVC, the
+Redis NodePort (the cluster Redis is ClusterIP-only, so it is published
+on the node IP at `:30379`), and the accelerator node labels.
+`make compose-down` removes the compose stack (including the database
+volume) and cleans up all of those cluster resources (via
+`deploy/compose/scripts/cluster-down.sh`).
 
 The admin console is served by `taas-server` at `http://localhost:9091/admin`
 (same origin as the API — no CORS setup needed). Management APIs live under

@@ -13,6 +13,7 @@ import {
 } from '../api';
 import { useOrg } from '../org';
 import { Dialog, ErrorBanner, Pagination, StateBadge } from '../components';
+import { useI18n } from '../i18n';
 
 interface ListResponse {
   response: { code: number; message: string };
@@ -29,6 +30,7 @@ const PAGE_SIZE = 20;
 
 export default function ProjectsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [orgs, setOrgs] = useState<OrganizationSummary[]>([]);
   const [orgFilter, setOrgFilter] = useState('all');
@@ -73,11 +75,11 @@ export default function ProjectsPage() {
       setProjects(data.projects || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load projects');
+      setError(e instanceof Error ? e.message : t('projects.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset, orgFilter, stateFilter]);
+  }, [orgId, offset, orgFilter, stateFilter, t]);
 
   useEffect(() => {
     void loadOrgs();
@@ -91,14 +93,11 @@ export default function ProjectsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Projects</h1>
-          <div className="subtitle">
-            Projects subdivide an organization's work. Project ids are
-            globally unique and belong to exactly one organization.
-          </div>
+          <h1>{t('projects.title')}</h1>
+          <div className="subtitle">{t('projects.subtitle')}</div>
         </div>
         <button data-testid="create-project" onClick={() => setCreateOpen(true)}>
-          Create Project
+          {t('projects.create')}
         </button>
       </div>
 
@@ -113,7 +112,7 @@ export default function ProjectsPage() {
             setOffset(0);
           }}
         >
-          <option value="all">All organizations</option>
+          <option value="all">{t('common.allOrganizations')}</option>
           {orgs.map((org) => (
             <option
               key={org.organizationId}
@@ -132,7 +131,7 @@ export default function ProjectsPage() {
             setOffset(0);
           }}
         >
-          <option value="all">All states</option>
+          <option value="all">{t('common.allStates')}</option>
           <option value="active">active</option>
           <option value="disabled">disabled</option>
         </select>
@@ -140,20 +139,20 @@ export default function ProjectsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : projects.length === 0 ? (
           <div className="empty-state" data-testid="projects-empty">
-            No projects match your filters.
+            {t('projects.empty')}
           </div>
         ) : (
           <table className="data" data-testid="projects-table">
             <thead>
               <tr>
-                <th>Project</th>
-                <th>Organization</th>
-                <th>State</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('projects.colProject')}</th>
+                <th>{t('projects.colOrganization')}</th>
+                <th>{t('projects.colState')}</th>
+                <th>{t('projects.colCreated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -174,7 +173,7 @@ export default function ProjectsPage() {
                       data-testid={`project-edit-${project.projectId}`}
                       onClick={() => setEditTarget(project)}
                     >
-                      Edit
+                      {t('common.edit')}
                     </button>
                     {project.state === 'active' ? (
                       <button
@@ -184,7 +183,7 @@ export default function ProjectsPage() {
                           setConfirmTarget({ project, action: 'disable' })
                         }
                       >
-                        Disable
+                        {t('common.disable')}
                       </button>
                     ) : (
                       <button
@@ -194,7 +193,7 @@ export default function ProjectsPage() {
                           setConfirmTarget({ project, action: 'enable' })
                         }
                       >
-                        Enable
+                        {t('common.enable')}
                       </button>
                     )}
                   </td>
@@ -270,20 +269,21 @@ function CreateProjectDialog({
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const activeOrgs = orgs.filter((o) => o.state === 'active');
 
   const submit = async () => {
     if (!organizationId) {
-      setError('Pick the owning organization.');
+      setError(t('projects.validationOrg'));
       return;
     }
     if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(id.trim())) {
-      setError('ID must be 3-64 chars: lowercase letters, digits, hyphens; start with letter/digit.');
+      setError(t('projects.validationId'));
       return;
     }
     if (!name.trim()) {
-      setError('Display name is required.');
+      setError(t('projects.validationDisplayName'));
       return;
     }
     setSubmitting(true);
@@ -298,24 +298,24 @@ function CreateProjectDialog({
       onDone();
     } catch (e) {
       // 10016: the project id already exists; 10017: the org is disabled.
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to create project');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('projects.createFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Create Project" onClose={onClose} testId="create-project-dialog">
+    <Dialog title={t('projects.createTitle')} onClose={onClose} testId="create-project-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="project-org">Organization</label>
+          <label htmlFor="project-org">{t('projects.fieldOrganization')}</label>
           <select
             id="project-org"
             data-testid="project-org-select"
             value={organizationId}
             onChange={(e) => setOrganizationId(e.target.value)}
           >
-            <option value="">Select organization…</option>
+            <option value="">{t('projects.placeholderSelectOrg')}</option>
             {activeOrgs.map((org) => (
               <option
                 key={org.organizationId}
@@ -326,32 +326,32 @@ function CreateProjectDialog({
               </option>
             ))}
           </select>
-          <div className="muted">Only active organizations can own new projects.</div>
+          <div className="muted">{t('projects.mutedInactiveOrg')}</div>
         </div>
         <div className="form-field">
-          <label htmlFor="project-id">Project ID</label>
+          <label htmlFor="project-id">{t('projects.fieldProjectId')}</label>
           <input
             id="project-id"
             data-testid="project-id-input"
             value={id}
             maxLength={64}
             onChange={(e) => setId(e.target.value)}
-            placeholder="e.g. proj-core"
+            placeholder={t('projects.placeholderProjectId')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="project-name">Display name</label>
+          <label htmlFor="project-name">{t('projects.fieldDisplayName')}</label>
           <input
             id="project-name"
             data-testid="project-name-input"
             value={name}
             maxLength={128}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Core Platform"
+            placeholder={t('projects.placeholderDisplayName')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="project-desc">Description (optional)</label>
+          <label htmlFor="project-desc">{t('common.descriptionOptional')}</label>
           <textarea
             id="project-desc"
             data-testid="project-desc-input"
@@ -365,10 +365,10 @@ function CreateProjectDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="project-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Creating…' : 'Create'}
+          {submitting ? t('common.creating') : t('common.create')}
         </button>
       </div>
     </Dialog>
@@ -390,10 +390,11 @@ function EditProjectDialog({
   const [description, setDescription] = useState(project.description || '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     if (!name.trim()) {
-      setError('Display name is required.');
+      setError(t('projects.validationDisplayName'));
       return;
     }
     setSubmitting(true);
@@ -409,17 +410,21 @@ function EditProjectDialog({
       );
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to update project');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('projects.updateFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title={`Edit ${project.projectId}`} onClose={onClose} testId="edit-project-dialog">
+    <Dialog
+      title={t('projects.editTitle', { projectId: project.projectId })}
+      onClose={onClose}
+      testId="edit-project-dialog"
+    >
       <div className="form-grid">
         <div className="form-field full">
-          <label htmlFor="project-edit-name">Display name</label>
+          <label htmlFor="project-edit-name">{t('projects.fieldDisplayName')}</label>
           <input
             id="project-edit-name"
             data-testid="project-edit-name-input"
@@ -429,7 +434,7 @@ function EditProjectDialog({
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="project-edit-desc">Description</label>
+          <label htmlFor="project-edit-desc">{t('projects.fieldDescription')}</label>
           <textarea
             id="project-edit-desc"
             data-testid="project-edit-desc-input"
@@ -443,10 +448,10 @@ function EditProjectDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button data-testid="project-edit-save" disabled={submitting} onClick={() => void submit()}>
-          {submitting ? 'Saving…' : 'Save'}
+          {submitting ? t('common.saving') : t('common.save')}
         </button>
       </div>
     </Dialog>
@@ -468,6 +473,7 @@ function ConfirmStateDialog({
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     setSubmitting(true);
@@ -480,7 +486,7 @@ function ConfirmStateDialog({
       onDone();
     } catch (e) {
       // 10017: enabling a project under a disabled organization.
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : `failed to ${action} project`);
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('projects.actionFailed', { action }));
     } finally {
       setSubmitting(false);
     }
@@ -488,25 +494,21 @@ function ConfirmStateDialog({
 
   return (
     <Dialog
-      title={`${action === 'disable' ? 'Disable' : 'Enable'} ${project.projectId}?`}
+      title={t(action === 'disable' ? 'projects.disableTitle' : 'projects.enableTitle', {
+        projectId: project.projectId,
+      })}
       onClose={onClose}
       testId="project-confirm-dialog"
     >
       {action === 'disable' ? (
-        <p>
-          Disabling marks the project inactive. Existing resources stay
-          readable; the project cannot own new activity until re-enabled.
-        </p>
+        <p>{t('projects.disableBody')}</p>
       ) : (
-        <p>
-          Enabling restores the project. The owning organization must be
-          active.
-        </p>
+        <p>{t('projects.enableBody')}</p>
       )}
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           className={action === 'disable' ? 'danger' : ''}
@@ -514,7 +516,7 @@ function ConfirmStateDialog({
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Working…' : action === 'disable' ? 'Disable' : 'Enable'}
+          {submitting ? t('common.working') : t(action === 'disable' ? 'common.disable' : 'common.enable')}
         </button>
       </div>
     </Dialog>

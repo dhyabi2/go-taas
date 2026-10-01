@@ -12,6 +12,8 @@ import (
 	billingv1 "github.com/go-taas/go-taas/proto/taas/billing/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/pkg/mq"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // newPaymentTestService wires a billing service against a disposable
@@ -132,6 +134,50 @@ func TestGenerateInvoice(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Contains(t, dl.GetContent(), "org-1", "AC5: download contains the org")
+}
+
+// TestGenerateInvoicePublishesWebhookEvent verifies the
+// billing.invoice_created webhook event is published (feature #23,
+// AD10).
+func TestGenerateInvoicePublishesWebhookEvent(t *testing.T) {
+	svc := newPaymentTestService(t)
+	client := mq.NewFake()
+	svc.publisher = client
+	require.NoError(t, svc.accounts.db.Create(&ChargeRecord{
+		ID: "charge-1", OrganizationID: "org-1", APIKeyID: "k", ModelID: "m",
+		AcceleratorType: "A800", PeriodStart: 1700000000, PeriodEnd: 1700003600,
+		Amount: 1.5, Currency: "USD", Priced: true,
+	}).Error)
+	_, err := svc.GenerateInvoice(context.Background(), &billingv1.GenerateInvoiceRequest{
+		OrganizationId: "org-1", PeriodStart: 1700000000,
+	})
+	require.NoError(t, err)
+	// The event was published on webhook.events.
+	require.NoError(t, client.Subscribe(context.Background(), mq.DefaultSubjects().WebhookEvents, func(msg mq.Message) error {
+		assert.Equal(t, "org-1", msg.Headers["organization_id"])
+		assert.Equal(t, webhook.EventInvoiceCreated, msg.Headers["event_type"])
+		return nil
+	}))
+}
+
+// TestPayPaymentIntentPublishesWebhookEvent verifies the
+// billing.invoice_paid webhook event is published (feature #23, AD10).
+func TestPayPaymentIntentPublishesWebhookEvent(t *testing.T) {
+	svc := newPaymentTestService(t)
+	client := mq.NewFake()
+	svc.publisher = client
+	accID := seedPrepaidAccount(t, svc, "org-1", 1000)
+	resp, err := svc.CreatePaymentIntent(context.Background(), &billingv1.CreatePaymentIntentRequest{
+		AccountId: accID, AmountCents: 500, Channel: mockChannelID, IdempotencyKey: "k1",
+	})
+	require.NoError(t, err)
+	_, err = svc.PayPaymentIntent(context.Background(), &billingv1.PayPaymentIntentRequest{IntentId: resp.GetIntent().GetIntentId()})
+	require.NoError(t, err)
+	require.NoError(t, client.Subscribe(context.Background(), mq.DefaultSubjects().WebhookEvents, func(msg mq.Message) error {
+		assert.Equal(t, "org-1", msg.Headers["organization_id"])
+		assert.Equal(t, webhook.EventInvoicePaid, msg.Headers["event_type"])
+		return nil
+	}))
 }
 
 // TestAutoRechargeCandidates covers AC6: the runner finds prepaid

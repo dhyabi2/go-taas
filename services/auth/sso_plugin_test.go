@@ -24,10 +24,10 @@ func fakeOIDCServer(t *testing.T, sub, username, email string, groups []string) 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
 		claims := map[string]any{
-			"sub":              sub,
+			"sub":                sub,
 			"preferred_username": username,
-			"email":            email,
-			"groups":           groups,
+			"email":              email,
+			"groups":             groups,
 		}
 		payload, _ := json.Marshal(claims)
 		// A JWT-like token: header.payload.signature (signature ignored).
@@ -64,10 +64,10 @@ func TestOIDCPluginCallback(t *testing.T) {
 	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", []string{"admins"})
 	plugin := &OIDCPlugin{}
 	prov := &SSOProvider{
-		Issuer:      srv.URL,
-		ClientID:    "client-1",
-		ClientSecret: "secret",
-		RedirectURI: "https://console.example.com/callback",
+		Issuer:           srv.URL,
+		ClientID:         "client-1",
+		ClientSecret:     "secret",
+		RedirectURI:      "https://console.example.com/callback",
 		AttributeMapping: `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
 	}
 
@@ -110,12 +110,155 @@ func TestOIDCPluginCallback(t *testing.T) {
 	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
 }
 
+// TestOIDCPluginPasswordGrant verifies the OAuth2 resource-owner
+// password grant (feature-22): a valid username/password returns the
+// extracted identity; wrong credentials and a missing ID token fail.
+func TestOIDCPluginPasswordGrant(t *testing.T) {
+	srv := fakeOIDCServer(t, "sub-1", "alice", "alice@x.com", []string{"admins"})
+	plugin := &OIDCPlugin{}
+	prov := &SSOProvider{
+		Issuer:           srv.URL,
+		ClientID:         "client-1",
+		ClientSecret:     "secret",
+		AttributeMapping: `{"username":"preferred_username","email":"email","org":"groups","role":"groups"}`,
+	}
+
+	identity, err := plugin.PasswordGrant(context.Background(), prov, "alice", "pw")
+	require.NoError(t, err)
+	assert.Equal(t, srv.URL+":sub-1", identity.ExternalSubject)
+	assert.Equal(t, "alice", identity.Username)
+	assert.Equal(t, "alice@x.com", identity.Email)
+	assert.Equal(t, []string{"admins"}, identity.Claims["groups"])
+
+	// Missing issuer → 10028.
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{ClientID: "c"}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+
+	// IdP rejection → 10024.
+	badSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(badSrv.Close)
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{
+		Issuer: badSrv.URL, ClientID: "c", ClientSecret: "s",
+	}, "alice", "wrong")
+	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
+}
+
+// TestLDAPPluginPasswordBind verifies the directory bind (feature-22):
+// a valid username/password returns the identity by DN; wrong
+// credentials fail.
+func TestLDAPPluginPasswordBind(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/bind", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		if r.FormValue("username") == "alice" && r.FormValue("password") == "pw" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"dn": "cn=alice,dc=example,dc=com",
+				"attrs": map[string][]string{
+					"uid":  {"alice"},
+					"mail": {"alice@x.com"},
+				},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	plugin := &LDAPPlugin{}
+	prov := &SSOProvider{
+		Host:             srv.URL,
+		BaseDN:           "dc=example,dc=com",
+		UserFilter:       "(uid={{username}})",
+		AttributeMapping: `{"username":"uid","email":"mail"}`,
+	}
+
+	identity, err := plugin.PasswordGrant(context.Background(), prov, "alice", "pw")
+	require.NoError(t, err)
+	assert.Equal(t, "cn=alice,dc=example,dc=com", identity.ExternalSubject)
+	assert.Equal(t, "alice", identity.Username)
+
+	// Wrong credentials → 10024.
+	_, err = plugin.PasswordGrant(context.Background(), prov, "alice", "wrong")
+	assert.EqualValues(t, apierrors.CodeSSOAuthFailed, apierrors.CodeOf(err))
+
+	// Missing host → 10028.
+	_, err = plugin.PasswordGrant(context.Background(), &SSOProvider{}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+}
+
+// TestSAMLPluginPasswordGrant verifies a SAML provider cannot use the
+// password grant (feature-22 AD7): it returns CodeSSOProviderInvalid.
+func TestSAMLPluginPasswordGrant(t *testing.T) {
+	plugin := &SAMLPlugin{}
+	_, err := plugin.PasswordGrant(context.Background(), &SSOProvider{}, "a", "b")
+	assert.EqualValues(t, apierrors.CodeSSOProviderInvalid, apierrors.CodeOf(err))
+}
+
+// TestOIDCPluginDiscovery verifies the plugin resolves the authorize
+// and token endpoints via OIDC discovery (the Keycloak layout) instead
+// of the legacy {issuer}/authorize and {issuer}/token paths.
+func TestOIDCPluginDiscovery(t *testing.T) {
+	var baseURL string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"authorization_endpoint": baseURL + "/realms/go-taas/protocol/openid-connect/auth",
+			"token_endpoint":         baseURL + "/realms/go-taas/protocol/openid-connect/token",
+		})
+	})
+	mux.HandleFunc("/realms/go-taas/protocol/openid-connect/token", func(w http.ResponseWriter, _ *http.Request) {
+		claims := map[string]any{
+			"sub":                "sub-1",
+			"preferred_username": "alice",
+			"email":              "alice@x.com",
+		}
+		payload, _ := json.Marshal(claims)
+		header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+		body := base64.RawURLEncoding.EncodeToString(payload)
+		token := header + "." + body + ".sig"
+		_ = json.NewEncoder(w).Encode(map[string]any{"id_token": token})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	baseURL = srv.URL
+
+	plugin := &OIDCPlugin{}
+	prov := &SSOProvider{
+		Issuer:           srv.URL,
+		ClientID:         "go-taas-console",
+		ClientSecret:     "secret",
+		RedirectURI:      "http://localhost:9091/api/v1/auth/sso/keycloak/callback",
+		AttributeMapping: `{"username":"preferred_username","email":"email"}`,
+	}
+
+	// Authorize must use the discovered authorization endpoint, not
+	// {issuer}/authorize.
+	result, err := plugin.Authorize(context.Background(), prov)
+	require.NoError(t, err)
+	assert.Contains(t, result.RedirectURL, baseURL+"/realms/go-taas/protocol/openid-connect/auth")
+	assert.NotContains(t, result.RedirectURL, "/authorize")
+
+	// Callback must exchange at the discovered token endpoint.
+	state := newState()
+	signedState := state + "." + signState(state)
+	identity, err := plugin.Callback(context.Background(), prov, &authv1.SSOCallbackRequest{
+		Code:  "code-1",
+		State: signedState,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "alice", identity.Username)
+	assert.Equal(t, "alice@x.com", identity.Email)
+}
+
 func TestSAMLPluginAuthorizeAndCallback(t *testing.T) {
 	plugin := &SAMLPlugin{}
 	prov := &SSOProvider{
-		MetadataURL: "https://idp.example.com/saml",
-		EntityID:    "sp-entity",
-		ACSUrl:      "https://console.example.com/acs",
+		MetadataURL:      "https://idp.example.com/saml",
+		EntityID:         "sp-entity",
+		ACSUrl:           "https://console.example.com/acs",
 		AttributeMapping: `{"username":"uid","email":"mail","org":"groups","role":"groups"}`,
 	}
 

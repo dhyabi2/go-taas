@@ -21,6 +21,7 @@ import (
 
 	"github.com/go-taas/go-taas/pkg/config"
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/services/audit"
 )
 
 // ssoProviderIDRegex matches the provider id syntax.
@@ -310,6 +311,16 @@ func (s *Service) doSSOCallback(ctx context.Context, req *authv1.SSOCallbackRequ
 	}
 	identity, err := plugin.Callback(ctx, prov, req)
 	if err != nil {
+		// Feature #15: record the failed login best-effort (AC3).
+		s.recordAudit(ctx, &audit.AuditEvent{
+			OrganizationID: prov.DefaultOrg,
+			ActorUserID:    "system",
+			ActorType:      "system",
+			Action:         "auth.login",
+			ResourceType:   "session",
+			ResourceID:     req.GetProviderId(),
+			Result:         "failure",
+		})
 		return nil, err
 	}
 
@@ -349,6 +360,16 @@ func (s *Service) doSSOCallback(ctx context.Context, req *authv1.SSOCallbackRequ
 	if err := s.sessionStore.Create(ctx, sess, accessToken); err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful login best-effort (AC3).
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: activeOrg,
+		ActorUserID:    user.ID,
+		ActorType:      "user",
+		Action:         "auth.login",
+		ResourceType:   "session",
+		ResourceID:     sessionID,
+		Result:         "success",
+	})
 	return &authv1.SSOCallbackResponse{
 		Response:     okResponse(),
 		SessionToken: sessionID,
@@ -683,7 +704,20 @@ func (s *Service) resolveIdentity(ctx context.Context, repo *SSORepository, prov
 		Email:    identity.Email,
 	}
 	if err := repo.CreateUser(ctx, user); err != nil {
-		return nil, err
+		// A username that already exists (e.g. the compose seed created
+		// the admin user before the binding was resolvable, feature-22
+		// AD10) is bound to the existing user rather than failing: the
+		// identity is the same person, and the binding is created on the
+		// first successful login via JIT provisioning.
+		if apierrors.CodeOf(err) == apierrors.CodeUserExists {
+			existing, ferr := repo.FindUserByUsername(ctx, username)
+			if ferr != nil {
+				return nil, ferr
+			}
+			user = existing
+		} else {
+			return nil, err
+		}
 	}
 	binding = &IdentityBinding{
 		ID:              uuid.NewString(),

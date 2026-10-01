@@ -119,6 +119,45 @@ func TestParseConfigsModelAuthSectionDefault(t *testing.T) {
 	}
 }
 
+// TestParseConfigsBillingReportsSection proves the feature-25
+// billing.reports keys reach the loaded configuration: a key that is
+// absent from the shipped YAML is silently ignored by the env override,
+// so it must be parsed from a file as well.
+func TestParseConfigsBillingReportsSection(t *testing.T) {
+	path := writeTempConfig(t, `
+billing:
+  reports:
+    enabled: true
+    generatorInterval: 7s
+    scheduleInterval: 2m
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if !cfg.Billing.Reports.Enabled {
+		t.Fatal("billing.reports.enabled should be true")
+	}
+	if cfg.Billing.Reports.GeneratorInterval != 7*time.Second {
+		t.Fatalf("billing.reports.generatorInterval: %v", cfg.Billing.Reports.GeneratorInterval)
+	}
+	if cfg.Billing.Reports.ScheduleInterval != 2*time.Minute {
+		t.Fatalf("billing.reports.scheduleInterval: %v", cfg.Billing.Reports.ScheduleInterval)
+	}
+}
+
+// TestParseConfigsBillingReportsSectionDefault pins the feature-25
+// defaults: an omitted key gets 5s / 1m, not 0.
+func TestParseConfigsBillingReportsSectionDefault(t *testing.T) {
+	path := writeTempConfig(t, "log:\n  level: info\n")
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Billing.Reports.GeneratorInterval != 5*time.Second {
+		t.Fatalf("default billing.reports.generatorInterval: %v", cfg.Billing.Reports.GeneratorInterval)
+	}
+	if cfg.Billing.Reports.ScheduleInterval != time.Minute {
+		t.Fatalf("default billing.reports.scheduleInterval: %v", cfg.Billing.Reports.ScheduleInterval)
+	}
+}
+
 // TestShippedConfigModelAuth pins the shipped configuration file itself:
 // the key must be present with a valid, non-zero duration, because a
 // malformed value breaks config loading and a zero value silently falls
@@ -131,5 +170,105 @@ func TestShippedConfigModelAuth(t *testing.T) {
 	}
 	if cfg.Model.Auth.CacheTTL != 5*time.Second {
 		t.Fatalf("shipped model.auth.cacheTTL = %v, want 5s", cfg.Model.Auth.CacheTTL)
+	}
+}
+
+// TestParseConfigsHarborSection proves the Harbor keys reach the loaded
+// configuration: a key absent from the shipped YAML is silently ignored
+// by the env override, so it must be parsed from a file as well.
+func TestParseConfigsHarborSection(t *testing.T) {
+	path := writeTempConfig(t, `
+image:
+  harbor:
+    url: hub.example.com
+    username: admin
+    password: secret
+    project: taas
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Image.Harbor.URL != "hub.example.com" {
+		t.Fatalf("image.harbor.url: %q", cfg.Image.Harbor.URL)
+	}
+	if cfg.Image.Harbor.Username != "admin" {
+		t.Fatalf("image.harbor.username: %q", cfg.Image.Harbor.Username)
+	}
+	if cfg.Image.Harbor.Password != "secret" {
+		t.Fatalf("image.harbor.password: %q", cfg.Image.Harbor.Password)
+	}
+	if cfg.Image.Harbor.Project != "taas" {
+		t.Fatalf("image.harbor.project: %q", cfg.Image.Harbor.Project)
+	}
+}
+
+// TestParseConfigsHarborProjectDefault pins the default: an omitted
+// project gets "taas" so imported images always land in the platform's
+// own project.
+func TestParseConfigsHarborProjectDefault(t *testing.T) {
+	path := writeTempConfig(t, "log:\n  level: info\n")
+	ParseConfigs(path)
+	if got := GetConfig().Image.Harbor.Project; got != "taas" {
+		t.Fatalf("default image.harbor.project: %q", got)
+	}
+}
+
+// TestParseConfigsModelWeightsDir proves the model weightsDir key
+// reaches the loaded configuration.
+func TestParseConfigsModelWeightsDir(t *testing.T) {
+	path := writeTempConfig(t, `
+model:
+  weightsDir: /data/weights
+`)
+	ParseConfigs(path)
+	if got := GetConfig().Model.WeightsDir; got != "/data/weights" {
+		t.Fatalf("model.weightsDir: %q", got)
+	}
+}
+
+// TestParseConfigsControllerWeights pins the controller weights defaults
+// and the explicit overrides.
+func TestParseConfigsControllerWeights(t *testing.T) {
+	path := writeTempConfig(t, `
+controller:
+  weights:
+    storageClass: juicefs-taas-models
+    pvcName: model-weights
+    mountPath: /data/weights
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Controller.Weights.StorageClass != "juicefs-taas-models" {
+		t.Fatalf("controller.weights.storageClass: %q", cfg.Controller.Weights.StorageClass)
+	}
+	if cfg.Controller.Weights.PVCName != "model-weights" {
+		t.Fatalf("controller.weights.pvcName: %q", cfg.Controller.Weights.PVCName)
+	}
+	if cfg.Controller.Weights.MountPath != "/data/weights" {
+		t.Fatalf("controller.weights.mountPath: %q", cfg.Controller.Weights.MountPath)
+	}
+}
+
+// TestParseConfigsControllerWeightsDefaults pins the defaults for the
+// controller weights PVC name and mount path.
+func TestParseConfigsControllerWeightsDefaults(t *testing.T) {
+	path := writeTempConfig(t, "log:\n  level: info\n")
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg.Controller.Weights.PVCName != "model-weights" {
+		t.Fatalf("default controller.weights.pvcName: %q", cfg.Controller.Weights.PVCName)
+	}
+	if cfg.Controller.Weights.MountPath != "/data/weights" {
+		t.Fatalf("default controller.weights.mountPath: %q", cfg.Controller.Weights.MountPath)
+	}
+}
+
+// TestValidateControllerWeightsMountPath rejects a non-absolute mount
+// path.
+func TestValidateControllerWeightsMountPath(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	cfg.Controller.Weights.MountPath = "data/weights"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("non-absolute controller.weights.mountPath must fail validation")
 	}
 }

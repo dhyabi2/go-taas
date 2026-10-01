@@ -32,6 +32,11 @@ module.exports = {
     browser.url(browser.globals.baseUrl + '/');
     browser.globals.orgA = `org-e2e-${browser.globals.runId}`;
     api.ensureOrg(browser, browser.globals.orgA);
+    // Seed user- and admin-realm sessions so both the user and admin
+    // protected pages render (feature: unauthenticated pages redirect to
+    // login). The suite navigates to both surfaces.
+    api.seedSession(browser, 'user', browser.globals.orgA);
+    api.seedSession(browser, 'admin', browser.globals.orgA);
     // A unique provider id per run for isolation.
     browser.globals.providerId = `okta-${browser.globals.runId}`;
   },

@@ -44,6 +44,17 @@ service InferServiceService {
     };
   }
 
+  // UpdateInferenceServiceVersion changes a service's model_version in
+  // place, keeping the same service_id and endpoints. The service goes
+  // through deploying then back to running (feature #32, AD6).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc UpdateInferenceServiceVersion(UpdateInferenceServiceVersionRequest) returns (UpdateInferenceServiceVersionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/inference-services/{service_id}:update-version"
+      body: "*"
+    };
+  }
+
   // DeleteInferenceService tears an inference service down.
   // Admin-surface API: served under /api/v1/admin.
   rpc DeleteInferenceService(DeleteInferenceServiceRequest) returns (DeleteInferenceServiceResponse) {
@@ -73,6 +84,142 @@ service InferServiceService {
       body: "*"
     };
   }
+
+  // CompareModels runs the same prompt against multiple models and
+  // returns per-model completion, latency, token usage, and cost in a
+  // single call (feature #35, AD2). Each comparison call goes through
+  // the real metered path (AD3).
+  // User-surface API: served under /api/v1.
+  rpc CompareModels(CompareModelsRequest) returns (CompareModelsResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/playground/compare"
+      body: "*"
+    };
+  }
+
+  // GetInferenceEndpoint returns the tenant-facing inference base URL
+  // ("<inference-gateway>/v1") from server configuration. It is never
+  // a client constant. Requires no organization context; a missing
+  // configuration returns the standard internal error.
+  // User-surface API: served under /api/v1.
+  rpc GetInferenceEndpoint(GetInferenceEndpointRequest) returns (GetInferenceEndpointResponse) {
+    option (google.api.http) = {get: "/api/v1/inference-endpoint"};
+  }
+
+  // GetAutoscalingPolicy returns the global default autoscaling policy
+  // applied to new inference services (feature #16, FR1.4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetAutoscalingPolicy(GetAutoscalingPolicyRequest) returns (GetAutoscalingPolicyResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/autoscaling/policy"};
+  }
+
+  // UpdateAutoscalingPolicy saves the global default autoscaling policy.
+  // Synchronous (FR1.4); the policy is validated before any message is
+  // published (AD10).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc UpdateAutoscalingPolicy(UpdateAutoscalingPolicyRequest) returns (UpdateAutoscalingPolicyResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/autoscaling/policy"
+      body: "*"
+    };
+  }
+
+  // UpdateInferenceServiceAutoscaling edits a service's per-service
+  // autoscaling policy in place. Asynchronous via MQ (AD9): the update
+  // returns immediately and the service state reflects convergence.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc UpdateInferenceServiceAutoscaling(UpdateInferenceServiceAutoscalingRequest) returns (UpdateInferenceServiceAutoscalingResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/inference-services/{service_id}:autoscaling"
+      body: "*"
+    };
+  }
+
+  // CreateLoadTest configures and starts a load test against a running
+  // inference service. Returns immediately with state=pending; the run
+  // is executed asynchronously by the infer runner (feature #20, AD3).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc CreateLoadTest(CreateLoadTestRequest) returns (CreateLoadTestResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/load-tests"
+      body: "*"
+    };
+  }
+
+  // ListLoadTests returns the load-test history with service/status/
+  // model filters, service-name search, and pagination (feature #20).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListLoadTests(ListLoadTestsRequest) returns (ListLoadTestsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/load-tests"};
+  }
+
+  // GetLoadTest returns one load test: config, current state, live
+  // progress while running, and the full result set when completed.
+  // A missing id returns 10308 (feature #20).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetLoadTest(GetLoadTestRequest) returns (GetLoadTestResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/load-tests/{load_test_id}"};
+  }
+
+  // StopLoadTest stops a pending/running test; the state becomes
+  // stopped and partial results are retained. Wrong state returns 10310
+  // (feature #20).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc StopLoadTest(StopLoadTestRequest) returns (StopLoadTestResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/load-tests/{load_test_id}:stop"
+      body: "*"
+    };
+  }
+
+  // DeleteLoadTest deletes a completed/failed/stopped run. Deleting a
+  // running/pending run returns 10310 (feature #20).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc DeleteLoadTest(DeleteLoadTestRequest) returns (DeleteLoadTestResponse) {
+    option (google.api.http) = {delete: "/api/v1/admin/load-tests/{load_test_id}"};
+  }
+
+  // GetModelLoadTests returns the masked user-realm projection: the
+  // model's most recent completed load-test results, with no service
+  // ids and no operator internals (feature #20, AD2).
+  // User-surface API: served under /api/v1.
+  rpc GetModelLoadTests(GetModelLoadTestsRequest) returns (GetModelLoadTestsResponse) {
+    option (google.api.http) = {get: "/api/v1/models/{model_id}/load-tests"};
+  }
+
+  // ListServiceLogPods returns the service's pods/containers masked as
+  // replica indices (never raw pod names) (feature #33, AD3).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListServiceLogPods(ListServiceLogPodsRequest) returns (ListServiceLogPodsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/services/{service_id}/logs/pods"};
+  }
+
+  // GetServiceLogs returns a bounded window of log lines for a chosen
+  // pod/container, with tail/time/level filters and a next_offset cursor
+  // (feature #33, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetServiceLogs(GetServiceLogsRequest) returns (GetServiceLogsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/services/{service_id}/logs"};
+  }
+
+  // ListDeploymentEvents returns the deployment event trail, newest
+  // first, with field-level diffs, filtered by service/event type/actor/
+  // time range (feature #34, AD4).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc ListDeploymentEvents(ListDeploymentEventsRequest) returns (ListDeploymentEventsResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/deployments/events"};
+  }
+
+  // RollbackDeployment reverts a service to a selected historical state
+  // (the before of a chosen event), keeping the same service_id and
+  // endpoints (feature #34, AD5).
+  // Admin-surface API: served under /api/v1/admin.
+  rpc RollbackDeployment(RollbackDeploymentRequest) returns (RollbackDeploymentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/deployments/{service_id}:rollback"
+      body: "*"
+    };
+  }
 }
 
 message CreateInferenceServiceRequest {
@@ -85,11 +232,18 @@ message CreateInferenceServiceRequest {
   string accelerator = 6;
   // accelerator_type is the concrete card model requested.
   string accelerator_type = 7;
+  // autoscaling is the per-service autoscaling policy (feature #16,
+  // AD2). Empty means "inherit the global default".
+  AutoscalingPolicy autoscaling = 8;
 }
 
 message CreateInferenceServiceResponse {
   taas.common.v1.Response response = 1;
   string service_id = 2;
+  // warning is set when the deployed (model, engine, card_type)
+  // combination is experimental (feature #19, AD13): the deploy
+  // succeeds but the console renders a warning banner.
+  string warning = 3;
 }
 
 message ListInferenceServicesRequest {
@@ -113,6 +267,18 @@ message InferenceServiceSummary {
   // failed, terminated.
   string state = 7;
   int64 updated_at = 8;
+  // autoscaling_enabled is true when the service's effective policy has
+  // autoscaling on (feature #16, FR3.1).
+  bool autoscaling_enabled = 9;
+  // current_replicas is the observed replica count (feature #16).
+  int32 current_replicas = 10;
+  // min_replicas / max_replicas are the effective policy bounds
+  // (feature #16).
+  int32 min_replicas = 11;
+  int32 max_replicas = 12;
+  // autoscaling_state is the closed autoscaling state enum (feature #16,
+  // FR3.2).
+  AutoscalingState autoscaling_state = 13;
 }
 
 message GetInferenceServiceRequest {
@@ -123,6 +289,12 @@ message GetInferenceServiceResponse {
   taas.common.v1.Response response = 1;
   InferenceServiceSummary service = 2;
   repeated string endpoints = 3;
+  // autoscaling is the effective policy (resolved from the global
+  // default when the service stores {}), feature #16.
+  AutoscalingPolicy autoscaling = 4;
+  // autoscaling_status is the live autoscaling status block (feature
+  // #16, FR3.2).
+  AutoscalingStatus autoscaling_status = 5;
 }
 
 message ScaleInferenceServiceRequest {
@@ -132,6 +304,19 @@ message ScaleInferenceServiceRequest {
 
 message ScaleInferenceServiceResponse {
   taas.common.v1.Response response = 1;
+}
+
+// UpdateInferenceServiceVersion changes a service's model_version in
+// place (feature #32, AD6).
+message UpdateInferenceServiceVersionRequest {
+  string service_id = 1; // path
+  string model_version = 2;
+}
+
+message UpdateInferenceServiceVersionResponse {
+  taas.common.v1.Response response = 1;
+  string service_id = 2;
+  string state = 3; // deploying
 }
 
 message DeleteInferenceServiceRequest {
@@ -176,4 +361,321 @@ message PlaygroundModelResponse {
   int64 prompt_tokens = 4;
   int64 completion_tokens = 5;
   int64 latency_ms = 6;
+}
+
+// CompareModels runs the same prompt against multiple models (feature
+// #35, AD2).
+message CompareModelsRequest {
+  // model_ids is 2-5 models to compare.
+  repeated string model_ids = 1;
+  // api_key_id is the selected org API key identity.
+  string api_key_id = 2;
+  string prompt = 3;
+}
+
+message CompareModelResult {
+  string model_id = 1;
+  string model_name = 2;
+  string completion = 3;
+  int64 latency_ms = 4;
+  int64 input_tokens = 5;
+  int64 output_tokens = 6;
+  // cost is the metered cost of the prompt in integer cents.
+  int64 cost = 7;
+  // error is set when the model has no ready service or the inference
+  // failed; the comparison continues for the other models.
+  string error = 8;
+}
+
+message CompareModelsResponse {
+  taas.common.v1.Response response = 1;
+  repeated CompareModelResult results = 2;
+}
+
+message GetInferenceEndpointRequest {}
+
+message GetInferenceEndpointResponse {
+  taas.common.v1.Response response = 1;
+  // base_url is the OpenAI-compatible inference base URL, e.g.
+  // "https://infer.example.com/v1". The tenant appends
+  // "/chat/completions" to reach the completion endpoint.
+  string base_url = 2;
+}
+
+// AutoscalingPolicy is the six-field autoscaling policy (feature #16,
+// AD2). It is stored as a jsonb column on inference_services and as the
+// singleton global-default row.
+message AutoscalingPolicy {
+  bool enabled = 1;
+  int32 min_replicas = 2;
+  int32 max_replicas = 3;
+  int32 target_concurrency = 4;
+  bool scale_to_zero = 5;
+  int32 cooldown_seconds = 6;
+}
+
+// AutoscalingState is the closed enum the consoles render badges from
+// (feature #16, FR3.2).
+enum AutoscalingState {
+  AUTOSCALING_STATE_UNSPECIFIED = 0;
+  AUTOSCALING_STATE_DISABLED = 1;
+  AUTOSCALING_STATE_STEADY = 2;
+  AUTOSCALING_STATE_SCALING_UP = 3;
+  AUTOSCALING_STATE_SCALING_DOWN = 4;
+  AUTOSCALING_STATE_SCALED_TO_ZERO = 5;
+  AUTOSCALING_STATE_COLD_STARTING = 6;
+  AUTOSCALING_STATE_ERROR = 7;
+}
+
+// AutoscalingStatus is the live autoscaling status block reported by the
+// controller (feature #16, FR3.2). It is write-only by the controller and
+// read-only on the wire.
+message AutoscalingStatus {
+  AutoscalingState state = 1;
+  int32 current_replicas = 2;
+  int32 desired_replicas = 3;
+  int32 current_concurrency = 4;
+  int32 target_concurrency = 5;
+  int64 last_scaling_event_at = 6;
+  // error_reason is populated when state = ERROR (FR3.4).
+  string error_reason = 7;
+}
+
+message GetAutoscalingPolicyRequest {}
+
+message GetAutoscalingPolicyResponse {
+  taas.common.v1.Response response = 1;
+  AutoscalingPolicy policy = 2;
+}
+
+message UpdateAutoscalingPolicyRequest {
+  AutoscalingPolicy policy = 1;
+}
+
+message UpdateAutoscalingPolicyResponse {
+  taas.common.v1.Response response = 1;
+  AutoscalingPolicy policy = 2;
+}
+
+message UpdateInferenceServiceAutoscalingRequest {
+  string service_id = 1; // path
+  AutoscalingPolicy policy = 2;
+}
+
+message UpdateInferenceServiceAutoscalingResponse {
+  taas.common.v1.Response response = 1;
+  // fixed_replicas is the resulting fixed count when disabling
+  // autoscaling (FR2.5).
+  int32 fixed_replicas = 2;
+}
+
+message CreateLoadTestRequest {
+  string service_id = 1;
+  int32 concurrency = 2; // 1-1000, default 1
+  int32 duration_seconds = 3; // 5-3600, default 60
+  int32 request_rate = 4; // 0-10000, 0 = unlimited, default 0
+  string prompt_template = 5; // required, <= 4096 chars
+  int32 max_tokens = 6; // 1-8192, default 256
+}
+message CreateLoadTestResponse {
+  taas.common.v1.Response response = 1;
+  string load_test_id = 2;
+  string state = 3; // pending
+}
+
+message ListLoadTestsRequest {
+  taas.common.v1.PageRequest page = 1;
+  string service_id = 2;
+  string status = 3; // pending|running|completed|failed|stopped
+  string model_id = 4;
+  string search = 5; // service-name substring
+}
+message ListLoadTestsResponse {
+  taas.common.v1.Response response = 1;
+  repeated LoadTestSummary runs = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+message LoadTestSummary {
+  string load_test_id = 1;
+  string service_id = 2;
+  string service_name = 3;
+  string model_id = 4;
+  string model_name = 5;
+  int32 concurrency = 6;
+  int32 duration_seconds = 7;
+  int32 request_rate = 8;
+  string state = 9; // pending|running|completed|failed|stopped
+  int64 started_at = 10;
+  int64 completed_at = 11;
+  // Result summary, populated when completed.
+  double throughput_rps = 12;
+  double latency_p95_ms = 13;
+  double output_tokens_per_sec = 14;
+  double error_rate = 15;
+}
+
+message GetLoadTestRequest {
+  string load_test_id = 1; // path
+}
+message LoadTestProgress {
+  int64 requests_sent = 1;
+  int64 success_count = 2;
+  int64 failure_count = 3;
+  int64 elapsed_seconds = 4;
+}
+message LoadTestResult {
+  int64 total_requests = 1;
+  int64 success_count = 2;
+  int64 failure_count = 3;
+  double error_rate = 4;
+  double throughput_rps = 5;
+  double output_tokens_per_sec = 6;
+  int64 input_tokens = 7;
+  int64 output_tokens = 8;
+  double latency_p50_ms = 9;
+  double latency_p90_ms = 10;
+  double latency_p95_ms = 11;
+  double latency_p99_ms = 12;
+}
+message GetLoadTestResponse {
+  taas.common.v1.Response response = 1;
+  LoadTestSummary summary = 2;
+  string prompt_template = 3;
+  int32 max_tokens = 4;
+  LoadTestProgress progress = 5; // live while pending/running
+  LoadTestResult result = 6; // full when completed
+  string failure_reason = 7; // when failed
+}
+
+message StopLoadTestRequest {
+  string load_test_id = 1; // path
+}
+message StopLoadTestResponse {
+  taas.common.v1.Response response = 1;
+  string state = 2; // stopped
+}
+
+message DeleteLoadTestRequest {
+  string load_test_id = 1; // path
+}
+message DeleteLoadTestResponse {
+  taas.common.v1.Response response = 1;
+}
+
+message GetModelLoadTestsRequest {
+  string model_id = 1; // path
+}
+message ModelLoadTestResult {
+  double throughput_rps = 1;
+  double latency_p95_ms = 2;
+  double output_tokens_per_sec = 3;
+  double error_rate = 4;
+  int32 concurrency = 5;
+  int32 duration_seconds = 6;
+  int64 completed_at = 7;
+}
+message GetModelLoadTestsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ModelLoadTestResult results = 2; // most recent completed first
+}
+
+// ListServiceLogPods returns the service's pods/containers masked as
+// replica indices (feature #33, AD3).
+message ListServiceLogPodsRequest {
+  string service_id = 1; // path
+}
+
+message ServiceLogPod {
+  // replica_index is the masked replica index, e.g. "replica-1".
+  string replica_index = 1;
+  // container is the container name.
+  string container = 2;
+  // state is the pod's phase (Running, Pending, etc.).
+  string state = 3;
+}
+
+message ListServiceLogPodsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ServiceLogPod pods = 2;
+}
+
+// GetServiceLogs returns a bounded window of log lines for a chosen
+// pod/container (feature #33, AD4).
+message GetServiceLogsRequest {
+  string service_id = 1; // path
+  // pod is the replica index (e.g. "replica-1").
+  string pod = 2;
+  // container is optional; when empty the first container is used.
+  string container = 3;
+  // tail is the number of most-recent lines, default 500, max 5000.
+  int32 tail = 4;
+  // since is an RFC3339 time; optional.
+  string since = 5;
+  // level is best-effort: error / warn / info / debug.
+  string level = 6;
+  // next_offset is the cursor for "load more"; empty on the first call.
+  string next_offset = 7;
+}
+
+message ServiceLogLine {
+  int64 timestamp = 1;
+  // level is best-effort, empty when not detected.
+  string level = 2;
+  string message = 3;
+}
+
+message GetServiceLogsResponse {
+  taas.common.v1.Response response = 1;
+  repeated ServiceLogLine lines = 2;
+  // next_offset is the cursor for the next older window.
+  string next_offset = 3;
+  bool has_more = 4;
+}
+
+// ListDeploymentEvents returns the deployment event trail (feature #34,
+// AD4).
+message ListDeploymentEventsRequest {
+  // service_id is optional; when empty the trail spans all services.
+  string service_id = 1;
+  // event_type is optional: create / update / scale / rollback / delete.
+  string event_type = 2;
+  // actor is optional.
+  string actor = 3;
+  // since / until are unix seconds; optional.
+  int64 since = 4;
+  int64 until = 5;
+  taas.common.v1.PageRequest page = 6;
+}
+
+message DeploymentEvent {
+  string event_id = 1;
+  string service_id = 2;
+  string service_name = 3;
+  string event_type = 4;
+  string actor = 5;
+  // before / after are the field-level diff (mutable spec fields).
+  string before = 6;
+  string after = 7;
+  int64 created_at = 8;
+}
+
+message ListDeploymentEventsResponse {
+  taas.common.v1.Response response = 1;
+  repeated DeploymentEvent events = 2;
+  taas.common.v1.PageMeta page_meta = 3;
+}
+
+// RollbackDeployment reverts a service to a selected historical state
+// (feature #34, AD5).
+message RollbackDeploymentRequest {
+  string service_id = 1; // path
+  // event_id is the event whose before is the rollback target.
+  string event_id = 2;
+}
+
+message RollbackDeploymentResponse {
+  taas.common.v1.Response response = 1;
+  string service_id = 2;
+  string state = 3; // deploying
 }

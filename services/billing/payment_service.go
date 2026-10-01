@@ -11,6 +11,7 @@ import (
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // paymentRepository lazily wires and returns the payment repository.
@@ -200,6 +201,21 @@ func (s *Service) PayPaymentIntent(ctx context.Context, req *billingv1.PayPaymen
 	if err != nil {
 		return nil, err
 	}
+	// Feature #23 (AD10): publish the billing.invoice_paid webhook event
+	// best-effort.
+	s.publishWebhookEvent(ctx, account.OrganizationID, webhook.EventInvoicePaid, "pay-"+intent.ID,
+		map[string]any{
+			"intent_id":       intent.ID,
+			"organization_id": account.OrganizationID,
+			"amount_cents":    intent.AmountCents,
+		})
+	// Feature #26 (AD9): publish the same event to notification.events.
+	s.publishNotificationEvent(ctx, account.OrganizationID, webhook.EventInvoicePaid, "pay-"+intent.ID,
+		map[string]any{
+			"intent_id":       intent.ID,
+			"organization_id": account.OrganizationID,
+			"amount_cents":    intent.AmountCents,
+		})
 	return &billingv1.PayPaymentIntentResponse{Response: okResponse(), Intent: summarizeIntent(paid)}, nil
 }
 

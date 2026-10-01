@@ -90,6 +90,22 @@ const (
 	CodeImageWarmupFailed     Code = 10205 // IMAGE_WARMUP_FAILED
 	CodeImageInUse            Code = 10206 // IMAGE_IN_USE
 	CodeImageReferenceInvalid Code = 10207 // IMAGE_REFERENCE_INVALID
+	// CodeAcceleratorNodeNotFound is returned by the accelerator
+	// inventory when a node id is absent from the projection cache
+	// (feature #18, AD6). It lives in the image block because the
+	// accelerator inventory is the node/card-type inventory the image
+	// module defers to.
+	CodeAcceleratorNodeNotFound Code = 10208 // ACCELERATOR_NODE_NOT_FOUND
+
+	// Compatibility matrix error codes (feature #19, AD8). They live in
+	// the image block because the matrix is owned by the image module.
+	CodeCompatibilityCellNotFound     Code = 10209 // COMPATIBILITY_CELL_NOT_FOUND
+	CodeCompatibilityStatusInvalid    Code = 10210 // COMPATIBILITY_STATUS_INVALID
+	CodeCompatibilityDimensionInvalid Code = 10211 // COMPATIBILITY_DIMENSION_INVALID
+	// CodeCompatibilityUnsupported is returned by the infer deploy-time
+	// enforcement when a (model, engine, card_type) combination is
+	// unsupported (feature #19, AD13).
+	CodeCompatibilityUnsupported Code = 10212 // COMPATIBILITY_UNSUPPORTED
 )
 
 // infer module error codes.
@@ -100,6 +116,13 @@ const (
 	CodeInferEndpointNotFound    Code = 10304 // INFER_ENDPOINT_NOT_FOUND
 	CodeInferReplicasInvalid     Code = 10305 // INFER_REPLICAS_INVALID
 	CodeInferEngineUnsupported   Code = 10306 // INFER_ENGINE_UNSUPPORTED
+	CodeAutoscalingPolicyInvalid Code = 10307 // AUTOSCALING_POLICY_INVALID
+
+	// Load-testing error codes (feature #20, AD8).
+	CodeLoadTestNotFound      Code = 10308 // LOAD_TEST_NOT_FOUND
+	CodeLoadTestConfigInvalid Code = 10309 // LOAD_TEST_CONFIG_INVALID
+	CodeLoadTestStateInvalid  Code = 10310 // LOAD_TEST_STATE_INVALID
+	CodeLoadTestTargetInvalid Code = 10311 // LOAD_TEST_TARGET_INVALID
 )
 
 // metering module error codes.
@@ -113,18 +136,126 @@ const (
 
 // billing module error codes.
 const (
-	CodePriceNotFound       Code = 10501 // PRICE_NOT_FOUND
-	CodeInsufficientFunds   Code = 10502 // INSUFFICIENT_FUNDS
-	CodeAccountNotFound     Code = 10503 // ACCOUNT_NOT_FOUND
-	CodeBillNotFound        Code = 10504 // BILL_NOT_FOUND
-	CodeSettlementFailed    Code = 10505 // SETTLEMENT_FAILED
-	CodeHoldFailed          Code = 10506 // HOLD_FAILED
-	CodePriceInvalid        Code = 10507 // PRICE_INVALID
-	CodeBillingRangeInvalid Code = 10508 // BILLING_RANGE_INVALID
-	CodeAccountInvalid      Code = 10509 // ACCOUNT_INVALID
-	CodeTransactionInvalid  Code = 10510 // TRANSACTION_INVALID
+	CodePriceNotFound         Code = 10501 // PRICE_NOT_FOUND
+	CodeInsufficientFunds     Code = 10502 // INSUFFICIENT_FUNDS
+	CodeAccountNotFound       Code = 10503 // ACCOUNT_NOT_FOUND
+	CodeBillNotFound          Code = 10504 // BILL_NOT_FOUND
+	CodeSettlementFailed      Code = 10505 // SETTLEMENT_FAILED
+	CodeHoldFailed            Code = 10506 // HOLD_FAILED
+	CodePriceInvalid          Code = 10507 // PRICE_INVALID
+	CodeBillingRangeInvalid   Code = 10508 // BILLING_RANGE_INVALID
+	CodeAccountInvalid        Code = 10509 // ACCOUNT_INVALID
+	CodeTransactionInvalid    Code = 10510 // TRANSACTION_INVALID
 	CodePaymentChannelInvalid Code = 10511 // PAYMENT_CHANNEL_INVALID
 	CodePaymentIntentInvalid  Code = 10512 // PAYMENT_INTENT_INVALID
 	CodeInvoiceNotFound       Code = 10513 // INVOICE_NOT_FOUND
 	CodeAutoRechargeInvalid   Code = 10514 // AUTO_RECHARGE_INVALID
+)
+
+// audit module error codes.
+const (
+	CodeAuditEventNotFound Code = 10601 // AUDIT_EVENT_NOT_FOUND
+	CodeAuditExportInvalid Code = 10602 // AUDIT_EXPORT_INVALID
+	CodeAuditRangeInvalid  Code = 10603 // AUDIT_RANGE_INVALID
+)
+
+// webhook module error codes (feature #23, AD2).
+const (
+	CodeWebhookNotFound         Code = 10701 // WEBHOOK_NOT_FOUND
+	CodeWebhookConfigInvalid    Code = 10702 // WEBHOOK_CONFIG_INVALID
+	CodeWebhookStateInvalid     Code = 10703 // WEBHOOK_STATE_INVALID
+	CodeWebhookDeliveryNotFound Code = 10704 // WEBHOOK_DELIVERY_NOT_FOUND
+	CodeWebhookEventTypeInvalid Code = 10705 // WEBHOOK_EVENT_TYPE_INVALID
+)
+
+// observability module error codes (feature #24, AD2). The block is
+// 10801-10899, the next free block after webhook's 107xx.
+const (
+	CodeObservabilityModelNotFound Code = 10801 // OBSERVABILITY_MODEL_NOT_FOUND
+)
+
+// billing-reports module error codes (feature-25, AD7). The block is
+// 10901-10999, the next free block after observability's 108xx.
+const (
+	CodeReportNotFound           Code = 10901 // REPORT_NOT_FOUND
+	CodeScheduleNotFound         Code = 10902 // SCHEDULE_NOT_FOUND
+	CodeReportInvalidDimension   Code = 10903 // REPORT_INVALID_DIMENSION
+	CodeReportInvalidGranularity Code = 10904 // REPORT_INVALID_GRANULARITY
+	CodeReportInvalidFrequency   Code = 10905 // REPORT_INVALID_FREQUENCY
+	CodeReportNameConflict       Code = 10906 // REPORT_NAME_CONFLICT
+	CodeReportNotReady           Code = 10907 // REPORT_NOT_READY
+)
+
+// notification module error codes (feature #26, AD2). The block is
+// 11001-11099, the next free block after billing-reports' 109xx.
+const (
+	CodeNotificationNotFound           Code = 11001 // NOTIFICATION_NOT_FOUND
+	CodeNotificationPreferencesInvalid Code = 11002 // NOTIFICATION_PREFERENCES_INVALID
+	CodeNotificationThresholdNotFound  Code = 11003 // NOTIFICATION_THRESHOLD_NOT_FOUND
+	CodeNotificationThresholdInvalid   Code = 11004 // NOTIFICATION_THRESHOLD_INVALID
+	CodeNotificationEventTypeInvalid   Code = 11005 // NOTIFICATION_EVENT_TYPE_INVALID
+)
+
+// tracing module error codes (feature #27, AD2). The block is
+// 11101-11199, the next free block after notification's 110xx.
+const (
+	CodeTraceNotFound Code = 11101 // TRACE_NOT_FOUND
+)
+
+// usage-keys module error codes (feature #28, AD2). The block is
+// 11201-11299, the next free block after tracing's 111xx.
+const (
+	CodeUsageKeyNotFound Code = 11201 // USAGE_KEY_NOT_FOUND
+)
+
+// cost module error codes (feature #29, AD2). The block is
+// 11301-11399, the next free block after usage-keys' 112xx.
+const (
+	CodeCostDimensionInvalid       Code = 11301 // COST_DIMENSION_INVALID
+	CodeCostDimensionValueNotFound Code = 11302 // COST_DIMENSION_VALUE_NOT_FOUND
+)
+
+// status module error codes (feature #30, AD7). The block is
+// 11401-11499, the next free block after cost's 113xx.
+const (
+	CodeStatusComponentNotFound Code = 11401 // STATUS_COMPONENT_NOT_FOUND
+)
+
+// error-analysis module error codes (feature #31, AD2). The block is
+// 11501-11599, the next free block after status' 114xx.
+const (
+	CodeErrorCauseNotFound Code = 11501 // ERROR_CAUSE_NOT_FOUND
+)
+
+// model-versioning module error codes (feature #32, AD8). The block is
+// 11601-11699, the next free block after error-analysis' 115xx. The
+// feature reuses the existing model/infer codes (10101/10102/10103/
+// 10301/10303) for every failure mode the design names; this block is
+// reserved for any future model-versioning-specific code.
+const (
+	CodeModelVersionInvalid Code = 11601 // MODEL_VERSION_INVALID
+)
+
+// service-logs module error codes (feature #33, AD2). The block is
+// 11701-11799, the next free block after model-versioning's 116xx.
+const (
+	CodeServiceLogsInvalid Code = 11701 // SERVICE_LOGS_INVALID
+)
+
+// deployment-history module error codes (feature #34, AD2). The block is
+// 11801-11899, the next free block after service-logs' 117xx.
+const (
+	CodeDeploymentEventNotFound Code = 11801 // DEPLOYMENT_EVENT_NOT_FOUND
+)
+
+// playground-comparison module error codes (feature #35, AD2). The block
+// is 11901-11999, the next free block after deployment-history's 118xx.
+const (
+	CodePlaygroundCompareInvalid Code = 11901 // PLAYGROUND_COMPARE_INVALID
+)
+
+// usage-cost-forecasting module error codes (feature #36, AD2). The block
+// is 12001-12099, the next free block after playground-comparison's 119xx.
+const (
+	CodeForecastInvalid Code = 12001 // FORECAST_INVALID
 )

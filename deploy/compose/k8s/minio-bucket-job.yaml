@@ -1,0 +1,39 @@
+# Creates the MinIO bucket that backs the JuiceFS model-weights
+# filesystem. Runs once as a Job; the bucket name and MinIO endpoint are
+# templated from the .env file by deploy/compose/scripts/cluster-up.sh.
+#
+# The mc image is pulled from the internal Harbor (library/mc), which the
+# cluster can reach. The MinIO endpoint is the in-cluster service
+# (minio-api.yunzhi:9000) so the Job does not depend on host networking.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taas-minio-bucket
+  namespace: yunzhi
+  labels:
+    app.kubernetes.io/part-of: go-taas
+    go-taas.github.io/role: model-weights
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mc
+          image: hub.sudoinfotech.com/library/mc:RELEASE.2025-08-13T08-35-41Z
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mc alias set local http://minio-api.yunzhi:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+              mc mb --ignore-existing local/${MINIO_BUCKET}
+              echo "bucket ${MINIO_BUCKET} ready"
+          env:
+            - name: MINIO_ACCESS_KEY
+              value: ${MINIO_ACCESS_KEY}
+            - name: MINIO_SECRET_KEY
+              value: ${MINIO_SECRET_KEY}
+            - name: MINIO_BUCKET
+              value: ${MINIO_BUCKET}

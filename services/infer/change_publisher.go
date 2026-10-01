@@ -13,6 +13,14 @@ import (
 const (
 	EventTypeUpsert = "upsert"
 	EventTypeDelete = "delete"
+	// EventTypeUpdateVersion is the in-place version-change event
+	// (feature #32, AD6). The controller recreates the pods with the new
+	// weights while keeping the service identity and endpoints.
+	EventTypeUpdateVersion = "update_version"
+	// EventTypeRollback is the deployment rollback event (feature #34,
+	// AD5). The controller applies the previous desired state while
+	// keeping the service identity and endpoints.
+	EventTypeRollback = "rollback"
 )
 
 // changeEventModel is the resolved model spec inside a change event. The
@@ -42,7 +50,11 @@ type changeEvent struct {
 	Replicas        int              `json:"replicas"`
 	Accelerator     string           `json:"accelerator"`
 	AcceleratorType string           `json:"accelerator_type"`
-	PublishedAt     time.Time        `json:"published_at"`
+	// Autoscaling is the effective autoscaling policy (feature #16,
+	// §6.1). Nil when autoscaling is not configured (the controller
+	// treats it as disabled).
+	Autoscaling *AutoscalingPolicy `json:"autoscaling,omitempty"`
+	PublishedAt time.Time          `json:"published_at"`
 }
 
 // buildChangeEvent composes the change event for a service row with its

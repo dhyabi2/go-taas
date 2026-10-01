@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-taas/go-taas/pkg/config"
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
+	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/webhook"
 )
 
 // Account field limits (architecture Section 5.1).
@@ -46,7 +48,7 @@ func validateAccountFields(mode string, quotaCents int64, policy string) error {
 // CreateAccount creates the org's single billing account; an optional
 // opening balance is credited as a recharge transaction (AC1).
 func (s *Service) CreateAccount(ctx context.Context, req *billingv1.CreateAccountRequest) (*billingv1.CreateAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -89,12 +91,22 @@ func (s *Service) CreateAccount(ctx context.Context, req *billingv1.CreateAccoun
 	if err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful account creation best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    orgID,
+		ActorType:      "user",
+		Action:         "billing.account.create",
+		ResourceType:   "account",
+		ResourceID:     created.ID,
+		Result:         "success",
+	})
 	return &billingv1.CreateAccountResponse{Response: okResponse(), Account: summarizeAccount(created)}, nil
 }
 
 // ListAccounts returns the header org's accounts (0..1 rows, AC10).
 func (s *Service) ListAccounts(ctx context.Context, req *billingv1.ListAccountsRequest) (*billingv1.ListAccountsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +149,7 @@ func (s *Service) resolveAccountInOrg(ctx context.Context, repo *AccountReposito
 // GetAccount returns one account with computed remaining funds and
 // quota usage.
 func (s *Service) GetAccount(ctx context.Context, req *billingv1.GetAccountRequest) (*billingv1.GetAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +170,7 @@ func (s *Service) GetAccount(ctx context.Context, req *billingv1.GetAccountReque
 // UpdateAccount replaces mode, quota and overdraw policy (AD12);
 // balance/usage fields are never settable here.
 func (s *Service) UpdateAccount(ctx context.Context, req *billingv1.UpdateAccountRequest) (*billingv1.UpdateAccountResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -184,6 +196,16 @@ func (s *Service) UpdateAccount(ctx context.Context, req *billingv1.UpdateAccoun
 	if err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful account update best-effort.
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    orgID,
+		ActorType:      "user",
+		Action:         "billing.account.update",
+		ResourceType:   "account",
+		ResourceID:     updated.ID,
+		Result:         "success",
+	})
 	return &billingv1.UpdateAccountResponse{Response: okResponse(), Account: summarizeAccount(updated)}, nil
 }
 
@@ -228,7 +250,7 @@ func (s *Service) Refund(ctx context.Context, req *billingv1.RefundRequest) (*bi
 // moneyTx implements Recharge and Refund: validation, the idempotent
 // ledger write, and the version-guarded balance update.
 func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int64, idempotencyKey, note, txType string) (*billingv1.RechargeResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +272,39 @@ func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int
 	if err != nil {
 		return nil, err
 	}
+	// Feature #15: record the successful recharge/refund best-effort.
+	action := "billing.recharge"
+	if txType == TransactionTypeRefund {
+		action = "billing.refund"
+	}
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    orgID,
+		ActorType:      "user",
+		Action:         action,
+		ResourceType:   "account",
+		ResourceID:     accountID,
+		Result:         "success",
+	})
+	// Feature #23 (AD10): publish the billing.balance_low webhook event
+	// best-effort when the balance is below a low threshold (e.g. one
+	// recharge unit). A publish failure is logged and never fails the
+	// mutation.
+	if updated.BalanceCents < 10000 {
+		s.publishWebhookEvent(ctx, orgID, webhook.EventBalanceLow, "bal-"+accountID,
+			map[string]any{
+				"account_id":      accountID,
+				"organization_id": orgID,
+				"balance_cents":   updated.BalanceCents,
+			})
+		// Feature #26 (AD9): publish the same event to notification.events.
+		s.publishNotificationEvent(ctx, orgID, webhook.EventBalanceLow, "bal-"+accountID,
+			map[string]any{
+				"account_id":      accountID,
+				"organization_id": orgID,
+				"balance_cents":   updated.BalanceCents,
+			})
+	}
 	return &billingv1.RechargeResponse{
 		Response:    okResponse(),
 		Account:     summarizeAccount(updated),
@@ -260,7 +315,7 @@ func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int
 // ListTransactions returns the ledger filtered by account, type and
 // time range, paginated newest-first (FR6, AC9).
 func (s *Service) ListTransactions(ctx context.Context, req *billingv1.ListTransactionsRequest) (*billingv1.ListTransactionsResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrg(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -333,6 +388,18 @@ func (s *Service) CheckFunds(ctx context.Context, req *billingv1.CheckFundsReque
 		return &billingv1.CheckFundsResponse{Response: okResponse(), Allowed: true, Mode: ""}, nil
 	}
 	allowed, reason := fundsAllowed(account)
+	// Feature #26 (AD9): publish the billing.spend_limit_breached
+	// notification event best-effort when the cross-mode spend limit is
+	// reached. A publish failure is logged and never fails the check.
+	if !allowed && account.MonthlySpendLimitCents > 0 && account.SpentThisCycleCents >= account.MonthlySpendLimitCents {
+		s.publishNotificationEvent(ctx, orgID, webhook.EventSpendLimitBreached, "spend-"+account.ID,
+			map[string]any{
+				"account_id":      account.ID,
+				"organization_id": orgID,
+				"spent_cents":     account.SpentThisCycleCents,
+				"limit_cents":     account.MonthlySpendLimitCents,
+			})
+	}
 	return &billingv1.CheckFundsResponse{
 		Response:               okResponse(),
 		Allowed:                allowed,

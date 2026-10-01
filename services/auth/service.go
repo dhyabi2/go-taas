@@ -24,6 +24,7 @@ import (
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/tenancy"
 )
 
@@ -87,6 +88,26 @@ type Service struct {
 	// pluginFactory builds the IdP plugin for a provider type. It is
 	// the injection point for tests to substitute a fake plugin.
 	pluginFactory func(string) (IDPPlugin, error)
+
+	// auditRecorder is the best-effort audit recorder (feature #15,
+	// AD3). Nil until wired: no audit events are produced. Mutating
+	// RPCs call it after the mutation succeeds and ignore its failure.
+	auditRecorder AuditRecorder
+
+	// systemCredential is the plaintext synthetic platform credential
+	// held in memory for the load-test runner (feature #20, AD11). It
+	// is seeded by Migrate and never persisted; empty means "not
+	// seeded" and GetSystemCredential fails closed.
+	systemCredential string
+}
+
+// AuditRecorder is the best-effort, non-fatal audit recorder seam
+// (feature #15, AD3). It is implemented by the audit module and injected
+// at wiring time. A failure is logged and never fails the mutation.
+type AuditRecorder interface {
+	// Record writes one audit event best-effort; it never returns an
+	// error.
+	Record(ctx context.Context, ev *audit.AuditEvent)
 }
 
 // New constructs the auth service. The repository and cache are wired
@@ -148,7 +169,17 @@ func (s *Service) Migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return db.WithContext(ctx).AutoMigrate(&APIKey{}, &SSOProvider{}, &IdentityBinding{}, &User{})
+	if err := db.WithContext(ctx).AutoMigrate(&APIKey{}, &SSOProvider{}, &IdentityBinding{}, &User{}); err != nil {
+		return err
+	}
+	// Feature #20 (AD11): seed the synthetic platform credential used by
+	// the load-test runner. The plaintext stays in memory only.
+	if err := s.seedSystemCredential(ctx, NewAPIKeyRepository(db)); err != nil {
+		return err
+	}
+	// Feature-22 (AD6/AD10): seed the compose Keycloak provider, the
+	// admin user, and the admin user's identity binding idempotently.
+	return s.seedComposeProviderAndAdmin(ctx)
 }
 
 // gormDB resolves the *gorm.DB from the wired repository or the shared
@@ -263,6 +294,11 @@ func (s *Service) SetSessionStore(st *SessionStore) { s.sessionStore = st }
 // it nil so session derivation falls back to IdP claims.
 func (s *Service) SetMembershipResolver(r *tenancy.MembershipResolver) { s.membershipResolver = r }
 
+// SetAuditRecorder injects the best-effort audit recorder (feature #15,
+// AD3). Production and FVT wire it; unit tests leave it nil so no audit
+// events are produced.
+func (s *Service) SetAuditRecorder(r AuditRecorder) { s.auditRecorder = r }
+
 // CreateSessionForTest creates a session in the store directly. It is
 // used by FVT to seed a session without going through the SSO flow.
 func (s *Service) CreateSessionForTest(ctx context.Context, sess *Session, accessToken string) error {
@@ -286,7 +322,7 @@ func (s *Service) checkOrg(ctx context.Context, orgID string, requireActive bool
 
 // ListAPIKeys returns the API keys of the caller's organization.
 func (s *Service) ListAPIKeys(ctx context.Context, req *authv1.ListAPIKeysRequest) (*authv1.ListAPIKeysResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -368,7 +404,7 @@ func summarizeAPIKey(row *APIKey) *authv1.APIKeySummary {
 // CreateAPIKey issues a new API key. The plaintext key is returned
 // exactly once; only its salted hash is stored.
 func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequest) (*authv1.CreateAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -444,7 +480,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, req *authv1.CreateAPIKeyRequ
 // RevokeAPIKey revokes an API key. Revocation takes effect after the
 // gateway-side cache TTL expires.
 func (s *Service) RevokeAPIKey(ctx context.Context, req *authv1.RevokeAPIKeyRequest) (*authv1.RevokeAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -478,14 +514,34 @@ func (s *Service) RevokeAPIKey(ctx context.Context, req *authv1.RevokeAPIKeyRequ
 		logger.S().Warnw("auth: verdict cache unavailable during revoke", "err", err)
 	}
 
+	// Feature #15: record the successful revoke best-effort (AC1/AC3).
+	s.recordAudit(ctx, &audit.AuditEvent{
+		OrganizationID: orgID,
+		ActorUserID:    "system",
+		ActorType:      "system",
+		Action:         "api_key.revoke",
+		ResourceType:   "api_key",
+		ResourceID:     req.GetKeyId(),
+		Result:         "success",
+	})
+
 	return &authv1.RevokeAPIKeyResponse{Response: okResponse()}, nil
+}
+
+// recordAudit writes one audit event best-effort (feature #15, AD3). A
+// recorder failure is logged and never fails or rolls back the mutation.
+func (s *Service) recordAudit(ctx context.Context, ev *audit.AuditEvent) {
+	if s.auditRecorder == nil {
+		return
+	}
+	s.auditRecorder.Record(ctx, ev)
 }
 
 // UpdateAPIKey edits a key's name, expiry and rate limits post-creation
 // (feature #11, AD4). It never returns the plaintext and never changes
 // the secret.
 func (s *Service) UpdateAPIKey(ctx context.Context, req *authv1.UpdateAPIKeyRequest) (*authv1.UpdateAPIKeyResponse, error) {
-	orgID, err := resolveOrganizationID(ctx)
+	orgID, err := s.resolveOrgContext(ctx)
 	if err != nil {
 		return nil, err
 	}

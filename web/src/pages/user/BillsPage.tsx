@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { formatTime, type BillSummary } from '../../api';
 
 export default function BillsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [bills, setBills] = useState<BillSummary[]>([]);
   const [error, setError] = useState('');
 
@@ -16,22 +18,22 @@ export default function BillsPage() {
     api
       .get<{ bills?: BillSummary[] }>('/api/v1/billing/bills?page.limit=100', orgId)
       .then((data) => setBills(data.bills || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load bills'));
-  }, [api, orgId]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('ubills.loadFailed')));
+  }, [api, orgId, t]);
 
   return (
     <div className="page">
-      <h1>Bills</h1>
+      <h1>{t('ubills.title')}</h1>
       {error && <div className="error">{error}</div>}
       {bills.length === 0 ? (
-        <div className="empty" data-testid="bills-empty">No bills.</div>
+        <div className="empty" data-testid="bills-empty">{t('ubills.empty')}</div>
       ) : (
         <table className="table" data-testid="bills-table">
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Amount</th>
-              <th>Charges</th>
+              <th>{t('ubills.colPeriod')}</th>
+              <th>{t('ubills.colAmount')}</th>
+              <th>{t('ubills.colCharges')}</th>
             </tr>
           </thead>
           <tbody>

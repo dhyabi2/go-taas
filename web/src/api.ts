@@ -183,6 +183,10 @@ export interface AvailableModel {
   modelId: string;
   name: string;
   latestVersion: string;
+  // Feature #16 read-only autoscaling projection.
+  autoscaling?: ModelAutoscaling;
+  // Feature #19 masked compatibility summary (e.g. "vLLM · A800, H800").
+  compatibility?: string;
 }
 
 export interface InferenceServiceSummary {
@@ -194,6 +198,63 @@ export interface InferenceServiceSummary {
   replicas: number;
   state: string;
   updatedAt: string;
+  // Feature #16 autoscaling summary fields.
+  autoscalingEnabled?: boolean;
+  currentReplicas?: number;
+  minReplicas?: number;
+  maxReplicas?: number;
+  autoscalingState?: string;
+}
+
+// ---- inference autoscaling (feature #16) ----
+
+export interface AutoscalingPolicy {
+  enabled: boolean;
+  minReplicas: number;
+  maxReplicas: number;
+  targetConcurrency: number;
+  scaleToZero: boolean;
+  cooldownSeconds: number;
+}
+
+export interface AutoscalingStatus {
+  state: string;
+  currentReplicas: number;
+  desiredReplicas: number;
+  currentConcurrency: number;
+  targetConcurrency: number;
+  lastScalingEventAt: string;
+  errorReason?: string;
+}
+
+export interface GetAutoscalingPolicyResponse {
+  response: { code: number; message: string };
+  policy?: AutoscalingPolicy;
+}
+
+export interface GetInferenceServiceResponse {
+  response: { code: number; message: string };
+  service: InferenceServiceSummary & { accelerator?: string; acceleratorType?: string };
+  endpoints: string[];
+  autoscaling?: AutoscalingPolicy;
+  autoscalingStatus?: AutoscalingStatus;
+}
+
+// ModelAutoscaling is the masked user-realm autoscaling projection
+// (feature #16, AD13): no operator fields.
+export interface ModelAutoscaling {
+  autoscaled: boolean;
+  currentReplicas: number;
+  minReplicas: number;
+  maxReplicas: number;
+  scaleToZero: boolean;
+  state: string; // steady | scaling | scaled-to-zero | warming-up | fixed
+}
+
+export interface GetAvailableModelResponse {
+  response: { code: number; message: string };
+  model?: AvailableModel;
+  autoscaling?: ModelAutoscaling;
 }
 
 export interface ImageSummary {
@@ -316,6 +377,301 @@ export interface UsageDashboardResponse {
   dailyBuckets?: DailyBucket[];
 }
 
+// ---- model observability (feature #24) ----
+
+export interface ObservabilityCard {
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  inputTokensPerSec: string;
+  dataThrough: string;
+}
+
+export interface ModelObservabilityRow {
+  modelId: string;
+  modelName: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  dataThrough: string;
+}
+
+export interface ObservabilitySeriesPoint {
+  bucket: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+  inputTokensPerSec: string;
+}
+
+export interface ObservabilityKeyRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  requestCount: string;
+  errorCount: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  outputTokensPerSec: string;
+}
+
+export interface GetObservabilityOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: ObservabilityCard;
+  models?: ModelObservabilityRow[];
+  series?: ObservabilitySeriesPoint[];
+}
+
+export interface GetModelObservabilityResponse {
+  response: ResponseEnvelope;
+  cards?: ObservabilityCard;
+  series?: ObservabilitySeriesPoint[];
+  keys?: ObservabilityKeyRow[];
+}
+
+// ---- API key usage analytics (feature #28) ----
+// Admin surface: /api/v1/admin/usage/keys/*. User surface (masked):
+// /api/v1/usage/keys/*. int64 fields arrive as strings.
+
+export interface UsageKeysCard {
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  dataThrough: string;
+}
+
+export interface UsageKeyRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  organizationId: string;
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  dataThrough: string;
+}
+
+export interface UsageKeyTopRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  totalCostCents: string;
+  requestCount: string;
+  totalTokens: string;
+  sharePct: string;
+}
+
+export interface UsageKeysSeriesPoint {
+  bucket: string;
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+}
+
+export interface GetUsageKeysOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: UsageKeysCard;
+  keys?: UsageKeyRow[];
+  topKeys?: UsageKeyTopRow[];
+  series?: UsageKeysSeriesPoint[];
+}
+
+export interface GetUsageKeysResponse {
+  response: ResponseEnvelope;
+  cards?: UsageKeysCard;
+  series?: UsageKeysSeriesPoint[];
+}
+
+// ---- error analysis (feature #31) ----
+// Admin surface: /api/v1/admin/errors/*. User surface (masked):
+// /api/v1/errors/*. int64 fields arrive as strings.
+
+export interface ErrorAnalysisCard {
+  errorCount: string;
+  requestCount: string;
+  topCause: string;
+  topCauseSharePct: string;
+  dataThrough: string;
+}
+
+export interface ErrorCauseRow {
+  errorCode: string;
+  errorMessage: string;
+  errorCount: string;
+  errorRate: string;
+  sharePct: string;
+}
+
+export interface ErrorSeriesPoint {
+  bucket: string;
+  errorCount: string;
+  requestCount: string;
+  errorRate: string;
+}
+
+export interface GetErrorAnalysisOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: ErrorAnalysisCard;
+  causes?: ErrorCauseRow[];
+  series?: ErrorSeriesPoint[];
+}
+
+export interface GetErrorAnalysisResponse {
+  response: ResponseEnvelope;
+  cards?: ErrorAnalysisCard;
+  series?: ErrorSeriesPoint[];
+}
+
+// ---- cost analytics (feature #29) ----
+// Admin surface: /api/v1/admin/cost/*. User surface (masked):
+// /api/v1/cost/*. int64 fields arrive as strings.
+
+export interface CostAnalyticsCard {
+  totalCostCents: string;
+  totalTokens: string;
+  topDimensionValue: string;
+  topDimensionSharePct: string;
+  dataThrough: string;
+}
+
+export interface CostBreakdownRow {
+  dimensionValue: string;
+  dimensionName: string;
+  totalCostCents: string;
+  totalTokens: string;
+  costPerToken: string;
+  sharePct: string;
+}
+
+export interface CostSeriesPoint {
+  bucket: string;
+  totalCostCents: string;
+  totalTokens: string;
+  costPerToken: string;
+}
+
+export interface GetCostAnalyticsOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: CostAnalyticsCard;
+  breakdown?: CostBreakdownRow[];
+  series?: CostSeriesPoint[];
+}
+
+export interface GetCostAnalyticsResponse {
+  response: ResponseEnvelope;
+  cards?: CostAnalyticsCard;
+  series?: CostSeriesPoint[];
+}
+
+// ---- system health & status (feature #30) ----
+// Admin surface only: /api/v1/admin/status. int64 fields arrive as
+// strings.
+
+export interface SystemDependency {
+  dependencyId: string;
+  dependencyName: string;
+  status: string;
+}
+
+export interface SystemComponent {
+  componentId: string;
+  componentName: string;
+  componentType: string;
+  status: string;
+  uptimeSeconds: string;
+  lastCheckedAt: string;
+  dependencies?: SystemDependency[];
+}
+
+export interface SystemStatusPage {
+  overallStatus: string;
+  lastCheckedAt: string;
+  componentCount: string;
+}
+
+export interface GetSystemStatusResponse {
+  response: ResponseEnvelope;
+  overallStatus?: string;
+  components?: SystemComponent[];
+  statusPage?: SystemStatusPage;
+  lastCheckedAt?: string;
+}
+
+// ---- request tracing (feature #27) ----
+
+export interface TraceSummary {
+  traceId: string;
+  organizationId: string;
+  apiKeyId: string;
+  apiKeyName: string;
+  modelId: string;
+  modelName: string;
+  serviceId: string;
+  status: string;
+  error: string;
+  totalLatencyMs: string;
+  ttftMs: string;
+  generationMs: string;
+  createdAt: string;
+}
+
+export interface TraceSpan {
+  spanId: string;
+  traceId: string;
+  parentSpanId: string;
+  name: string;
+  kind: string;
+  startOffsetMs: string;
+  durationMs: string;
+  status: string;
+  error: string;
+  attributes: string;
+}
+
+export interface TraceDetail {
+  traceId: string;
+  organizationId: string;
+  apiKeyId: string;
+  apiKeyName: string;
+  modelId: string;
+  modelName: string;
+  serviceId: string;
+  status: string;
+  error: string;
+  totalLatencyMs: string;
+  ttftMs: string;
+  generationMs: string;
+  promptTokens: string;
+  completionTokens: string;
+  cachedTokens: string;
+  reasoningTokens: string;
+  createdAt: string;
+  spans?: TraceSpan[];
+}
+
+export interface ListTracesResponse {
+  response: ResponseEnvelope;
+  traces?: TraceSummary[];
+  nextPageToken: string;
+}
+
+export interface GetTraceResponse {
+  response: ResponseEnvelope;
+  trace?: TraceDetail;
+}
+
 // ---- per-tenant model authorization (feature #13) ----
 
 export interface ModelAuthorization {
@@ -365,6 +721,13 @@ export interface PlaygroundInferResponse {
   cachedTokens: string;
   reasoningTokens: string;
   latencyMs: string;
+}
+
+// ---- inference endpoint (feature #21, SDK / Quickstart) ----
+
+export interface InferenceEndpointResponse {
+  response: { code: number; message: string };
+  baseUrl: string;
 }
 
 // ---- billing balance (feature #8, reused by the widget) ----
@@ -588,4 +951,186 @@ export function formatTime(unixSeconds: string | number | undefined): string {
   const n = typeof unixSeconds === 'string' ? parseInt(unixSeconds, 10) : unixSeconds;
   if (!isFinite(n) || n <= 0) return '—';
   return new Date(n * 1000).toLocaleString();
+}
+
+// ---- inference load testing (feature #20) ----
+// Admin surface: /api/v1/admin/load-tests/*. User surface (masked):
+// /api/v1/models/{model_id}/load-tests. int64 fields arrive as strings.
+
+export interface LoadTestSummary {
+  loadTestId: string;
+  serviceId: string;
+  serviceName: string;
+  modelId: string;
+  modelName: string;
+  concurrency: number;
+  durationSeconds: number;
+  requestRate: number;
+  state: string; // pending | running | completed | failed | stopped
+  startedAt: string;
+  completedAt: string;
+  throughputRps: number;
+  latencyP95Ms: number;
+  outputTokensPerSec: number;
+  errorRate: number;
+}
+
+export interface LoadTestProgress {
+  requestsSent: string;
+  successCount: string;
+  failureCount: string;
+  elapsedSeconds: string;
+}
+
+export interface LoadTestResult {
+  totalRequests: string;
+  successCount: string;
+  failureCount: string;
+  errorRate: number;
+  throughputRps: number;
+  outputTokensPerSec: number;
+  inputTokens: string;
+  outputTokens: string;
+  latencyP50Ms: number;
+  latencyP90Ms: number;
+  latencyP95Ms: number;
+  latencyP99Ms: number;
+}
+
+export interface ListLoadTestsResponse {
+  response: ResponseEnvelope;
+  runs: LoadTestSummary[];
+  pageMeta?: PageMeta;
+}
+
+export interface GetLoadTestResponse {
+  response: ResponseEnvelope;
+  summary: LoadTestSummary;
+  promptTemplate: string;
+  maxTokens: number;
+  progress?: LoadTestProgress;
+  result?: LoadTestResult;
+  failureReason: string;
+}
+
+export interface CreateLoadTestResponse {
+  response: ResponseEnvelope;
+  loadTestId: string;
+  state: string;
+}
+
+export interface StopLoadTestResponse {
+  response: ResponseEnvelope;
+  state: string;
+}
+
+// ModelLoadTestResult is the masked end-user projection: no service ids
+// and no operator internals (feature #20, AD2).
+export interface ModelLoadTestResult {
+  throughputRps: number;
+  latencyP95Ms: number;
+  outputTokensPerSec: number;
+  errorRate: number;
+  concurrency: number;
+  durationSeconds: number;
+  completedAt: string;
+}
+
+export interface GetModelLoadTestsResponse {
+  response: ResponseEnvelope;
+  results: ModelLoadTestResult[];
+}
+
+// ---- billing reports & CSV export (feature-25) ----
+// Admin surface: /api/v1/admin/billing/reports/*. User surface (masked,
+// tenant-scoped): /api/v1/billing/reports/*. int64 fields arrive as
+// strings.
+
+export type ReportDimension = 'organization' | 'api_key' | 'model';
+export type ReportGranularity = 'daily' | 'hourly';
+export type ReportFrequency = 'daily' | 'weekly' | 'monthly';
+export type RelativeRange = 'last_7_days' | 'last_30_days' | 'last_month';
+
+export interface Report {
+  reportId: string;
+  name: string;
+  dimension: string;
+  since: string;
+  until: string;
+  granularity: string;
+  timezone: string;
+  status: string; // pending | ready | failed
+  rowCount: string;
+  dataThrough: string;
+  createdAt: string;
+  scheduleId?: string;
+}
+
+export interface ReportSchedule {
+  scheduleId: string;
+  name: string;
+  dimension: string;
+  relativeRange: string;
+  granularity: string;
+  frequency: string;
+  timezone: string;
+  status: string; // active
+  lastRunAt: string;
+  createdAt: string;
+}
+
+export interface CreateReportResponse {
+  response: ResponseEnvelope;
+  report: Report;
+}
+
+export interface GetReportResponse {
+  response: ResponseEnvelope;
+  report: Report;
+}
+
+export interface ListReportsResponse {
+  response: ResponseEnvelope;
+  reports: Report[];
+  pageMeta?: PageMeta;
+}
+
+export interface DownloadReportResponse {
+  response: ResponseEnvelope;
+  csv: string;
+  filename: string;
+}
+
+export interface CreateScheduleResponse {
+  response: ResponseEnvelope;
+  schedule: ReportSchedule;
+}
+
+export interface ListSchedulesResponse {
+  response: ResponseEnvelope;
+  schedules: ReportSchedule[];
+  pageMeta?: PageMeta;
+}
+
+export interface UpdateScheduleResponse {
+  response: ResponseEnvelope;
+  schedule: ReportSchedule;
+}
+
+export interface ListScheduleRunsResponse {
+  response: ResponseEnvelope;
+  runs: Report[];
+  pageMeta?: PageMeta;
+}
+
+// formatPercent renders a 0..1 ratio as a percentage string.
+export function formatPercent(ratio: number | undefined): string {
+  if (ratio === undefined || ratio === null || !isFinite(ratio)) return '0.0%';
+  return `${(ratio * 100).toFixed(1)}%`;
+}
+
+// formatRate renders a float metric with fixed decimals and a fallback.
+export function formatRate(value: number | undefined, decimals = 1): string {
+  if (value === undefined || value === null || !isFinite(value)) return '—';
+  return value.toFixed(decimals);
 }

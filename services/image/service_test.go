@@ -2,12 +2,14 @@ package image
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/go-taas/go-taas/pkg/config"
+	"github.com/go-taas/go-taas/pkg/registry"
 	imagev1 "github.com/go-taas/go-taas/proto/taas/image/v1"
 
 	apierrors "github.com/go-taas/go-taas/pkg/errors"
@@ -347,4 +349,128 @@ func setTestImageRegistry(entries []config.ImageRegistryEntry) {
 	}
 	cfg.Image.Registry = entries
 	config.SetConfigForTest(cfg)
+}
+
+// fakeImporter records the import call and returns a configurable error.
+type fakeImporter struct {
+	srcRef string
+	dstRef string
+	err    error
+}
+
+func (f *fakeImporter) Import(_ context.Context, srcRef string, _ *registry.Credentials, dstRef string, _ *registry.Credentials) error {
+	f.srcRef = srcRef
+	f.dstRef = dstRef
+	return f.err
+}
+
+// setTestHarbor installs a package-level Harbor config for the import
+// tests.
+func setTestHarbor(url, user, pass, project string) {
+	cfg := config.GetConfig()
+	if cfg == nil {
+		cfg = &config.Configuration{}
+	}
+	cfg.Image.Harbor = config.HarborConfig{URL: url, Username: user, Password: pass, Project: project}
+	config.SetConfigForTest(cfg)
+}
+
+func TestServiceImportImageHappyPath(t *testing.T) {
+	svc, _ := newServiceForTest(t)
+	ctx := context.Background()
+	setTestHarbor("hub.example.com", "admin", "secret", "taas")
+	imp := &fakeImporter{}
+	svc.SetImporter(imp)
+
+	resp, err := svc.ImportImage(ctx, &imagev1.ImportImageRequest{
+		SourceReference: "docker.1ms.run/library/vllm:v0.6.3",
+		Accelerator:     "nvidia",
+		Engine:          "vllm",
+		Description:     "imported vLLM",
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.GetImageId())
+	// The destination reference lands in the internal Harbor project.
+	assert.Equal(t, "hub.example.com/taas/library/vllm:v0.6.3", resp.GetReference())
+	assert.Equal(t, "docker.1ms.run/library/vllm:v0.6.3", imp.srcRef)
+	assert.Equal(t, "hub.example.com/taas/library/vllm:v0.6.3", imp.dstRef)
+
+	// The catalog row carries the Harbor reference as its name.
+	found, err := svc.repo.FindByID(ctx, resp.GetImageId())
+	require.NoError(t, err)
+	assert.Equal(t, "hub.example.com/taas/library/vllm", found.Name)
+	assert.Equal(t, "v0.6.3", found.Tag)
+	assert.Equal(t, "nvidia", found.Accelerator)
+}
+
+func TestServiceImportImageValidation(t *testing.T) {
+	svc, _ := newServiceForTest(t)
+	ctx := context.Background()
+	setTestHarbor("hub.example.com", "admin", "secret", "taas")
+	svc.SetImporter(&fakeImporter{})
+
+	// Empty source reference.
+	_, err := svc.ImportImage(ctx, &imagev1.ImportImageRequest{Accelerator: "nvidia", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageReferenceInvalid, ae.Code)
+
+	// Unsupported accelerator.
+	_, err = svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "tpu", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageIncompatible, ae.Code)
+}
+
+func TestServiceImportImageNotConfigured(t *testing.T) {
+	svc, _ := newServiceForTest(t)
+	ctx := context.Background()
+	// No Harbor configured.
+	setTestHarbor("", "", "", "taas")
+
+	_, err := svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "nvidia", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageReferenceInvalid, ae.Code)
+
+	// Harbor configured but no importer wired.
+	setTestHarbor("hub.example.com", "admin", "secret", "taas")
+	_, err = svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "nvidia", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok = apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageReferenceInvalid, ae.Code)
+}
+
+func TestServiceImportImageFailure(t *testing.T) {
+	svc, _ := newServiceForTest(t)
+	ctx := context.Background()
+	setTestHarbor("hub.example.com", "admin", "secret", "taas")
+	svc.SetImporter(&fakeImporter{err: errors.New("manifest unknown")})
+
+	_, err := svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "nvidia", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageReferenceInvalid, ae.Code)
+	assert.Contains(t, ae.Error(), "manifest unknown")
+}
+
+func TestServiceImportImageDuplicate(t *testing.T) {
+	svc, _ := newServiceForTest(t)
+	ctx := context.Background()
+	setTestHarbor("hub.example.com", "admin", "secret", "taas")
+	svc.SetImporter(&fakeImporter{})
+
+	_, err := svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "nvidia", Engine: "vllm"})
+	require.NoError(t, err)
+	// Importing the same source again is a duplicate.
+	_, err = svc.ImportImage(ctx, &imagev1.ImportImageRequest{SourceReference: "vllm:latest", Accelerator: "nvidia", Engine: "vllm"})
+	require.Error(t, err)
+	ae, ok := apierrors.As(err)
+	require.True(t, ok)
+	assert.Equal(t, apierrors.CodeImageExists, ae.Code)
 }

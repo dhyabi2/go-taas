@@ -5,12 +5,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type Invitation } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, StateBadge } from '../components';
 
 const ASSIGNABLE_ROLES = ['admin', 'member', 'viewer'];
 
 export default function InvitationsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,11 +32,11 @@ export default function InvitationsPage() {
       );
       setInvitations(data.invitations || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load invitations');
+      setError(e instanceof Error ? e.message : t('invitations.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     void load();
@@ -55,7 +57,7 @@ export default function InvitationsPage() {
       setInviteRole('member');
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to create invitation');
+      setError(e instanceof ApiError ? e.message : t('invitations.createFailed'));
     }
   };
 
@@ -71,7 +73,7 @@ export default function InvitationsPage() {
       setNewToken(data.token);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to resend invitation');
+      setError(e instanceof ApiError ? e.message : t('invitations.resendFailed'));
     }
   };
 
@@ -87,7 +89,7 @@ export default function InvitationsPage() {
       setRevokeTarget(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to revoke invitation');
+      setError(e instanceof ApiError ? e.message : t('invitations.revokeFailed'));
     }
   };
 
@@ -95,39 +97,42 @@ export default function InvitationsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Invitations</h1>
-          <div className="subtitle">
-            Invitation pipeline for <strong className="mono">{orgId}</strong>.
-          </div>
+          <h1>{t('invitations.title')}</h1>
+          <div
+            className="subtitle"
+            dangerouslySetInnerHTML={{ __html: t('invitations.subtitle', { orgId }) }}
+          />
         </div>
         <button data-testid="invite-button" onClick={() => setInviteOpen(true)}>
-          Invite member
+          {t('invitations.invite')}
         </button>
       </div>
 
       {error && <ErrorBanner message={error} />}
       {newToken && (
-        <div className="notice" data-testid="invite-token">
-          Invite link token: <strong className="mono">{newToken}</strong>
-        </div>
+        <div
+          className="notice"
+          data-testid="invite-token"
+          dangerouslySetInnerHTML={{ __html: t('invitations.tokenNotice', { token: newToken }) }}
+        />
       )}
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : invitations.length === 0 ? (
           <div className="empty-state" data-testid="invitations-empty">
-            No invitations yet. Invite the first member.
+            {t('invitations.empty')}
           </div>
         ) : (
           <table className="data" data-testid="invitations-table">
             <thead>
               <tr>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Expires</th>
-                <th>Actions</th>
+                <th>{t('invitations.colEmail')}</th>
+                <th>{t('invitations.colRole')}</th>
+                <th>{t('invitations.colStatus')}</th>
+                <th>{t('invitations.colExpires')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -149,14 +154,14 @@ export default function InvitationsPage() {
                           data-testid={`invite-resend-${inv.invitationId}`}
                           onClick={() => void resend(inv.invitationId)}
                         >
-                          Resend
+                          {t('invitations.resend')}
                         </button>
                         <button
                           className="link danger"
                           data-testid={`invite-revoke-${inv.invitationId}`}
                           onClick={() => setRevokeTarget(inv)}
                         >
-                          Revoke
+                          {t('invitations.revoke')}
                         </button>
                       </>
                     )}
@@ -169,19 +174,19 @@ export default function InvitationsPage() {
       </div>
 
       {inviteOpen && (
-        <Dialog title="Invite member" onClose={() => setInviteOpen(false)}>
+        <Dialog title={t('invitations.inviteTitle')} onClose={() => setInviteOpen(false)}>
           <div className="form">
             <label>
-              Email
+              {t('invitations.fieldEmail')}
               <input
                 data-testid="invite-email-input"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="person@example.com"
+                placeholder={t('invitations.placeholderEmail')}
               />
             </label>
             <label>
-              Role
+              {t('invitations.fieldRole')}
               <select
                 data-testid="invite-role-select"
                 value={inviteRole}
@@ -195,23 +200,25 @@ export default function InvitationsPage() {
               </select>
             </label>
             <button data-testid="invite-save" onClick={() => void createInvite()}>
-              Invite
+              {t('invitations.invite')}
             </button>
           </div>
         </Dialog>
       )}
 
       {revokeTarget && (
-        <Dialog title="Revoke invitation" onClose={() => setRevokeTarget(null)}>
-          <p>
-            Revoke the invitation for <strong>{revokeTarget.email}</strong>?
-          </p>
+        <Dialog title={t('invitations.revokeTitle')} onClose={() => setRevokeTarget(null)}>
+          <p
+            dangerouslySetInnerHTML={{
+              __html: t('invitations.revokeBody', { email: revokeTarget.email }),
+            }}
+          />
           <button
             className="danger"
             data-testid="invite-revoke-confirm"
             onClick={() => void revoke()}
           >
-            Revoke
+            {t('invitations.revoke')}
           </button>
         </Dialog>
       )}

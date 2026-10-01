@@ -1,0 +1,12 @@
+// StatusBadge renders the healthy / degraded / unhealthy status badge
+// (feature #30, AD6), following the accelerator-inventory health-badge
+// pattern.
+
+export default function StatusBadge({ status }: { status: string }) {
+  const cls = status === 'healthy' ? 'status-badge healthy' : status === 'degraded' ? 'status-badge degraded' : 'status-badge unhealthy';
+  return (
+    <span className={cls} data-testid={`status-badge-${status}`}>
+      {status}
+    </span>
+  );
+}

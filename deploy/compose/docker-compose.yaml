@@ -1,14 +1,15 @@
 # Local deployment-verification stack for go-taas.
 #
 # Brings up the full control plane (taas-server) with its backing
-# services (PostgreSQL, Redis, NATS) so features can be verified against
-# a real deployment before they are handed downstream:
+# services (PostgreSQL, Redis, NATS, Keycloak) so features can be
+# verified against a real deployment before they are handed downstream:
 #
 #   make compose-up     # build images and start the stack
 #   make compose-down   # stop and remove the stack
 #
 # The gateway listens on http://127.0.0.1:9091, gRPC on 9090 and the
-# monitor port (metrics/healthz) on 9092.
+# monitor port (metrics/healthz) on 9092. Keycloak (the local OIDC IdP
+# for SSO debugging) is at http://localhost:8080 (admin / admin).
 
 name: go-taas
 
@@ -46,6 +47,70 @@ services:
       timeout: 3s
       retries: 30
 
+  # JuiceFS client that mounts the model-weights filesystem (backed by
+  # the cluster's MinIO "taas" bucket + Redis DB 1) and shares it with
+  # the control plane. The control plane writes downloaded model weights
+  # here; inference pods read the same files through the JuiceFS-backed
+  # StorageClass in the cluster.
+  #
+  # Sharing a FUSE mount between containers is NOT possible through a
+  # named volume (the FUSE mount overlays the volume, so the other
+  # container sees the volume's underlying content). Instead the FUSE
+  # mount is made on a host bind mount with `rshared` propagation, so it
+  # propagates back to the host and the control plane sees it through the
+  # same bind mount. FUSE mounting also requires /dev/fuse, SYS_ADMIN and
+  # (on this host) privileged mode.
+  juicefs:
+    image: juicedata/mount:ce-v1.4.1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        juicefs format --storage=${JUICE_FS_STORAGE:-s3} --bucket=${JUICE_FS_BUCKET} --access-key=${JUICE_FS_ACCESS_KEY} --secret-key=${JUICE_FS_SECRET_KEY} ${JUICE_FS_META_URL} ${JUICE_FS_NAME} || true
+        juicefs mount -d ${JUICE_FS_META_URL} /mnt/jfs
+        # The control plane (taas-server) runs as the distroless nonroot
+        # user (uid 65532); make the mount writable by it.
+        chmod -R 777 /mnt/jfs
+        sleep infinity
+    devices:
+      - /dev/fuse:/dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    privileged: true
+    volumes:
+      - type: bind
+        source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}
+        target: /mnt/jfs
+        bind:
+          propagation: rshared
+
+  # Local OIDC identity provider for debugging the SSO flow (feature #7).
+  # The realm, a confidential client and a test user are imported from
+  # deploy/compose/keycloak/realm-export.json on first start.
+  #
+  # Reachability: the SSO provider's issuer must be reachable from BOTH
+  # the host browser (authorize redirect) and the taas-server container
+  # (token exchange). We use the single hostname `keycloak` for both:
+  #   - inside the compose network it resolves to this container;
+  #   - on the host it must resolve to 127.0.0.1 (add to /etc/hosts):
+  #       127.0.0.1 keycloak
+  # The admin console is at http://localhost:8080 (admin / admin).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -qi '200 OK' <&3"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
   taas-server:
     image: ghcr.io/go-taas/go-taas/taas-server:dev
     depends_on:
@@ -55,6 +120,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      juicefs:
+        condition: service_started
     environment:
       # Configuration overrides via the CONFIG_ env prefix (see
       # configs/config.yaml); service discovery inside the compose
@@ -62,10 +129,78 @@ services:
       CONFIG_DB_MASTER_HOST: postgres
       CONFIG_REDIS_HOST: redis
       CONFIG_MQ_URL: nats://nats:4222
+      # Feature #21 (SDK/Quickstart): the inference gateway's public base
+      # URL. The quickstart page reads it via GET /api/v1/inference-endpoint
+      # and derives the OpenAI-compatible base URL (<base>/v1).
+      CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+      # Feature: model download. The weights directory is the JuiceFS
+      # mount shared with the inference pods.
+      CONFIG_MODEL_WEIGHTSDIR: /data/weights
+      # Feature: image import. The internal Harbor registry is read from
+      # the .env file.
+      CONFIG_IMAGE_HARBOR_URL: ${HARBOR_URL:-}
+      CONFIG_IMAGE_HARBOR_USERNAME: ${HARBOR_USERNAME:-}
+      CONFIG_IMAGE_HARBOR_PASSWORD: ${HARBOR_PASSWORD:-}
+      CONFIG_IMAGE_HARBOR_PROJECT: taas
+      # Feature #23: the webhook secret-at-rest encryption key (AD3).
+      # Read from the .env file; empty falls back to a dev-only key.
+      CONFIG_WEBHOOK_SECRETENCRYPTIONKEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-}
+      # Feature #24: the observability max range (92 days by default,
+      # AD7). Read from the .env file; empty falls back to the default.
+      CONFIG_OBSERVABILITY_MAXRANGESECONDS: ${OBSERVABILITY_MAX_RANGE_SECONDS:-7948800}
+      # Feature-25: the billing-reports runners. The generator picks up
+      # pending reports and renders their CSV; the schedule runner
+      # materializes due schedules into pending report runs.
+      CONFIG_BILLING_REPORTS_ENABLED: "true"
+      CONFIG_BILLING_REPORTS_GENERATORINTERVAL: ${BILLING_REPORTS_GENERATOR_INTERVAL:-5s}
+      CONFIG_BILLING_REPORTS_SCHEDULEINTERVAL: ${BILLING_REPORTS_SCHEDULE_INTERVAL:-1m}
+      # Feature #36: the usage & cost forecasting bounds (AD3, AD4).
+      # Read from the .env file; empty falls back to the defaults.
+      CONFIG_BILLING_FORECAST_HORIZONDEFAULTDAYS: ${BILLING_FORECAST_HORIZON_DEFAULT_DAYS:-30}
+      CONFIG_BILLING_FORECAST_HORIZONMAXDAYS: ${BILLING_FORECAST_HORIZON_MAX_DAYS:-90}
+      CONFIG_BILLING_FORECAST_RANGEMAXDAYS: ${BILLING_FORECAST_RANGE_MAX_DAYS:-92}
+      # Feature #26: the notification event consumer workers and the
+      # retention runner (90-day TTL by default, AD3).
+      CONFIG_NOTIFICATION_CONSUMER_WORKERS: ${NOTIFICATION_CONSUMER_WORKERS:-4}
+      CONFIG_NOTIFICATION_RETENTION_ENABLED: "true"
+      CONFIG_NOTIFICATION_RETENTION_NOTIFICATIONTTL: ${NOTIFICATION_RETENTION_TTL:-2160h}
+      CONFIG_NOTIFICATION_RETENTION_BATCHSIZE: ${NOTIFICATION_RETENTION_BATCH_SIZE:-1000}
+      CONFIG_NOTIFICATION_RETENTION_INTERVAL: ${NOTIFICATION_RETENTION_INTERVAL:-1h}
+    volumes:
+      - type: bind
+        source: ${JUICE_FS_HOST_MOUNT:-/var/lib/go-taas/juicefs}
+        target: /data/weights
+        bind:
+          propagation: rshared
     ports:
       - "9090:9090" # gRPC
       - "9091:9091" # gateway (HTTP/JSON)
       - "9092:9092" # monitor (metrics, healthz)
+
+  # The controller reconciles desired-state messages from NATS against a
+  # real Kubernetes cluster. It reads the host's kubeconfig (~/.kube/config)
+  # so the compose stack can manage the cluster the operator is logged into.
+  # The kubeconfig is mounted read-only at /etc/taas/kubeconfig and selected
+  # via CONFIG_CONTROLLER_KUBECONFIG. To manage a different cluster, point
+  # KUBECONFIG at that cluster's kubeconfig before `make compose-up`.
+  controller:
+    image: ghcr.io/go-taas/go-taas/controller:dev
+    depends_on:
+      nats:
+        condition: service_healthy
+    environment:
+      CONFIG_MQ_URL: nats://nats:4222
+      CONFIG_CONTROLLER_KUBECONFIG: /etc/taas/kubeconfig
+      CONFIG_INFER_ENDPOINTBASEURL: https://infer.example.com
+      # The namespace the controller manages inference resources in. The
+      # cluster's go-taas namespace is "taas" (the controller default is
+      # "taas-infer", which does not exist in the verification cluster).
+      CONFIG_CONTROLLER_NAMESPACE: ${CONTROLLER_NAMESPACE:-taas}
+      # Feature: the JuiceFS-backed StorageClass the controller
+      # provisions the model-weights PVC from (read from .env).
+      CONFIG_CONTROLLER_WEIGHTS_STORAGECLASS: ${WEIGHTS_STORAGE_CLASS:-}
+    volumes:
+      - ${KUBECONFIG:-$HOME/.kube/config}:/etc/taas/kubeconfig:ro
 
 volumes:
   pgdata:

@@ -4,12 +4,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type OrgMember } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, StateBadge } from '../components';
 
 const ASSIGNABLE_ROLES = ['admin', 'member', 'viewer'];
 
 export default function MembersPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,11 +30,11 @@ export default function MembersPage() {
       );
       setMembers(data.members || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load members');
+      setError(e instanceof Error ? e.message : t('members.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId]);
+  }, [orgId, t]);
 
   useEffect(() => {
     void load();
@@ -51,7 +53,7 @@ export default function MembersPage() {
       setAddRole('member');
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to add member');
+      setError(e instanceof ApiError ? e.message : t('members.addFailed'));
     }
   };
 
@@ -65,7 +67,7 @@ export default function MembersPage() {
       );
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to change role');
+      setError(e instanceof ApiError ? e.message : t('members.roleFailed'));
     }
   };
 
@@ -80,7 +82,7 @@ export default function MembersPage() {
       setRemoveTarget(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'failed to remove member');
+      setError(e instanceof ApiError ? e.message : t('members.removeFailed'));
     }
   };
 
@@ -88,14 +90,14 @@ export default function MembersPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Members</h1>
-          <div className="subtitle">
-            Organization roster for <strong className="mono">{orgId}</strong>.
-            Roles: owner (protected), admin, member, viewer.
-          </div>
+          <h1>{t('members.title')}</h1>
+          <div
+            className="subtitle"
+            dangerouslySetInnerHTML={{ __html: t('members.subtitle', { orgId }) }}
+          />
         </div>
         <button data-testid="add-member-button" onClick={() => setAddOpen(true)}>
-          Add member
+          {t('members.add')}
         </button>
       </div>
 
@@ -103,19 +105,19 @@ export default function MembersPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : members.length === 0 ? (
           <div className="empty-state" data-testid="members-empty">
-            No members yet. Add the first member.
+            {t('members.empty')}
           </div>
         ) : (
           <table className="data" data-testid="org-members-table">
             <thead>
               <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Joined</th>
-                <th>Actions</th>
+                <th>{t('members.colUser')}</th>
+                <th>{t('members.colRole')}</th>
+                <th>{t('members.colJoined')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -159,7 +161,7 @@ export default function MembersPage() {
                         data-testid={`member-remove-${m.userId}`}
                         onClick={() => setRemoveTarget(m)}
                       >
-                        Remove
+                        {t('members.remove')}
                       </button>
                     )}
                   </td>
@@ -171,19 +173,19 @@ export default function MembersPage() {
       </div>
 
       {addOpen && (
-        <Dialog title="Add member" onClose={() => setAddOpen(false)}>
+        <Dialog title={t('members.addTitle')} onClose={() => setAddOpen(false)}>
           <div className="form">
             <label>
-              User ID
+              {t('members.fieldUserId')}
               <input
                 data-testid="add-member-user-id"
                 value={addUserId}
                 onChange={(e) => setAddUserId(e.target.value)}
-                placeholder="user id"
+                placeholder={t('members.placeholderUserId')}
               />
             </label>
             <label>
-              Role
+              {t('members.fieldRole')}
               <select
                 data-testid="add-member-role"
                 value={addRole}
@@ -197,24 +199,28 @@ export default function MembersPage() {
               </select>
             </label>
             <button data-testid="add-member-save" onClick={() => void addMember()}>
-              Add
+              {t('members.add')}
             </button>
           </div>
         </Dialog>
       )}
 
       {removeTarget && (
-        <Dialog title="Remove member" onClose={() => setRemoveTarget(null)}>
-          <p>
-            Remove <strong className="mono">{removeTarget.userId}</strong> from{' '}
-            <strong className="mono">{orgId}</strong>?
-          </p>
+        <Dialog title={t('members.removeTitle')} onClose={() => setRemoveTarget(null)}>
+          <p
+            dangerouslySetInnerHTML={{
+              __html: t('members.removeBody', {
+                userId: removeTarget.userId,
+                orgId,
+              }),
+            }}
+          />
           <button
             className="danger"
             data-testid="member-remove-confirm"
             onClick={() => void removeMember()}
           >
-            Remove
+            {t('members.remove')}
           </button>
         </Dialog>
       )}

@@ -59,6 +59,10 @@ proto/**/*.pb.gw.go
 
 # Multi-agent orchestration bus (runtime state, not source)
 .agent-state/
+.github/prompts
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Local verification helper (never committed)
+build/docker/Dockerfile.verify

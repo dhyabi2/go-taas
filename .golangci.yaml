@@ -72,6 +72,11 @@ linters:
       - path: docs/api/
         linters:
           - all
+      # The registry importer shells out to the fixed skopeo binary with
+      # validated image references and credentials (G204).
+      - path: pkg/registry/importer\.go
+        linters:
+          - gosec
 
 issues:
   max-issues-per-linter: 0

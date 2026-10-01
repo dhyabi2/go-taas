@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { navigate } from '../router';
 import { api, ApiError, formatTime, type ModelSummary, type PageMeta } from '../api';
 import { useOrg } from '../org';
+import { useI18n } from '../i18n';
 import { Dialog, ErrorBanner, Pagination } from '../components';
 import DeployDialog from '../components/DeployDialog';
 
@@ -19,6 +20,7 @@ const PAGE_SIZE = 20;
 
 export default function ModelsPage() {
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [models, setModels] = useState<ModelSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -43,11 +45,11 @@ export default function ModelsPage() {
       setModels(data.models || []);
       setTotal(parseInt(data.pageMeta?.total || '0', 10) || 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'failed to load models');
+      setError(e instanceof Error ? e.message : t('models.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [orgId, offset]);
+  }, [orgId, offset, t]);
 
   useEffect(() => {
     void load();
@@ -64,14 +66,11 @@ export default function ModelsPage() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Models</h1>
-          <div className="subtitle">
-            Registered open-source models with their weight paths in object
-            storage.
-          </div>
+          <h1>{t('models.title')}</h1>
+          <div className="subtitle">{t('models.subtitle')}</div>
         </div>
         <button data-testid="register-model" onClick={() => setRegisterOpen(true)}>
-          Register Model
+          {t('models.register')}
         </button>
       </div>
 
@@ -81,7 +80,7 @@ export default function ModelsPage() {
         <input
           type="text"
           data-testid="model-search"
-          placeholder="Search by name…"
+          placeholder={t('common.searchByName')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -89,22 +88,20 @@ export default function ModelsPage() {
 
       <div className="panel">
         {loading ? (
-          <div className="loading">Loading…</div>
+          <div className="loading">{t('common.loading')}</div>
         ) : filtered.length === 0 ? (
           <div className="empty-state" data-testid="models-empty">
-            {search
-              ? 'No models match your search.'
-              : 'No models registered yet. Register a model to deploy it.'}
+            {search ? t('models.emptySearch') : t('models.empty')}
           </div>
         ) : (
           <table className="data" data-testid="models-table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Latest version</th>
-                <th>Weight path</th>
-                <th>Created</th>
-                <th>Actions</th>
+                <th>{t('models.colName')}</th>
+                <th>{t('models.colLatestVersion')}</th>
+                <th>{t('models.colWeightPath')}</th>
+                <th>{t('models.colCreated')}</th>
+                <th>{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -121,9 +118,9 @@ export default function ModelsPage() {
                       <span
                         className="badge restricted"
                         data-testid="model-restricted-badge"
-                        title="Only the organizations authorized on its detail page may deploy or call this model."
+                        title={t('models.restrictedTooltip')}
                       >
-                        Restricted
+                        {t('models.restricted')}
                       </span>
                     )}
                   </td>
@@ -142,7 +139,7 @@ export default function ModelsPage() {
                         })
                       }
                     >
-                      Deploy
+                      {t('models.deploy')}
                     </button>
                   </td>
                 </tr>
@@ -203,19 +200,20 @@ function RegisterDialog({
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { t } = useI18n();
 
   const submit = async () => {
     // FR1.1 validation: name 1-128, version 1-64, weight path required.
     if (!name.trim() || name.trim().length > 128) {
-      setError('Name is required (1-128 characters).');
+      setError(t('models.validationName'));
       return;
     }
     if (!version.trim() || version.trim().length > 64) {
-      setError('Version is required (1-64 characters).');
+      setError(t('models.validationVersion'));
       return;
     }
     if (!weightPath.trim()) {
-      setError('Weight path is required (e.g. models/qwen2.5-32b/).');
+      setError(t('models.validationWeightPath'));
       return;
     }
     setSubmitting(true);
@@ -229,49 +227,49 @@ function RegisterDialog({
       });
       onRegistered();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : 'failed to register model');
+      setError(e instanceof ApiError ? `${e.message} (code ${e.code})` : t('models.registerFailed'));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Dialog title="Register Model" onClose={onClose} testId="register-dialog">
+    <Dialog title={t('models.registerTitle')} onClose={onClose} testId="register-dialog">
       <div className="form-grid">
         <div className="form-field">
-          <label htmlFor="model-name">Name</label>
+          <label htmlFor="model-name">{t('models.fieldName')}</label>
           <input
             id="model-name"
             data-testid="model-name-input"
             value={name}
             maxLength={128}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. qwen2.5-32b"
+            placeholder={t('models.placeholderName')}
           />
         </div>
         <div className="form-field">
-          <label htmlFor="model-version">Version</label>
+          <label htmlFor="model-version">{t('models.fieldVersion')}</label>
           <input
             id="model-version"
             data-testid="model-version-input"
             value={version}
             maxLength={64}
             onChange={(e) => setVersion(e.target.value)}
-            placeholder="e.g. v1"
+            placeholder={t('models.placeholderVersion')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="model-weight-path">Weight path</label>
+          <label htmlFor="model-weight-path">{t('models.fieldWeightPath')}</label>
           <input
             id="model-weight-path"
             data-testid="model-weight-path-input"
             value={weightPath}
             onChange={(e) => setWeightPath(e.target.value)}
-            placeholder="e.g. models/qwen2.5-32b/"
+            placeholder={t('models.placeholderWeightPath')}
           />
         </div>
         <div className="form-field full">
-          <label htmlFor="model-description">Description (optional)</label>
+          <label htmlFor="model-description">{t('common.descriptionOptional')}</label>
           <textarea
             id="model-description"
             data-testid="model-description-input"
@@ -285,14 +283,14 @@ function RegisterDialog({
       {error && <ErrorBanner message={error} />}
       <div className="dialog-actions">
         <button className="secondary" onClick={onClose}>
-          Cancel
+          {t('common.cancel')}
         </button>
         <button
           data-testid="submit-register-model"
           disabled={submitting}
           onClick={() => void submit()}
         >
-          {submitting ? 'Registering…' : 'Register'}
+          {submitting ? t('common.creating') : t('models.register')}
         </button>
       </div>
     </Dialog>

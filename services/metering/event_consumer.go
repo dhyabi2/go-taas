@@ -30,6 +30,12 @@ type meteringEvent struct {
 	Status string `json:"status"`
 	// Error is the failure reason; empty on success (feature #12).
 	Error string `json:"error"`
+	// TTFTMs is the time-to-first-token (prefill phase) in milliseconds
+	// (feature #27, AD3).
+	TTFTMs int64 `json:"ttft_ms"`
+	// GenerationMs is the generation (decode phase) in milliseconds
+	// (feature #27, AD3).
+	GenerationMs int64 `json:"generation_ms"`
 }
 
 // tokenUsage is the per-part token breakdown carried on the event.

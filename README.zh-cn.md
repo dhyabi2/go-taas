@@ -63,7 +63,7 @@ flowchart TD
         subgraph cp["控制面（常规网络）"]
             direction TB
             CGW["控制面 Gateway（HTTP）<br/>平台管理 API"]
-            GRPC["gRPC Server（单 Deployment）<br/>微服务：auth · model · image · infer · billing · metering"]
+            GRPC["gRPC Server（单 Deployment）<br/>微服务：auth · model · image · infer · billing · metering · webhook"]
             MQ["消息队列（Kafka / NATS）"]
             CTRL["Controller<br/>（K8s 资源调谐）"]
             CGW --> GRPC
@@ -119,7 +119,7 @@ flowchart TD
 
 - 流量按受众分流：管理员经**控制面 Gateway**（HTTP，由 `grpc-gateway` 从 Protobuf 契约生成）进入，智能体与 SDK 调用**推理 Gateway**（Envoy + Wasm）。
 - 两个网关作为独立工作负载部署，控制面 API 与推理 API 的扩缩容、升级与故障域完全隔离。
-- 各微服务 gRPC server（`auth`、`model`、`image`、`infer`、`billing`、`metering`）运行在**单一 Deployment** 内，经**消息队列**（Kafka / NATS）把工作交给 Controller，API 服务与 Kubernetes 调谐解耦。
+- 各微服务 gRPC server（`auth`、`model`、`image`、`infer`、`billing`、`metering`、`webhook`）运行在**单一 Deployment** 内，经**消息队列**（Kafka / NATS）把工作交给 Controller，API 服务与 Kubernetes 调谐解耦。
 - 鉴权、计量与路由运行在推理 Gateway 的 **Wasm 插件**中，推理流量不经过业务进程。
 - 推理 Gateway 通过 **gRPC 调用 `auth` 模块**校验每个 API Key，两级缓存（Wasm 本地 TTL 缓存 → Redis）支撑；超时或 `auth` 不可用时按 fail-closed 拒绝。
 - 推理服务与控制面共享**同一个 Kubernetes 集群**，通过 Namespace、节点标签与污点/容忍度隔离。
@@ -167,14 +167,33 @@ make build   # 构建二进制
 
 ### Docker Compose 体验
 
-一键体验环境：控制面（含控制台）+ PostgreSQL + Redis + 消息队列。
+一键体验环境：控制面（含控制台）+ PostgreSQL + Redis + 消息队列 + 挂载共享
+模型权重文件系统的 JuiceFS 客户端。
 
 ```bash
+cp .env.example .env   # 填写 Harbor 与 JuiceFS/MinIO 配置（见下）
 make compose-up    # 构建镜像（含控制台）并启动本地环境
 make compose-ps    # 查看环境状态
 make compose-logs  # 跟踪日志（或：make compose-logs SERVICE=taas-server）
 make compose-down  # 停止并删除环境
 ```
+
+环境通过 `.env` 读取配置（该文件已被 git 忽略，完整变量见 `.env.example`）：
+
+- `HARBOR_URL` / `HARBOR_USERNAME` / `HARBOR_PASSWORD` —— 镜像导入流程推送
+  引擎镜像的内部 Harbor 地址（所有导入镜像都落在 `taas` 项目下）。
+- `JUICE_FS_*` —— 模型权重文件系统（MinIO 桶 + Redis 元数据）。控制面把它
+  挂载到 `/data/weights`，推理 Pod 通过集群 StorageClass 读取同一文件系统。
+- `WEIGHTS_STORAGE_CLASS` —— controller 用来创建共享 `model-weights` PVC 的
+  JuiceFS StorageClass。
+
+`make compose-up` 会自动创建环境所需的 Kubernetes 资源（通过
+`deploy/compose/scripts/cluster-up.sh`）：MinIO 桶、JuiceFS 文件系统、
+`taas` 命名空间、`juicefs-taas-models` StorageClass 与 secret、
+`model-weights` PVC、Redis NodePort（集群 Redis 是 ClusterIP 服务，宿主机
+无法直连，因此通过 NodePort 暴露到节点 IP 的 `:30379`），以及加速器节点
+标签。`make compose-down` 会删除 compose 环境（含数据库卷）并清理上述全部
+集群资源（通过 `deploy/compose/scripts/cluster-down.sh`）。
 
 管理控制台由 `taas-server` 提供，访问 `http://localhost:9091/admin`
 （与 API 同源，无需 CORS 配置）。管理类 API 位于 `/api/v1/admin/*`；

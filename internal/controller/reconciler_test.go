@@ -3,13 +3,16 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -18,6 +21,20 @@ import (
 	"github.com/go-taas/go-taas/pkg/k8s"
 	"github.com/go-taas/go-taas/pkg/mq"
 )
+
+// reconcileNamespace is the default namespace the reconciler uses when
+// none is configured (mirrors the production default).
+const reconcileNamespace = "taas-infer"
+
+// testReconciler returns a reconciler over a fake clientset for the
+// build-function tests.
+func testReconciler() *k8sReconciler {
+	return &k8sReconciler{
+		clientset: fake.NewSimpleClientset(),
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", MountPath: "/data/weights"},
+	}
+}
 
 func testChangeEvent(eventType, name string) changeEvent {
 	evt := changeEvent{
@@ -40,7 +57,7 @@ func testChangeEvent(eventType, name string) changeEvent {
 
 func TestBuildDeployment(t *testing.T) {
 	evt := testChangeEvent("upsert", "demo")
-	dep := buildDeployment(evt)
+	dep := testReconciler().buildDeployment(evt)
 
 	assert.Equal(t, "demo", dep.Name)
 	assert.Equal(t, reconcileNamespace, dep.Namespace)
@@ -51,8 +68,23 @@ func TestBuildDeployment(t *testing.T) {
 	c := dep.Spec.Template.Spec.Containers[0]
 	assert.Equal(t, "ghcr.io/go-taas/vllm:v0.6.3", c.Image)
 	require.Len(t, c.VolumeMounts, 1)
-	assert.Equal(t, "qwen/v1", c.VolumeMounts[0].SubPath)
+	// The whole JuiceFS filesystem is mounted (no SubPath); the model
+	// lives in a subdirectory named by its weight path.
+	assert.Equal(t, "", c.VolumeMounts[0].SubPath)
 	assert.Equal(t, "/data/weights", c.VolumeMounts[0].MountPath)
+
+	// The engine requests the accelerator's extended resource so the
+	// scheduler places it on a node with free capacity.
+	require.NotNil(t, c.Resources.Limits)
+	assert.Equal(t, resource.MustParse("1"), c.Resources.Limits[corev1.ResourceName("nvidia.com/gpu")])
+	require.NotNil(t, c.Resources.Requests)
+	assert.Equal(t, resource.MustParse("1"), c.Resources.Requests[corev1.ResourceName("nvidia.com/gpu")])
+
+	// The engine command points at the model's weights directory.
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v1", "--port", "8000", "--host", "0.0.0.0",
+	}, c.Command)
 
 	// Accelerator node selector.
 	assert.Equal(t, "nvidia", dep.Spec.Template.Spec.NodeSelector["taas.go-taas.github.io/accelerator"])
@@ -65,7 +97,7 @@ func TestBuildDeployment(t *testing.T) {
 
 func TestBuildService(t *testing.T) {
 	evt := testChangeEvent("upsert", "demo")
-	svc := buildService(evt)
+	svc := testReconciler().buildService(evt)
 
 	assert.Equal(t, "demo-svc", svc.Name)
 	assert.Equal(t, reconcileNamespace, svc.Namespace)
@@ -91,7 +123,7 @@ func TestEndpointFor(t *testing.T) {
 	assert.Equal(t, "https://infer.example.com/demo/v1", r.endpointFor("demo"))
 
 	// Empty base URL: in-cluster DNS.
-	r = &k8sReconciler{}
+	r = &k8sReconciler{namespace: reconcileNamespace}
 	assert.Equal(t, "http://demo-svc.taas-infer.svc.cluster.local/v1", r.endpointFor("demo"))
 }
 
@@ -218,7 +250,7 @@ func newFakeReconciler(publisher mq.Client) (Reconciler, *fake.Clientset) {
 		pod.Status.Phase = corev1.PodRunning
 		return true, pod, nil
 	})
-	return newReconcilerWithClientset(clientset, publisher, "https://infer.example.com/"), clientset
+	return newReconcilerWithClientset(clientset, publisher, "https://infer.example.com/", "", WeightsConfig{}), clientset
 }
 
 // markReady sets the Deployment's ready replicas so awaitReadiness
@@ -266,6 +298,39 @@ func TestApplyUpsertHappyPath(t *testing.T) {
 	assert.Equal(t, []string{"https://infer.example.com/demo/v1"}, publisher.reports[1].Endpoints)
 }
 
+func TestApplyUpdateVersionReusesUpsert(t *testing.T) {
+	publisher := &recordingPublisher{Client: mq.NewFake()}
+	reconciler, clientset := newFakeReconciler(publisher)
+
+	// A version-change event (feature #32, AD6) reconciles the
+	// Deployment with the new weights while keeping the service identity.
+	evt := testChangeEvent("update_version", "demo")
+	evt.Model.Version = "v2"
+	evt.Model.WeightPath = "qwen/v2"
+	err := reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt))
+	require.NoError(t, err)
+
+	// The Deployment is created with the new weight path.
+	dep, err := clientset.AppsV1().Deployments(reconcileNamespace).Get(
+		context.Background(), "demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v2", "--port", "8000", "--host", "0.0.0.0",
+	}, dep.Spec.Template.Spec.Containers[0].Command)
+
+	// The Service keeps the same identity.
+	svc, err := clientset.CoreV1().Services(reconcileNamespace).Get(
+		context.Background(), "demo-svc", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "demo", svc.Spec.Selector["app"])
+
+	// Status reports: deploying then running.
+	require.Len(t, publisher.reports, 2)
+	assert.Equal(t, "deploying", publisher.reports[0].State)
+	assert.Equal(t, "running", publisher.reports[1].State)
+}
+
 func TestApplyUpsertIdempotent(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	reconciler, clientset := newFakeReconciler(publisher)
@@ -286,7 +351,7 @@ func TestApplyUpsertIdempotent(t *testing.T) {
 func TestApplyUpsertFailureReportsFailed(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	// Plain clientset: the Deployment never becomes ready.
-	reconciler := newReconcilerWithClientset(fake.NewSimpleClientset(), publisher, "")
+	reconciler := newReconcilerWithClientset(fake.NewSimpleClientset(), publisher, "", "", WeightsConfig{})
 
 	// Cancel the context so awaitReadiness fails after the first poll.
 	ctx, cancel := context.WithCancel(context.Background())
@@ -385,10 +450,10 @@ func TestAwaitReadinessPolls(t *testing.T) {
 	publisher := &recordingPublisher{Client: mq.NewFake()}
 	// Plain clientset: readiness only appears once markReady runs.
 	clientset := fake.NewSimpleClientset()
-	reconciler := newReconcilerWithClientset(clientset, publisher, "")
+	reconciler := newReconcilerWithClientset(clientset, publisher, "", "", WeightsConfig{})
 
 	evt := testChangeEvent("upsert", "demo")
-	dep := buildDeployment(evt)
+	dep := testReconciler().buildDeployment(evt)
 	_, err := clientset.AppsV1().Deployments(reconcileNamespace).Create(
 		context.Background(), dep, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -406,7 +471,7 @@ func TestAwaitReadinessPolls(t *testing.T) {
 
 func TestApplyUpsertWithNilPublisher(t *testing.T) {
 	clientset := fake.NewSimpleClientset()
-	reconciler := newReconcilerWithClientset(clientset, nil, "")
+	reconciler := newReconcilerWithClientset(clientset, nil, "", "", WeightsConfig{})
 
 	// The deployment never becomes ready; with a cancelled context the
 	// reconcile fails but must not panic on the nil publisher.
@@ -440,6 +505,44 @@ func TestAcceleratorNodeSelector(t *testing.T) {
 	assert.Equal(t, "m100", selector["taas.go-taas.github.io/accelerator-type"])
 }
 
+func TestGPUResourceName(t *testing.T) {
+	assert.Equal(t, "nvidia.com/gpu", gpuResourceName("nvidia"))
+	assert.Equal(t, "iluvatar.ai/vgpu", gpuResourceName("iluvatar"))
+	assert.Equal(t, "metax-tech.com/gpu", gpuResourceName("metax"))
+	assert.Equal(t, "", gpuResourceName("tpu"))
+	assert.Equal(t, "", gpuResourceName(""))
+}
+
+func TestEngineResources(t *testing.T) {
+	res := engineResources("nvidia")
+	require.NotNil(t, res.Limits)
+	assert.Equal(t, resource.MustParse("1"), res.Limits[corev1.ResourceName("nvidia.com/gpu")])
+	require.NotNil(t, res.Requests)
+	assert.Equal(t, resource.MustParse("1"), res.Requests[corev1.ResourceName("nvidia.com/gpu")])
+
+	// Unknown accelerators get no resource request.
+	assert.Empty(t, engineResources("tpu").Limits)
+	assert.Empty(t, engineResources("").Limits)
+}
+
+func TestEngineCommand(t *testing.T) {
+	assert.Equal(t, []string{
+		"python3", "-m", "vllm.entrypoints.openai.api_server",
+		"--model", "/data/weights/qwen/v1", "--port", "8000", "--host", "0.0.0.0",
+	}, engineCommand("vllm", "/data/weights", "qwen/v1"))
+
+	// Unknown engines get no command (the image's default entrypoint runs).
+	assert.Nil(t, engineCommand("sglang", "/data/weights", "qwen/v1"))
+	assert.Nil(t, engineCommand("", "/data/weights", "qwen/v1"))
+}
+
+func TestModelDir(t *testing.T) {
+	assert.Equal(t, "/data/weights/qwen/v1", modelDir("/data/weights", "qwen/v1"))
+	assert.Equal(t, "/data/weights/qwen/v1", modelDir("/data/weights", "qwen/v1/"))
+	assert.Equal(t, "/data/weights", modelDir("/data/weights", ""))
+	assert.Equal(t, "/data/weights", modelDir("/data/weights", "/"))
+}
+
 func TestDeploymentNameAndServiceName(t *testing.T) {
 	assert.Equal(t, "demo", deploymentName("demo"))
 	assert.Equal(t, "demo-svc", serviceName("demo"))
@@ -448,15 +551,90 @@ func TestDeploymentNameAndServiceName(t *testing.T) {
 func TestBuildDeploymentDefaults(t *testing.T) {
 	evt := testChangeEvent("upsert", "demo")
 	evt.Replicas = 0
-	dep := buildDeployment(evt)
+	dep := testReconciler().buildDeployment(evt)
 	assert.Equal(t, int32(0), *dep.Spec.Replicas)
+}
+
+func TestBuildDeploymentCustomWeights(t *testing.T) {
+	evt := testChangeEvent("upsert", "demo")
+	r := &k8sReconciler{
+		clientset: fake.NewSimpleClientset(),
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "my-weights", MountPath: "/models"},
+	}
+	dep := r.buildDeployment(evt)
+	c := dep.Spec.Template.Spec.Containers[0]
+	assert.Equal(t, "/models", c.VolumeMounts[0].MountPath)
+	assert.Equal(t, "my-weights", dep.Spec.Template.Spec.Volumes[0].PersistentVolumeClaim.ClaimName)
+}
+
+func TestEnsureWeightsPVCCreates(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	r := &k8sReconciler{
+		clientset: clientset,
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", StorageClass: "juicefs-taas-models", MountPath: "/data/weights"},
+	}
+	ctx := context.Background()
+
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+
+	pvc, err := clientset.CoreV1().PersistentVolumeClaims(reconcileNamespace).
+		Get(ctx, "model-weights", metav1.GetOptions{})
+	require.NoError(t, err)
+	require.NotNil(t, pvc.Spec.StorageClassName)
+	assert.Equal(t, "juicefs-taas-models", *pvc.Spec.StorageClassName)
+	assert.Equal(t, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}, pvc.Spec.AccessModes)
+
+	// Idempotent: a second call does not error.
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+}
+
+func TestEnsureWeightsPVCNoStorageClass(t *testing.T) {
+	clientset := fake.NewSimpleClientset()
+	r := &k8sReconciler{
+		clientset: clientset,
+		namespace: reconcileNamespace,
+		weights:   WeightsConfig{PVCName: "model-weights", MountPath: "/data/weights"},
+	}
+	ctx := context.Background()
+
+	require.NoError(t, r.ensureWeightsPVC(ctx))
+	pvc, err := clientset.CoreV1().PersistentVolumeClaims(reconcileNamespace).
+		Get(ctx, "model-weights", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Nil(t, pvc.Spec.StorageClassName)
 }
 
 func TestNewK8sReconciler(t *testing.T) {
 	// The constructor wires the clientset through; reconcile paths are
 	// covered by the fake-clientset tests above.
-	reconciler := NewK8sReconciler(&k8s.Client{}, mq.NewFake(), "https://infer.example.com")
+	reconciler := NewK8sReconciler(&k8s.Client{}, mq.NewFake(), "https://infer.example.com", "", WeightsConfig{})
 	assert.NotNil(t, reconciler)
+}
+
+func TestPodFailureMessage(t *testing.T) {
+	// Waiting container with a reason.
+	pod := &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{
+		State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ErrImagePull", Message: "pull failed"}},
+	}}}}
+	assert.Equal(t, "ErrImagePull: pull failed", podFailureMessage(pod))
+
+	// Terminated container.
+	pod = &corev1.Pod{Status: corev1.PodStatus{ContainerStatuses: []corev1.ContainerStatus{{
+		State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Reason: "OOMKilled", Message: "out of memory"}},
+	}}}}
+	assert.Equal(t, "OOMKilled: out of memory", podFailureMessage(pod))
+
+	// No container statuses.
+	assert.Equal(t, "pod failed", podFailureMessage(&corev1.Pod{}))
+}
+
+func TestClampReplicas(t *testing.T) {
+	assert.Equal(t, int32(0), clampReplicas(-5))
+	assert.Equal(t, int32(1), clampReplicas(1))
+	assert.Equal(t, int32(100), clampReplicas(100))
+	assert.Equal(t, int32(math.MaxInt32), clampReplicas(math.MaxInt32+1))
 }
 
 func TestControllerRunSubscribes(t *testing.T) {
@@ -486,4 +664,152 @@ func TestControllerRunSubscribes(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Run did not return after cancel")
 	}
+}
+
+// testChangeEventWithAutoscaling builds a change event with an
+// autoscaling policy (feature #16).
+func testChangeEventWithAutoscaling(eventType, name string, policy *autoscalingPolicy) changeEvent {
+	evt := testChangeEvent(eventType, name)
+	evt.Autoscaling = policy
+	return evt
+}
+
+func TestBuildHPA(t *testing.T) {
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 10,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	hpa := testReconciler().buildHPA(evt)
+
+	assert.Equal(t, "hpa-demo", hpa.Name)
+	assert.Equal(t, reconcileNamespace, hpa.Namespace)
+	require.NotNil(t, hpa.Spec.MinReplicas)
+	assert.Equal(t, int32(1), *hpa.Spec.MinReplicas)
+	assert.Equal(t, int32(10), hpa.Spec.MaxReplicas)
+	assert.Equal(t, "demo", hpa.Spec.ScaleTargetRef.Name)
+	assert.Equal(t, "Deployment", hpa.Spec.ScaleTargetRef.Kind)
+
+	// Concurrency object metric with AverageValue target.
+	require.Len(t, hpa.Spec.Metrics, 1)
+	m := hpa.Spec.Metrics[0]
+	assert.Equal(t, autoscalingv2.ObjectMetricSourceType, m.Type)
+	require.NotNil(t, m.Object)
+	assert.Equal(t, "taas-infer-concurrency", m.Object.Metric.Name)
+	assert.Equal(t, autoscalingv2.AverageValueMetricType, m.Object.Target.Type)
+	require.NotNil(t, m.Object.Target.AverageValue)
+	assert.Equal(t, int64(32), m.Object.Target.AverageValue.Value())
+
+	// Downscale stabilization window equals the cooldown.
+	require.NotNil(t, hpa.Spec.Behavior)
+	require.NotNil(t, hpa.Spec.Behavior.ScaleDown)
+	require.NotNil(t, hpa.Spec.Behavior.ScaleDown.StabilizationWindowSeconds)
+	assert.Equal(t, int32(300), *hpa.Spec.Behavior.ScaleDown.StabilizationWindowSeconds)
+}
+
+func TestBuildHPAScaleToZero(t *testing.T) {
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 0, MaxReplicas: 5,
+		TargetConcurrency: 16, ScaleToZero: true, CooldownSeconds: 120,
+	})
+	hpa := testReconciler().buildHPA(evt)
+	require.NotNil(t, hpa.Spec.MinReplicas)
+	assert.Equal(t, int32(0), *hpa.Spec.MinReplicas)
+	assert.Equal(t, int32(5), hpa.Spec.MaxReplicas)
+}
+
+func TestApplyUpsertWithAutoscalingCreatesHPA(t *testing.T) {
+	publisher := &recordingPublisher{Client: mq.NewFake()}
+	reconciler, clientset := newFakeReconciler(publisher)
+
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 10,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt)))
+
+	// The HPA exists with the desired spec.
+	hpa, err := clientset.AutoscalingV2().HorizontalPodAutoscalers(reconcileNamespace).
+		Get(context.Background(), "hpa-demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, int32(10), hpa.Spec.MaxReplicas)
+
+	// Re-apply with a different max: the HPA is patched (idempotent).
+	evt2 := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 20,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt2)))
+	hpa, err = clientset.AutoscalingV2().HorizontalPodAutoscalers(reconcileNamespace).
+		Get(context.Background(), "hpa-demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, int32(20), hpa.Spec.MaxReplicas)
+}
+
+func TestApplyUpsertAutoscalingDisabledDeletesHPA(t *testing.T) {
+	publisher := &recordingPublisher{Client: mq.NewFake()}
+	reconciler, clientset := newFakeReconciler(publisher)
+
+	// First enable autoscaling.
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 10,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt)))
+	_, err := clientset.AutoscalingV2().HorizontalPodAutoscalers(reconcileNamespace).
+		Get(context.Background(), "hpa-demo", metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Then disable: the HPA is deleted and the Deployment is pinned.
+	disabled := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: false, MinReplicas: 1, MaxReplicas: 10,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	disabled.Replicas = 3
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(disabled)))
+
+	_, err = clientset.AutoscalingV2().HorizontalPodAutoscalers(reconcileNamespace).
+		Get(context.Background(), "hpa-demo", metav1.GetOptions{})
+	assert.Error(t, err, "HPA should be deleted when autoscaling is disabled")
+
+	dep, err := clientset.AppsV1().Deployments(reconcileNamespace).
+		Get(context.Background(), "demo", metav1.GetOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, int32(3), *dep.Spec.Replicas, "deployment pinned to fixed count (FR2.5)")
+}
+
+func TestApplyDeleteRemovesHPA(t *testing.T) {
+	publisher := &recordingPublisher{Client: mq.NewFake()}
+	reconciler, clientset := newFakeReconciler(publisher)
+
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 10,
+		TargetConcurrency: 32, ScaleToZero: false, CooldownSeconds: 300,
+	})
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(evt)))
+
+	delEvt := testChangeEvent("delete", "demo")
+	require.NoError(t, reconciler.ApplyInferServiceChange(context.Background(), changeMessage(delEvt)))
+
+	_, err := clientset.AutoscalingV2().HorizontalPodAutoscalers(reconcileNamespace).
+		Get(context.Background(), "hpa-demo", metav1.GetOptions{})
+	assert.Error(t, err, "HPA should be deleted with the service")
+}
+
+func TestChangeEventDecodeAutoscaling(t *testing.T) {
+	// The controller's changeEvent must decode the infer module's
+	// published autoscaling JSON (feature #16, §6.1).
+	evt := testChangeEventWithAutoscaling("upsert", "demo", &autoscalingPolicy{
+		Enabled: true, MinReplicas: 1, MaxReplicas: 8,
+		TargetConcurrency: 48, ScaleToZero: false, CooldownSeconds: 200,
+	})
+	body, err := json.Marshal(evt)
+	require.NoError(t, err)
+
+	var decoded changeEvent
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	require.NotNil(t, decoded.Autoscaling)
+	assert.Equal(t, true, decoded.Autoscaling.Enabled)
+	assert.Equal(t, 8, decoded.Autoscaling.MaxReplicas)
+	assert.Equal(t, 48, decoded.Autoscaling.TargetConcurrency)
+	assert.Equal(t, 200, decoded.Autoscaling.CooldownSeconds)
 }

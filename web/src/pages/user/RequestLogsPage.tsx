@@ -4,11 +4,13 @@
 import { useEffect, useState } from 'react';
 import { useApi } from '../../surface';
 import { useOrg } from '../../org';
+import { useI18n } from '../../i18n';
 import { formatTime, type RequestLog } from '../../api';
 
 export default function RequestLogsPage() {
   const api = useApi();
   const { orgId } = useOrg();
+  const { t } = useI18n();
   const [logs, setLogs] = useState<RequestLog[]>([]);
   const [error, setError] = useState('');
 
@@ -16,24 +18,24 @@ export default function RequestLogsPage() {
     api
       .get<{ logs?: RequestLog[] }>('/api/v1/metering/request-logs?page.limit=100', orgId)
       .then((data) => setLogs(data.logs || []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'failed to load logs'));
-  }, [api, orgId]);
+      .catch((e) => setError(e instanceof Error ? e.message : t('ureqlogs.loadFailed')));
+  }, [api, orgId, t]);
 
   return (
     <div className="page">
-      <h1>Request Logs</h1>
+      <h1>{t('ureqlogs.title')}</h1>
       {error && <div className="error">{error}</div>}
       {logs.length === 0 ? (
-        <div className="empty" data-testid="request-logs-empty">No request logs.</div>
+        <div className="empty" data-testid="request-logs-empty">{t('ureqlogs.empty')}</div>
       ) : (
         <table className="table" data-testid="request-logs-table">
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Model</th>
-              <th>Status</th>
-              <th>Tokens</th>
-              <th>Latency</th>
+              <th>{t('ureqlogs.colTime')}</th>
+              <th>{t('ureqlogs.colModel')}</th>
+              <th>{t('ureqlogs.colStatus')}</th>
+              <th>{t('ureqlogs.colTokens')}</th>
+              <th>{t('ureqlogs.colLatency')}</th>
             </tr>
           </thead>
           <tbody>
@@ -43,7 +45,7 @@ export default function RequestLogsPage() {
                 <td>{l.modelId}</td>
                 <td>{l.status}</td>
                 <td>{Number(l.promptTokens) + Number(l.completionTokens)}</td>
-                <td>{l.latencyMs}ms</td>
+                <td>{t('ureqlogs.latencyMs', { latencyMs: l.latencyMs })}</td>
               </tr>
             ))}
           </tbody>

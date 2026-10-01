@@ -95,6 +95,7 @@ func TestServiceNewWithDependencies(t *testing.T) {
 		NewInferenceServiceRepository(db),
 		model.NewRepository(db),
 		mq.NewFake(),
+		NewDeploymentEventRepository(db),
 	)
 	require.NotNil(t, svc)
 	require.NoError(t, MigrateSchemaForFVT(db))
