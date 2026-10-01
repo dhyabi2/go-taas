@@ -177,11 +177,11 @@ const (
 // billing-reports module error codes (feature-25, AD7). The block is
 // 10901-10999, the next free block after observability's 108xx.
 const (
-	CodeReportNotFound          Code = 10901 // REPORT_NOT_FOUND
-	CodeScheduleNotFound        Code = 10902 // SCHEDULE_NOT_FOUND
-	CodeReportInvalidDimension  Code = 10903 // REPORT_INVALID_DIMENSION
+	CodeReportNotFound           Code = 10901 // REPORT_NOT_FOUND
+	CodeScheduleNotFound         Code = 10902 // SCHEDULE_NOT_FOUND
+	CodeReportInvalidDimension   Code = 10903 // REPORT_INVALID_DIMENSION
 	CodeReportInvalidGranularity Code = 10904 // REPORT_INVALID_GRANULARITY
-	CodeReportInvalidFrequency  Code = 10905 // REPORT_INVALID_FREQUENCY
-	CodeReportNameConflict      Code = 10906 // REPORT_NAME_CONFLICT
-	CodeReportNotReady          Code = 10907 // REPORT_NOT_READY
+	CodeReportInvalidFrequency   Code = 10905 // REPORT_INVALID_FREQUENCY
+	CodeReportNameConflict       Code = 10906 // REPORT_NAME_CONFLICT
+	CodeReportNotReady           Code = 10907 // REPORT_NOT_READY
 )
