@@ -1,3 +1,10 @@
+# [1.37.0](https://github.com/go-taas/go-taas/compare/v1.36.0...v1.37.0) (2026-10-01)
+
+
+### Features
+
+* **errors:** error analysis (feature-31) ([5fffd81](https://github.com/go-taas/go-taas/commit/5fffd81e24a1145ecfd807ee0a45e364501271f0))
+
 # [1.36.0](https://github.com/go-taas/go-taas/compare/v1.35.0...v1.36.0) (2026-10-01)
 
 
