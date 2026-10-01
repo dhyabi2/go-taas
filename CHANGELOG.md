@@ -1,3 +1,15 @@
+# [1.41.0](https://github.com/go-taas/go-taas/compare/v1.40.0...v1.41.0) (2026-10-01)
+
+
+### Bug Fixes
+
+* **fvt:** remove duplicate package declaration in playground compare test ([0026c9e](https://github.com/go-taas/go-taas/commit/0026c9e014f887334e62b209d2afef2c57eb8cf5))
+
+
+### Features
+
+* **forecast:** usage & cost forecasting with confidence bands ([22495e2](https://github.com/go-taas/go-taas/commit/22495e277a043ef6e518cc0843456e504cb5c389))
+
 # [1.40.0](https://github.com/go-taas/go-taas/compare/v1.39.0...v1.40.0) (2026-10-01)
 
 
