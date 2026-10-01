@@ -96,6 +96,40 @@ service MeteringService {
   rpc GetRequestLog(GetRequestLogRequest) returns (GetRequestLogResponse) {
     option (google.api.http) = {get: "/api/v1/admin/metering/request-logs/{request_log_id}"};
   }
+
+  // GetUsageKeysOverview returns fleet-wide per-key analytics: summary
+  // cards, a top-keys ranking, a per-key table, and a per-key trend.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetUsageKeysOverview(GetUsageKeysOverviewRequest) returns (GetUsageKeysOverviewResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/usage/keys"};
+  }
+
+  // GetUsageKeys returns single-key analytics: summary cards and a
+  // per-key trend. The admin binding covers any key; the user binding is
+  // tenant-scoped.
+  rpc GetUsageKeys(GetUsageKeysRequest) returns (GetUsageKeysResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/usage/keys/{api_key_id}"
+      additional_bindings: {get: "/api/v1/usage/keys/{api_key_id}"}
+    };
+  }
+
+  // GetErrorAnalysisOverview returns fleet-wide error analysis: summary
+  // cards, a top-causes ranking, and an error-rate trend.
+  // Admin-surface API: served under /api/v1/admin.
+  rpc GetErrorAnalysisOverview(GetErrorAnalysisOverviewRequest) returns (GetErrorAnalysisOverviewResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/errors"};
+  }
+
+  // GetErrorAnalysis returns single-error-code analysis: summary cards
+  // and an error-rate trend. The admin binding covers any error; the
+  // user binding is tenant-scoped.
+  rpc GetErrorAnalysis(GetErrorAnalysisRequest) returns (GetErrorAnalysisResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/errors/{error_code}"
+      additional_bindings: {get: "/api/v1/errors/{error_code}"}
+    };
+  }
 }
 
 message IngestMeteringEventRequest {
@@ -343,6 +377,179 @@ message RequestLog {
   // error is the failure reason; empty on success.
   string error = 13;
   int64 created_at = 14;
+}
+
+// ---- API key usage analytics (feature #28) ----
+
+message GetUsageKeysOverviewRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD9).
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // model_id optionally filters the cards, keys, and series to one model.
+  string model_id = 4;
+}
+
+message GetUsageKeysOverviewResponse {
+  taas.common.v1.Response response = 1;
+  UsageKeysCard cards = 2;
+  repeated UsageKeyRow keys = 3;
+  repeated UsageKeyTopRow top_keys = 4;
+  repeated UsageKeysSeriesPoint series = 5;
+}
+
+message GetUsageKeysRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // api_key_id is the path parameter.
+  string api_key_id = 2;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 3;
+  int64 until = 4;
+}
+
+message GetUsageKeysResponse {
+  taas.common.v1.Response response = 1;
+  UsageKeysCard cards = 2;
+  repeated UsageKeysSeriesPoint series = 3;
+}
+
+// UsageKeysCard is the headline summary of the range. error_rate and
+// share_pct are derived client-side; the wire carries integer counts,
+// integer milliseconds, and integer cents only.
+message UsageKeysCard {
+  int64 request_count = 1;
+  int64 error_count = 2;
+  int64 total_tokens = 3;
+  int64 total_cost_cents = 4;
+  int64 avg_latency_ms = 5;
+  int64 p95_latency_ms = 6;
+  // data_through is the start of the last complete bucket covered by
+  // request logs (AD7); buckets past it are pending.
+  int64 data_through = 7;
+}
+
+// UsageKeyRow is one API key's aggregate in the per-key table.
+message UsageKeyRow {
+  string api_key_id = 1;
+  string api_key_name = 2;
+  string organization_id = 3;
+  int64 request_count = 4;
+  int64 error_count = 5;
+  int64 total_tokens = 6;
+  int64 total_cost_cents = 7;
+  int64 avg_latency_ms = 8;
+  int64 p95_latency_ms = 9;
+  // data_through is the key's last complete bucket (AD7).
+  int64 data_through = 10;
+}
+
+// UsageKeyTopRow is one key in the top-keys ranking (default 5 by cost).
+message UsageKeyTopRow {
+  string api_key_id = 1;
+  string api_key_name = 2;
+  int64 total_cost_cents = 3;
+  int64 request_count = 4;
+  int64 total_tokens = 5;
+  // share_pct is derived client-side as key cost / total cost.
+  int64 share_pct = 6;
+}
+
+// UsageKeysSeriesPoint is one time bucket of the series.
+message UsageKeysSeriesPoint {
+  // bucket is the bucket start, unix seconds (hourly for ranges <= 7
+  // days, daily otherwise, AD5).
+  int64 bucket = 1;
+  int64 request_count = 2;
+  int64 error_count = 3;
+  int64 total_tokens = 4;
+  int64 total_cost_cents = 5;
+  int64 avg_latency_ms = 6;
+  int64 p95_latency_ms = 7;
+}
+
+// ---- Error analysis (feature #31) ----
+
+message GetErrorAnalysisOverviewRequest {
+  // organization_id is an optional fleet filter. On the admin surface
+  // it is read from X-Organization-Id (or the session active org);
+  // absent means fleet-wide (AD9).
+  string organization_id = 1;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 2;
+  int64 until = 3;
+  // model_id optionally filters the cards, causes, and series to one
+  // model.
+  string model_id = 4;
+}
+
+message GetErrorAnalysisOverviewResponse {
+  taas.common.v1.Response response = 1;
+  ErrorAnalysisCard cards = 2;
+  repeated ErrorCauseRow causes = 3;
+  repeated ErrorSeriesPoint series = 4;
+}
+
+message GetErrorAnalysisRequest {
+  // organization_id is derived from the session active org (user
+  // binding) or X-Organization-Id (admin binding); the field exists for
+  // gRPC-direct callers.
+  string organization_id = 1;
+  // error_code is the path parameter.
+  string error_code = 2;
+  // since/until bound the range, unix seconds. Defaults: until = now,
+  // since = until - 24h. A range > 92 days is rejected (10404).
+  int64 since = 3;
+  int64 until = 4;
+}
+
+message GetErrorAnalysisResponse {
+  taas.common.v1.Response response = 1;
+  ErrorAnalysisCard cards = 2;
+  repeated ErrorSeriesPoint series = 3;
+}
+
+// ErrorAnalysisCard is the headline summary of the range. error_rate and
+// top_cause_share_pct are derived client-side; the wire carries integer
+// counts only.
+message ErrorAnalysisCard {
+  int64 error_count = 1;
+  int64 request_count = 2;
+  // top_cause is the top error code by count.
+  string top_cause = 3;
+  // top_cause_share_pct is derived client-side as top cause count /
+  // total error count.
+  int64 top_cause_share_pct = 4;
+  // data_through is the start of the last complete bucket covered by
+  // request logs (AD7); buckets past it are pending.
+  int64 data_through = 5;
+}
+
+// ErrorCauseRow is one error code's aggregate in the top-causes table.
+message ErrorCauseRow {
+  string error_code = 1;
+  string error_message = 2;
+  int64 error_count = 3;
+  // error_rate and share_pct are derived client-side.
+  int64 error_rate = 4;
+  int64 share_pct = 5;
+}
+
+// ErrorSeriesPoint is one time bucket of the series.
+message ErrorSeriesPoint {
+  // bucket is the bucket start, unix seconds (hourly for ranges <= 7
+  // days, daily otherwise, AD5).
+  int64 bucket = 1;
+  int64 error_count = 2;
+  int64 request_count = 3;
 }
 
 message ListRequestLogsRequest {

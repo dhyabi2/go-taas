@@ -63,6 +63,10 @@ import TracesPage from './pages/TracesPage';
 import TraceDetailPage from './pages/TraceDetailPage';
 import UserTracesPage from './pages/user/UserTracesPage';
 import UserTraceDetailPage from './pages/user/UserTraceDetailPage';
+import UserUsageKeysPage from './pages/user/UserUsageKeysPage';
+import UserUsageKeyDetailPage from './pages/user/UserUsageKeyDetailPage';
+import UsageKeysPage from './pages/UsageKeysPage';
+import UsageKeyDetailPage from './pages/UsageKeyDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 export default function App() {
@@ -118,6 +122,8 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/models/:id/observability" element={<UserModelObservabilityPage />} />
               <Route path="/traces" element={<UserTracesPage />} />
               <Route path="/traces/:traceId" element={<UserTraceDetailPage />} />
+              <Route path="/usage/keys" element={<UserUsageKeysPage />} />
+              <Route path="/usage/keys/:apiKeyId" element={<UserUsageKeyDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/usage" homeLabel="Usage" />} />
             </Routes>
           </UserShell>
@@ -171,6 +177,8 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/observability/models/:modelId" element={<ModelObservabilityPage />} />
               <Route path="/admin/traces" element={<TracesPage />} />
               <Route path="/admin/traces/:traceId" element={<TraceDetailPage />} />
+              <Route path="/admin/usage/keys" element={<UsageKeysPage />} />
+              <Route path="/admin/usage/keys/:apiKeyId" element={<UsageKeyDetailPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

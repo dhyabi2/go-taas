@@ -434,6 +434,106 @@ export interface GetModelObservabilityResponse {
   keys?: ObservabilityKeyRow[];
 }
 
+// ---- API key usage analytics (feature #28) ----
+// Admin surface: /api/v1/admin/usage/keys/*. User surface (masked):
+// /api/v1/usage/keys/*. int64 fields arrive as strings.
+
+export interface UsageKeysCard {
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  dataThrough: string;
+}
+
+export interface UsageKeyRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  organizationId: string;
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+  dataThrough: string;
+}
+
+export interface UsageKeyTopRow {
+  apiKeyId: string;
+  apiKeyName: string;
+  totalCostCents: string;
+  requestCount: string;
+  totalTokens: string;
+  sharePct: string;
+}
+
+export interface UsageKeysSeriesPoint {
+  bucket: string;
+  requestCount: string;
+  errorCount: string;
+  totalTokens: string;
+  totalCostCents: string;
+  avgLatencyMs: string;
+  p95LatencyMs: string;
+}
+
+export interface GetUsageKeysOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: UsageKeysCard;
+  keys?: UsageKeyRow[];
+  topKeys?: UsageKeyTopRow[];
+  series?: UsageKeysSeriesPoint[];
+}
+
+export interface GetUsageKeysResponse {
+  response: ResponseEnvelope;
+  cards?: UsageKeysCard;
+  series?: UsageKeysSeriesPoint[];
+}
+
+// ---- error analysis (feature #31) ----
+// Admin surface: /api/v1/admin/errors/*. User surface (masked):
+// /api/v1/errors/*. int64 fields arrive as strings.
+
+export interface ErrorAnalysisCard {
+  errorCount: string;
+  requestCount: string;
+  topCause: string;
+  topCauseSharePct: string;
+  dataThrough: string;
+}
+
+export interface ErrorCauseRow {
+  errorCode: string;
+  errorMessage: string;
+  errorCount: string;
+  errorRate: string;
+  sharePct: string;
+}
+
+export interface ErrorSeriesPoint {
+  bucket: string;
+  errorCount: string;
+  requestCount: string;
+  errorRate: string;
+}
+
+export interface GetErrorAnalysisOverviewResponse {
+  response: ResponseEnvelope;
+  cards?: ErrorAnalysisCard;
+  causes?: ErrorCauseRow[];
+  series?: ErrorSeriesPoint[];
+}
+
+export interface GetErrorAnalysisResponse {
+  response: ResponseEnvelope;
+  cards?: ErrorAnalysisCard;
+  series?: ErrorSeriesPoint[];
+}
+
 // ---- request tracing (feature #27) ----
 
 export interface TraceSummary {

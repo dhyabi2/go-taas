@@ -221,6 +221,11 @@ func main() {
 			tracingSvc.SetSessionUserResolver(authSvc)
 			tracingSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			meteringSvc.SetTraceCapturer(tracingSvc)
+			// Feature #28/#31: the metering service resolves the session's
+			// active org and caller, and gates the admin usage-keys and
+			// error-analysis RPCs by the caller's role (AD9).
+			meteringSvc.SetSessionUserResolver(authSvc)
+			meteringSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// The auth service records key revokes and logins into the
 			// audit trail best-effort (feature #15, AC1/AC3).
 			auditRecorder := audit.NewRecorder(audit.NewRepository(gormDB))
