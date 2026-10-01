@@ -51,8 +51,10 @@ import LoadTestsPage from './pages/LoadTestsPage';
 import LoadTestDetailPage from './pages/LoadTestDetailPage';
 import WebhooksPage from './pages/WebhooksPage';
 import WebhookDetailPage from './pages/WebhookDetailPage';
+import AdminNotificationsPage from './pages/AdminNotificationsPage';
 import UserWebhooksPage from './pages/user/UserWebhooksPage';
 import UserWebhookDetailPage from './pages/user/UserWebhookDetailPage';
+import UserNotificationsPage from './pages/user/UserNotificationsPage';
 import UserModelObservabilityPage from './pages/user/UserModelObservabilityPage';
 import ActivityPage from './pages/user/ActivityPage';
 import ObservabilityPage from './pages/ObservabilityPage';
@@ -106,6 +108,7 @@ function UserSurface({ path }: { path: string }) {
               <Route path="/activity" element={<ActivityPage />} />
               <Route path="/webhooks" element={<UserWebhooksPage />} />
               <Route path="/webhooks/:webhookId" element={<UserWebhookDetailPage />} />
+              <Route path="/notifications" element={<UserNotificationsPage />} />
               <Route path="/models" element={<UserModelsPage />} />
               <Route path="/models/:id" element={<UserModelDetailPage />} />
               <Route path="/models/:id/observability" element={<UserModelObservabilityPage />} />
@@ -157,6 +160,7 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/load-tests/:loadTestId" element={<LoadTestDetailPage />} />
               <Route path="/admin/webhooks" element={<WebhooksPage />} />
               <Route path="/admin/webhooks/:webhookId" element={<WebhookDetailPage />} />
+              <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
               <Route path="/admin/observability" element={<ObservabilityPage />} />
               <Route path="/admin/observability/models/:modelId" element={<ModelObservabilityPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />

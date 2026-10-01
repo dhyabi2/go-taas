@@ -21,6 +21,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
 	"github.com/go-taas/go-taas/services/audit"
+	"github.com/go-taas/go-taas/services/notification"
 	"github.com/go-taas/go-taas/services/webhook"
 
 	"github.com/go-taas/go-taas/services/infer"
@@ -178,6 +179,16 @@ func (s *Service) publishWebhookEvent(ctx context.Context, orgID, eventType, eve
 		return
 	}
 	webhook.PublishEvent(ctx, s.publisher, orgID, eventType, eventID, data)
+}
+
+// publishNotificationEvent publishes a billing notification event
+// best-effort (feature #26, AD9). A publish failure is logged and never
+// fails the producing mutation.
+func (s *Service) publishNotificationEvent(ctx context.Context, orgID, eventType, eventID string, data any) {
+	if s.publisher == nil {
+		return
+	}
+	notification.PublishEvent(ctx, s.publisher, orgID, eventType, eventID, data)
 }
 
 // resolveOrg returns the organization context for a user-realm read

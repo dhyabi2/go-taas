@@ -247,6 +247,19 @@ func (c *Configuration) applyDefaults() {
 	if c.Observability.MaxRangeSeconds == 0 {
 		c.Observability.MaxRangeSeconds = 92 * 24 * 3600
 	}
+	// Feature #26: notification module defaults (Section 9).
+	if c.Notification.Consumer.Workers == 0 {
+		c.Notification.Consumer.Workers = 4
+	}
+	if c.Notification.Retention.NotificationTTL == 0 {
+		c.Notification.Retention.NotificationTTL = 2160 * time.Hour
+	}
+	if c.Notification.Retention.BatchSize == 0 {
+		c.Notification.Retention.BatchSize = 1000
+	}
+	if c.Notification.Retention.Interval == 0 {
+		c.Notification.Retention.Interval = time.Hour
+	}
 	// The image-import Harbor project defaults to "taas" so imported
 	// images always land in the platform's own project.
 	if c.Image.Harbor.Project == "" {

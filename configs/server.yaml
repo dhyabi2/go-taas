@@ -204,3 +204,15 @@ loadtest:
 # default, AD7); a longer range returns 10404.
 observability:
   maxRangeSeconds: 7948800
+
+# Feature #26: the in-console notification center. The event consumer
+# fans out the event catalog to enabled users; the retention runner
+# deletes notifications older than notificationTTL (90 days, AD3).
+notification:
+  consumer:
+    workers: 4
+  retention:
+    enabled: true
+    notificationTTL: 2160h
+    batchSize: 1000
+    interval: 1h

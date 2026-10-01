@@ -65,6 +65,15 @@ func (s *Service) GenerateInvoice(ctx context.Context, req *billingv1.GenerateIn
 			"currency":        currency,
 			"period_start":    monthStart,
 		})
+	// Feature #26 (AD9): publish the same event to notification.events.
+	s.publishNotificationEvent(ctx, orgID, webhook.EventInvoiceCreated, "inv-"+inv.ID,
+		map[string]any{
+			"invoice_id":      inv.ID,
+			"organization_id": orgID,
+			"amount_cents":    totalCents,
+			"currency":        currency,
+			"period_start":    monthStart,
+		})
 	return &billingv1.GenerateInvoiceResponse{Response: okResponse(), Invoice: summarizeInvoice(inv)}, nil
 }
 

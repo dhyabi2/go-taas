@@ -12,6 +12,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/pkg/mq"
 	"github.com/go-taas/go-taas/pkg/server"
+	"github.com/go-taas/go-taas/services/notification"
 	"github.com/go-taas/go-taas/services/webhook"
 )
 
@@ -144,6 +145,15 @@ func (c *StatusConsumer) handle(ctx context.Context, msg mq.Message) error {
 	if c.publisher != nil {
 		if svc, err := c.repo.FindByID(ctx, report.ServiceID); err == nil && svc != nil {
 			webhook.PublishEvent(ctx, c.publisher, svc.OrganizationID,
+				webhook.EventDeploymentStatusChanged, "deploy-"+report.ServiceID,
+				map[string]any{
+					"service_id": report.ServiceID,
+					"state":      report.State,
+					"endpoints":  report.Endpoints,
+				})
+			// Feature #26 (AD9): publish the same event to
+			// notification.events for the in-console notification center.
+			notification.PublishEvent(ctx, c.publisher, svc.OrganizationID,
 				webhook.EventDeploymentStatusChanged, "deploy-"+report.ServiceID,
 				map[string]any{
 					"service_id": report.ServiceID,

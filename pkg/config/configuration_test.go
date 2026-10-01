@@ -442,3 +442,74 @@ observability:
 		t.Fatalf("observability max range = %d, want 604800", cfg.Observability.MaxRangeSeconds)
 	}
 }
+
+func TestNotificationDefaults(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.applyDefaults()
+	if cfg.Notification.Consumer.Workers != 4 {
+		t.Fatalf("notification consumer workers default = %d, want 4", cfg.Notification.Consumer.Workers)
+	}
+	if cfg.Notification.Retention.NotificationTTL != 2160*time.Hour {
+		t.Fatalf("notification retention TTL default = %v, want 2160h", cfg.Notification.Retention.NotificationTTL)
+	}
+	if cfg.Notification.Retention.BatchSize != 1000 {
+		t.Fatalf("notification retention batch size default = %d, want 1000", cfg.Notification.Retention.BatchSize)
+	}
+	if cfg.Notification.Retention.Interval != time.Hour {
+		t.Fatalf("notification retention interval default = %v, want 1h", cfg.Notification.Retention.Interval)
+	}
+}
+
+func TestValidateNotificationConfig(t *testing.T) {
+	cfg := &Configuration{}
+	cfg.Billing.Currency = "USD"
+	// Negative consumer workers fails.
+	cfg.Notification.Consumer.Workers = -1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative notification consumer workers should fail validation")
+	}
+	cfg.Notification.Consumer.Workers = 4
+	// Negative retention TTL fails.
+	cfg.Notification.Retention.NotificationTTL = -time.Hour
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("negative notification retention TTL should fail validation")
+	}
+	cfg.Notification.Retention.NotificationTTL = 2160 * time.Hour
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid notification config rejected: %v", err)
+	}
+}
+
+func TestParseConfigsNotificationSection(t *testing.T) {
+	path := writeTempConfig(t, `
+db:
+  master:
+    host: localhost
+    port: 5432
+    dbName: taas
+    user: taas
+    password: secret
+notification:
+  consumer:
+    workers: 8
+  retention:
+    enabled: false
+    notificationTTL: 720h
+    batchSize: 500
+    interval: 30m
+`)
+	ParseConfigs(path)
+	cfg := GetConfig()
+	if cfg == nil {
+		t.Fatal("GetConfig returned nil after ParseConfigs")
+	}
+	if cfg.Notification.Consumer.Workers != 8 {
+		t.Fatalf("notification consumer workers = %d, want 8", cfg.Notification.Consumer.Workers)
+	}
+	if cfg.Notification.Retention.Enabled {
+		t.Fatal("notification retention should be disabled from the file")
+	}
+	if cfg.Notification.Retention.NotificationTTL != 720*time.Hour {
+		t.Fatalf("notification retention TTL = %v, want 720h", cfg.Notification.Retention.NotificationTTL)
+	}
+}

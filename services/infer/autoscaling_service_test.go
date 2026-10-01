@@ -116,8 +116,9 @@ func TestUpdateInferenceServiceAutoscaling(t *testing.T) {
 	assert.Equal(t, int32(0), resp.GetFixedReplicas())
 
 	// A change event was published with the effective policy, plus the
-	// autoscaling webhook event (feature #23, AD10).
-	require.Len(t, client.published, 2)
+	// autoscaling webhook event (feature #23, AD10) and the notification
+	// event (feature #26, AD9).
+	require.Len(t, client.published, 3)
 	var evt map[string]any
 	require.NoError(t, json.Unmarshal(client.published[0].Body, &evt))
 	as, ok := evt["autoscaling"].(map[string]any)
@@ -128,6 +129,9 @@ func TestUpdateInferenceServiceAutoscaling(t *testing.T) {
 	// The second message is the webhook event on webhook.events.
 	assert.Equal(t, "autoscaling.scaled", client.published[1].Headers["event_type"])
 	assert.Equal(t, "org-1", client.published[1].Headers["organization_id"])
+	// The third message is the notification event on notification.events.
+	assert.Equal(t, "autoscaling.scaled", client.published[2].Headers["event_type"])
+	assert.Equal(t, "org-1", client.published[2].Headers["organization_id"])
 
 	// Get returns the effective policy.
 	get, err := svc.GetInferenceService(orgContext("org-1"), &inferv1.GetInferenceServiceRequest{ServiceId: serviceID})

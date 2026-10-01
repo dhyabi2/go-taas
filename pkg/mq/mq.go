@@ -95,6 +95,13 @@ type Subjects struct {
 	// the webhook module subscribes and routes each event to the matching
 	// enabled webhooks.
 	WebhookEvents string
+	// NotificationEvents carries the same platform event catalog for the
+	// in-console notification center (feature #26, AD9). The producing
+	// modules (infer for the admin events, billing for the end-user
+	// events) publish a canonical NotificationEvent envelope; the
+	// notification module subscribes and creates a notification for every
+	// enabled user, and evaluates threshold alerts on the same stream.
+	NotificationEvents string
 }
 
 // DefaultSubjects returns the canonical subject names.
@@ -109,6 +116,7 @@ func DefaultSubjects() Subjects {
 		MeteringEvents:          "metering.events",
 		Settlements:             "billing.settlements",
 		WebhookEvents:           "webhook.events",
+		NotificationEvents:      "notification.events",
 	}
 }
 

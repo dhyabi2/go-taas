@@ -297,6 +297,13 @@ func (s *Service) moneyTx(ctx context.Context, accountID string, amountCents int
 				"organization_id": orgID,
 				"balance_cents":   updated.BalanceCents,
 			})
+		// Feature #26 (AD9): publish the same event to notification.events.
+		s.publishNotificationEvent(ctx, orgID, webhook.EventBalanceLow, "bal-"+accountID,
+			map[string]any{
+				"account_id":      accountID,
+				"organization_id": orgID,
+				"balance_cents":   updated.BalanceCents,
+			})
 	}
 	return &billingv1.RechargeResponse{
 		Response:    okResponse(),
@@ -381,6 +388,18 @@ func (s *Service) CheckFunds(ctx context.Context, req *billingv1.CheckFundsReque
 		return &billingv1.CheckFundsResponse{Response: okResponse(), Allowed: true, Mode: ""}, nil
 	}
 	allowed, reason := fundsAllowed(account)
+	// Feature #26 (AD9): publish the billing.spend_limit_breached
+	// notification event best-effort when the cross-mode spend limit is
+	// reached. A publish failure is logged and never fails the check.
+	if !allowed && account.MonthlySpendLimitCents > 0 && account.SpentThisCycleCents >= account.MonthlySpendLimitCents {
+		s.publishNotificationEvent(ctx, orgID, webhook.EventSpendLimitBreached, "spend-"+account.ID,
+			map[string]any{
+				"account_id":      account.ID,
+				"organization_id": orgID,
+				"spent_cents":     account.SpentThisCycleCents,
+				"limit_cents":     account.MonthlySpendLimitCents,
+			})
+	}
 	return &billingv1.CheckFundsResponse{
 		Response:               okResponse(),
 		Allowed:                allowed,

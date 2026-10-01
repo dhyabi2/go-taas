@@ -14,6 +14,7 @@ import {
   Rocket,
   LinkSimple,
   FileText,
+  Bell,
   type Icon,
 } from '@phosphor-icons/react';
 import { Router, navigate } from '../router';
@@ -22,6 +23,7 @@ import { useApi, useRealm } from '../surface';
 import { realmLoginPath } from '../surface-routes';
 import { OrgSwitcher } from '../org';
 import { useI18n } from '../i18n';
+import NotificationBell from '../components/NotificationBell';
 import brandLogo from '../assets/brand/logo-dark.svg';
 
 // adminRoles is the set of session roles that make a user an
@@ -39,6 +41,7 @@ export const USER_NAV_ITEMS: { path: string; labelKey: string; testid: string; i
   { path: '/billing/reports', labelKey: 'nav.billingReports', testid: 'user-nav-billing-reports', icon: FileText },
   { path: '/activity', labelKey: 'nav.activity', testid: 'user-nav-activity', icon: Pulse },
   { path: '/webhooks', labelKey: 'nav.webhooks', testid: 'user-nav-webhooks', icon: LinkSimple },
+  { path: '/notifications', labelKey: 'nav.notifications', testid: 'user-nav-notifications', icon: Bell },
   { path: '/models', labelKey: 'nav.models', testid: 'user-nav-models', icon: Cube },
 ];
 
@@ -147,6 +150,7 @@ export function UserShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <OrgSwitcher />
+        <NotificationBell path="/api/v1/notifications" testId="user-bell-badge" />
         <button
           className="lang-switch"
           data-testid="lang-switch"

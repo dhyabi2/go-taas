@@ -185,3 +185,13 @@ const (
 	CodeReportNameConflict       Code = 10906 // REPORT_NAME_CONFLICT
 	CodeReportNotReady           Code = 10907 // REPORT_NOT_READY
 )
+
+// notification module error codes (feature #26, AD2). The block is
+// 11001-11099, the next free block after billing-reports' 109xx.
+const (
+	CodeNotificationNotFound           Code = 11001 // NOTIFICATION_NOT_FOUND
+	CodeNotificationPreferencesInvalid Code = 11002 // NOTIFICATION_PREFERENCES_INVALID
+	CodeNotificationThresholdNotFound  Code = 11003 // NOTIFICATION_THRESHOLD_NOT_FOUND
+	CodeNotificationThresholdInvalid   Code = 11004 // NOTIFICATION_THRESHOLD_INVALID
+	CodeNotificationEventTypeInvalid   Code = 11005 // NOTIFICATION_EVENT_TYPE_INVALID
+)

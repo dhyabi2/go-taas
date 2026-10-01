@@ -9,6 +9,7 @@ import (
 	"github.com/go-taas/go-taas/pkg/logger"
 	"github.com/go-taas/go-taas/services/audit"
 	"github.com/go-taas/go-taas/services/image"
+	"github.com/go-taas/go-taas/services/notification"
 	"github.com/go-taas/go-taas/services/webhook"
 )
 
@@ -250,6 +251,15 @@ func (s *Service) UpdateInferenceServiceAutoscaling(ctx context.Context, req *in
 			eventType = webhook.EventAutoscalingScaleToZero
 		}
 		webhook.PublishEvent(ctx, client, orgID, eventType, "auto-"+req.GetServiceId(),
+			map[string]any{
+				"service_id":    req.GetServiceId(),
+				"min_replicas":  policy.MinReplicas,
+				"max_replicas":  policy.MaxReplicas,
+				"scale_to_zero": policy.ScaleToZero,
+			})
+		// Feature #26 (AD9): publish the same event to
+		// notification.events for the in-console notification center.
+		notification.PublishEvent(ctx, client, orgID, eventType, "auto-"+req.GetServiceId(),
 			map[string]any{
 				"service_id":    req.GetServiceId(),
 				"min_replicas":  policy.MinReplicas,

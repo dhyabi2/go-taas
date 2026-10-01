@@ -543,6 +543,37 @@ type ObservabilityConfig struct {
 	MaxRangeSeconds int64 `mapstructure:"maxRangeSeconds"`
 }
 
+// NotificationConfig holds notification-module specific settings
+// (feature #26, Section 9).
+type NotificationConfig struct {
+	// Consumer configures the notification.events event consumer.
+	Consumer NotificationConsumerConfig `mapstructure:"consumer"`
+	// Retention configures the notification retention runner (AD3).
+	Retention NotificationRetentionConfig `mapstructure:"retention"`
+}
+
+// NotificationConsumerConfig holds the notification.events consumer
+// Runner settings (feature #26, AD10).
+type NotificationConsumerConfig struct {
+	// Workers is the number of concurrent event-handling workers.
+	Workers int `mapstructure:"workers"`
+}
+
+// NotificationRetentionConfig holds the notification retention runner
+// settings (feature #26, AD3).
+type NotificationRetentionConfig struct {
+	// Enabled turns the notification retention runner on or off
+	// (incident-triage kill switch).
+	Enabled bool `mapstructure:"enabled"`
+	// NotificationTTL is how long notifications are kept before
+	// deletion; default 2160h (90 days).
+	NotificationTTL time.Duration `mapstructure:"notificationTTL"`
+	// BatchSize is the number of rows deleted per retention pass.
+	BatchSize int `mapstructure:"batchSize"`
+	// Interval is the ticker period between retention passes.
+	Interval time.Duration `mapstructure:"interval"`
+}
+
 // Configuration is the root of the merged configuration tree.
 type Configuration struct {
 	Databases     Databases           `mapstructure:"db"`
@@ -561,6 +592,7 @@ type Configuration struct {
 	LoadTest      LoadTestConfig      `mapstructure:"loadtest"`
 	Webhook       WebhookConfig       `mapstructure:"webhook"`
 	Observability ObservabilityConfig `mapstructure:"observability"`
+	Notification  NotificationConfig  `mapstructure:"notification"`
 	Log           LogConfig           `mapstructure:"log"`
 }
 
@@ -729,6 +761,18 @@ func (c *Configuration) Validate() error {
 	}
 	if c.Observability.MaxRangeSeconds < 0 {
 		return &FieldError{Field: "observability.maxRangeSeconds", Reason: "must not be negative"}
+	}
+	if c.Notification.Consumer.Workers < 0 {
+		return &FieldError{Field: "notification.consumer.workers", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.NotificationTTL < 0 {
+		return &FieldError{Field: "notification.retention.notificationTTL", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.BatchSize < 0 {
+		return &FieldError{Field: "notification.retention.batchSize", Reason: "must not be negative"}
+	}
+	if c.Notification.Retention.Interval < 0 {
+		return &FieldError{Field: "notification.retention.interval", Reason: "must not be negative"}
 	}
 	return nil
 }

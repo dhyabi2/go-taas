@@ -22,6 +22,7 @@ import (
 	"github.com/go-taas/go-taas/services/infer"
 	"github.com/go-taas/go-taas/services/metering"
 	"github.com/go-taas/go-taas/services/model"
+	"github.com/go-taas/go-taas/services/notification"
 	"github.com/go-taas/go-taas/services/observability"
 	"github.com/go-taas/go-taas/services/tenancy"
 	"github.com/go-taas/go-taas/services/webhook"
@@ -112,6 +113,11 @@ func main() {
 	observabilitySvc := observability.New(srv.Components())
 	observabilitySvc.SetMaxRangeSeconds(cfg.Observability.MaxRangeSeconds)
 	srv.RegisterService(observabilitySvc)
+	// Feature #26: the notification service owns the in-console
+	// notification center: notifications, per-user preferences and
+	// threshold alerts, plus the event consumer and retention runner.
+	notificationSvc := notification.New(srv.Components())
+	srv.RegisterService(notificationSvc)
 	// Feature #18: the accelerator inventory service serves the read-only
 	// fleet view from its in-memory projection cache. The cache is
 	// constructed once and shared with the snapshot consumer so the
@@ -193,6 +199,13 @@ func main() {
 			observabilitySvc.SetSessionOrgResolver(authSvc)
 			observabilitySvc.SetSessionUserResolver(authSvc)
 			observabilitySvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
+			// Feature #26: the notification service resolves the
+			// session's active org and caller, gates the admin
+			// notification RPCs by the caller's role, and records
+			// notification mutations into the audit trail (AD12).
+			notificationSvc.SetSessionOrgResolver(authSvc)
+			notificationSvc.SetSessionUserResolver(authSvc)
+			notificationSvc.SetRoleGuard(tenancy.NewRoleGuard(gormDB))
 			// The auth service records key revokes and logins into the
 			// audit trail best-effort (feature #15, AC1/AC3).
 			auditRecorder := audit.NewRecorder(audit.NewRepository(gormDB))
@@ -206,6 +219,7 @@ func main() {
 			imageSvc.SetAuditRecorder(auditRecorder)
 			tenancySvc.SetAuditRecorder(auditRecorder)
 			webhookSvc.SetAuditRecorder(auditRecorder)
+			notificationSvc.SetAuditRecorder(auditRecorder)
 			// The auth session derives roles/accessible orgs from
 			// org_members (feature #10, AD2/AD11).
 			authSvc.SetMembershipResolver(tenancy.NewMembershipResolver(gormDB))
@@ -298,6 +312,13 @@ func main() {
 		srv.AddRunner(runner)
 	}
 	if runner := webhook.NewWebhookRetentionRunnerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	// Feature #26: the notification event consumer and retention runner.
+	if runner := notification.NewEventConsumerRunner(srv.Components()); runner != nil {
+		srv.AddRunner(runner)
+	}
+	if runner := notification.NewNotificationRetentionRunnerRunner(srv.Components()); runner != nil {
 		srv.AddRunner(runner)
 	}
 	if runner := billing.NewEventConsumerRunner(srv.Components()); runner != nil {

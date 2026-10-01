@@ -132,6 +132,13 @@ var messages = map[Code]string{
 	CodeReportInvalidFrequency:   "invalid report frequency",
 	CodeReportNameConflict:       "schedule name already exists",
 	CodeReportNotReady:           "report not ready",
+
+	// notification (feature #26, AD2)
+	CodeNotificationNotFound:           "notification not found",
+	CodeNotificationPreferencesInvalid: "invalid notification preferences",
+	CodeNotificationThresholdNotFound:  "threshold not found",
+	CodeNotificationThresholdInvalid:   "invalid threshold",
+	CodeNotificationEventTypeInvalid:   "invalid event type",
 }
 
 // Message returns the canonical message for a code. Unknown codes get a
