@@ -110,3 +110,26 @@ func TestGetErrorAnalysisAdminRoleGuard(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 10036, int(apierrors.CodeOf(err)))
 }
+
+func TestGetErrorAnalysisOverviewUserScoped(t *testing.T) {
+	svc := newErrorAnalysisService(t)
+	svc.SetSessionOrgResolver(&fakeMeteringOrgResolver{org: "org-a"})
+	db := svc.repo.db.DB(context.Background())
+	now := time.Now().UTC()
+	seedErrorLog(t, db, "org-a", "k1", "m1", "error", "rate_limit_exceeded", now)
+	seedErrorLog(t, db, "org-a", "k1", "m1", "error", "timeout", now)
+	seedErrorLog(t, db, "org-b", "k2", "m1", "error", "rate_limit_exceeded", now)
+
+	// Caller org-a sees only its own errors.
+	resp, err := svc.GetErrorAnalysisOverview(errorUserCtx(), &meteringv1.GetErrorAnalysisOverviewRequest{
+		Since: now.Add(-time.Hour).Unix(),
+		Until: now.Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), resp.Cards.ErrorCount)
+	assert.Equal(t, int64(2), resp.Cards.RequestCount)
+	require.Len(t, resp.Causes, 2)
+	for _, c := range resp.Causes {
+		assert.NotEqual(t, "org-b", c.ErrorCode)
+	}
+}

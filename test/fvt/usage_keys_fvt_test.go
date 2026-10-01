@@ -281,6 +281,29 @@ func TestFVTErrorAnalysisOverview(t *testing.T) {
 	assert.EqualValues(t, float64(10404), body["code"])
 }
 
+// AC10: GetErrorAnalysisOverview (user) returns only the caller's
+// organization's cards, causes and trend.
+func TestFVTErrorAnalysisOverviewUserScoped(t *testing.T) {
+	env := newUsageKeysEnv(t)
+	day := time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC)
+
+	env.seedUsageLog(t, "org-a", fvtKey1, fvtModelA, day, 100, "error", 10, 20, "rate_limit_exceeded")
+	env.seedUsageLog(t, "org-a", fvtKey1, fvtModelA, day, 100, "error", 10, 20, "timeout")
+	env.seedUsageLog(t, "org-b", fvtKey2, fvtModelB, day, 100, "error", 10, 20, "rate_limit_exceeded")
+
+	// Caller org-a sees only its own errors.
+	code, body := env.call(t, "GET",
+		fmt.Sprintf("/api/v1/errors?since=%d&until=%d", day.Unix(), day.Add(24*time.Hour).Unix()),
+		nil, "org-a")
+	require.Equal(t, 200, code)
+	require.Equal(t, float64(0), body["response"].(map[string]any)["code"])
+	cards := body["cards"].(map[string]any)
+	assert.Equal(t, "2", cards["errorCount"])
+	assert.Equal(t, "2", cards["requestCount"])
+	causes := body["causes"].([]any)
+	require.Len(t, causes, 2)
+}
+
 // AC3: GetErrorAnalysis (admin) returns single-error-code cards and a
 // trend; an unknown error code returns 11501.
 func TestFVTErrorAnalysisGet(t *testing.T) {

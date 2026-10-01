@@ -207,7 +207,7 @@ All error-analysis RPCs belong to the **`metering` module** (D3), served as HTTP
 
 | RPC | Route | Prefix | Status | Purpose |
 | --- | --- | --- | --- | --- |
-| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | admin | **new** | Fleet cards + top-causes ranking + error-rate trend |
+| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` · `GET /api/v1/errors` | admin · user | **new** | Cards + top-causes ranking + error-rate trend (admin: fleet; user: tenant-scoped) |
 | `GetErrorAnalysis` | `GET /api/v1/admin/errors/{error_code}` · `GET /api/v1/errors/{error_code}` | admin · user | **new** | Single-error-code cards + error-rate trend (admin: any cause; user: tenant-scoped) |
 
 **Contract notes for the Architect agent**:

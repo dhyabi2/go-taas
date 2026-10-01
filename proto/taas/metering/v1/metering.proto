@@ -118,11 +118,15 @@ service MeteringService {
     };
   }
 
-  // GetErrorAnalysisOverview returns fleet-wide error analysis: summary
-  // cards, a top-causes ranking, and an error-rate trend.
-  // Admin-surface API: served under /api/v1/admin.
+  // GetErrorAnalysisOverview returns error analysis: summary cards, a
+  // top-causes ranking, and an error-rate trend. The admin binding is
+  // the fleet-wide view (cross-org by default, optional org filter); the
+  // user binding is tenant-scoped to the caller's org.
   rpc GetErrorAnalysisOverview(GetErrorAnalysisOverviewRequest) returns (GetErrorAnalysisOverviewResponse) {
-    option (google.api.http) = {get: "/api/v1/admin/errors"};
+    option (google.api.http) = {
+      get: "/api/v1/admin/errors"
+      additional_bindings: {get: "/api/v1/errors"}
+    };
   }
 
   // GetErrorAnalysis returns single-error-code analysis: summary cards

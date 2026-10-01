@@ -143,11 +143,11 @@ The existing `request_logs` indexes `idx_request_logs_org_created (organization_
 
 ## 5. API Design
 
-All error-analysis RPCs belong to the existing **`taas.metering.v1.MeteringService`** (`proto/taas/metering/v1/metering.proto`), served as HTTP via the Control Gateway. `GetErrorAnalysisOverview` is admin-only; `GetErrorAnalysis` is dual-bound (admin + user). The surface is derived from the request path (Section 3.3).
+All error-analysis RPCs belong to the existing **`taas.metering.v1.MeteringService`** (`proto/taas/metering/v1/metering.proto`), served as HTTP via the Control Gateway. Both `GetErrorAnalysisOverview` and `GetErrorAnalysis` are dual-bound (admin + user). The surface is derived from the request path (Section 3.3).
 
 | RPC | HTTP (admin) | HTTP (user) | Status | Purpose |
 | --- | --- | --- | --- | --- |
-| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | — | **new** | Fleet cards + top-causes ranking + error-rate trend |
+| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | `GET /api/v1/errors` | **new** | Cards + top-causes ranking + error-rate trend (admin: fleet; user: tenant-scoped) |
 | `GetErrorAnalysis` | `GET /api/v1/admin/errors/{error_code}` | `GET /api/v1/errors/{error_code}` | **new** | Single-error-code cards + error-rate trend (admin: any error; user: tenant-scoped) |
 
 ### 5.1 Proto contract

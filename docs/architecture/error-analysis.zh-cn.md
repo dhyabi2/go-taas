@@ -143,11 +143,11 @@ flowchart TD
 
 ## 5. API 设计
 
-所有错误分析 RPC 属于现有 **`taas.metering.v1.MeteringService`**（`proto/taas/metering/v1/metering.proto`），通过控制网关以 HTTP 服务。`GetErrorAnalysisOverview` 仅 admin；`GetErrorAnalysis` 双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
+所有错误分析 RPC 属于现有 **`taas.metering.v1.MeteringService`**（`proto/taas/metering/v1/metering.proto`），通过控制网关以 HTTP 服务。`GetErrorAnalysisOverview` 与 `GetErrorAnalysis` 均双绑定（admin + user）。表面由请求路径派生（第 3.3 节）。
 
 | RPC | HTTP（admin） | HTTP（user） | 状态 | 用途 |
 | --- | --- | --- | --- | --- |
-| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | — | **新** | 舰队卡片 + top 原因排名 + 错误率趋势 |
+| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | `GET /api/v1/errors` | **新** | 卡片 + top 原因排名 + 错误率趋势（admin：舰队；user：租户范围） |
 | `GetErrorAnalysis` | `GET /api/v1/admin/errors/{error_code}` | `GET /api/v1/errors/{error_code}` | **新** | 单错误码卡片 + 错误率趋势（admin：任意错误；user：租户范围） |
 
 ### 5.1 Proto 契约

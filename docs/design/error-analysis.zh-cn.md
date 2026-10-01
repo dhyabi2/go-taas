@@ -207,7 +207,7 @@ sequenceDiagram
 
 | RPC | 路由 | 前缀 | 状态 | 目的 |
 | --- | --- | --- | --- | --- |
-| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` | admin | **新增** | 集群卡片 + Top 原因排名 + 错误率趋势 |
+| `GetErrorAnalysisOverview` | `GET /api/v1/admin/errors` · `GET /api/v1/errors` | admin · user | **新增** | 卡片 + Top 原因排名 + 错误率趋势（admin：集群；user：租户作用域） |
 | `GetErrorAnalysis` | `GET /api/v1/admin/errors/{error_code}` · `GET /api/v1/errors/{error_code}` | admin · user | **新增** | 单错误码卡片 + 错误率趋势（admin：任意原因；user：租户作用域） |
 
 **给架构师代理的契约说明**：

@@ -15,18 +15,31 @@ const errorAnalysisMaxRangeSeconds = 92 * 24 * 3600
 
 var _ = errorAnalysisMaxRangeSeconds
 
-// GetErrorAnalysisOverview returns fleet-wide error analysis: summary
-// cards, a top-causes ranking, and an error-rate trend (feature #31,
-// AC1-AC2). It is admin-only (AD9): the fleet view is cross-org by
-// default, with an optional org filter, gated by the caller's role.
+// GetErrorAnalysisOverview returns error analysis: summary cards, a
+// top-causes ranking, and an error-rate trend (feature #31, AC1-AC2).
+// The admin binding is the fleet-wide view (cross-org by default,
+// optional org filter, gated by the caller's role, AD9); the user
+// binding is hard-scoped to the caller's org (AD8).
 func (s *Service) GetErrorAnalysisOverview(ctx context.Context, req *meteringv1.GetErrorAnalysisOverviewRequest) (*meteringv1.GetErrorAnalysisOverviewResponse, error) {
-	// The admin fleet view is cross-org by default (AD9).
-	orgFilter := strings.TrimSpace(req.GetOrganizationId())
-	if orgFilter == "" {
-		orgFilter, _ = s.resolveOrg(ctx)
-	}
-	if err := s.requireAdminRole(ctx, orgFilter); err != nil {
-		return nil, err
+	surface := surfaceFromContext(ctx)
+
+	var orgFilter string
+	if surface == SurfaceAdmin {
+		// The admin fleet view is cross-org by default (AD9).
+		orgFilter = strings.TrimSpace(req.GetOrganizationId())
+		if orgFilter == "" {
+			orgFilter, _ = s.resolveOrg(ctx)
+		}
+		if err := s.requireAdminRole(ctx, orgFilter); err != nil {
+			return nil, err
+		}
+	} else {
+		// User binding: hard-scoped to the caller's org (AD8).
+		org, err := s.resolveOrg(ctx)
+		if err != nil {
+			return nil, err
+		}
+		orgFilter = org
 	}
 	since, until, err := s.validateErrorAnalysisRange(req.GetSince(), req.GetUntil())
 	if err != nil {
