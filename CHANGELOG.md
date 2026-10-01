@@ -1,3 +1,11 @@
+# [1.38.0](https://github.com/go-taas/go-taas/compare/v1.37.1...v1.38.0) (2026-10-01)
+
+
+### Features
+
+* **model:** model versioning & rollback (feature-32) ([1818c19](https://github.com/go-taas/go-taas/commit/1818c19854b873cde2fa21164fb8b790ca668a7e))
+* **service:** inference service logs viewer (feature-33) ([fbdeba5](https://github.com/go-taas/go-taas/commit/fbdeba5dd3078a4eb819bc359cfb80aafa6f9c7a))
+
 ## [1.37.1](https://github.com/go-taas/go-taas/compare/v1.37.0...v1.37.1) (2026-10-01)
 
 
