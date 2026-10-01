@@ -1,3 +1,10 @@
+# [1.35.0](https://github.com/go-taas/go-taas/compare/v1.34.0...v1.35.0) (2026-10-01)
+
+
+### Features
+
+* **usage:** API key usage analytics (feature-28) ([8dc3273](https://github.com/go-taas/go-taas/commit/8dc32738f515ca6976eaae3602955e2f02f05f57))
+
 # [1.34.0](https://github.com/go-taas/go-taas/compare/v1.33.1...v1.34.0) (2026-10-01)
 
 
