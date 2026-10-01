@@ -1,3 +1,10 @@
+# [1.33.0](https://github.com/go-taas/go-taas/compare/v1.32.2...v1.33.0) (2026-10-01)
+
+
+### Features
+
+* **notification:** add notification center & threshold alerts (feature 26) ([255a546](https://github.com/go-taas/go-taas/commit/255a546aa32804b5fcb2c6108c81a978030c9ca7))
+
 ## [1.32.2](https://github.com/go-taas/go-taas/compare/v1.32.1...v1.32.2) (2026-10-01)
 
 
