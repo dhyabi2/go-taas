@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -119,19 +119,19 @@ func (e *tracingEnv) seedTrace(t *testing.T, traceID, orgID, keyID, modelID, sta
 	sid := "svc-1"
 	repo := tracing.NewRepository(e.db)
 	require.NoError(t, repo.InsertTrace(context.Background(), &tracing.Trace{
-		TraceID:        traceID,
-		OrganizationID: orgID,
-		APIKeyID:       keyID,
-		ModelID:        modelID,
-		ServiceID:      &sid,
-		Status:         status,
-		Error:          "boom",
-		TotalLatencyMs: 1000,
-		TTFTMs:         400,
-		GenerationMs:   600,
-		PromptTokens:   10,
+		TraceID:          traceID,
+		OrganizationID:   orgID,
+		APIKeyID:         keyID,
+		ModelID:          modelID,
+		ServiceID:        &sid,
+		Status:           status,
+		Error:            "boom",
+		TotalLatencyMs:   1000,
+		TTFTMs:           400,
+		GenerationMs:     600,
+		PromptTokens:     10,
 		CompletionTokens: 20,
-		CreatedAt:      at.UTC(),
+		CreatedAt:        at.UTC(),
 	}, []*tracing.TraceSpan{
 		{TraceID: traceID, Name: "gateway", Kind: "server", StartOffsetMs: 0, DurationMs: 1000, Status: status, Error: "boom", Attributes: "{}"},
 		{TraceID: traceID, Name: "inference", Kind: "internal", StartOffsetMs: 0, DurationMs: 1000, Status: status, Error: "boom", Attributes: "{}"},

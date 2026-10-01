@@ -418,9 +418,9 @@ func TestServiceLogs(t *testing.T) {
 		},
 		windows: map[string]LogWindow{
 			"replica-1|engine": {
-				Lines:     []LogLine{{Timestamp: 100, Level: "info", Message: "hi"}},
+				Lines:      []LogLine{{Timestamp: 100, Level: "info", Message: "hi"}},
 				NextOffset: "replica-1|engine|100",
-				HasMore:   true,
+				HasMore:    true,
 			},
 		},
 	})

@@ -27,9 +27,9 @@ type LogLine struct {
 // LogWindow is a bounded window of log lines plus a cursor for "load
 // more" (feature #33, AD4).
 type LogWindow struct {
-	Lines     []LogLine
+	Lines      []LogLine
 	NextOffset string
-	HasMore   bool
+	HasMore    bool
 }
 
 // LogFetcher is the read-only seam the infer module calls into the
