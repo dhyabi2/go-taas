@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/go-taas/go-taas/compare/v1.38.0...v1.39.0) (2026-10-01)
+
+
+### Features
+
+* **deploy:** deployment history & audit with rollback (feature-34) ([303ebd8](https://github.com/go-taas/go-taas/commit/303ebd8c2f361d26530f1ccd76596b5652a07301))
+
 # [1.38.0](https://github.com/go-taas/go-taas/compare/v1.37.1...v1.38.0) (2026-10-01)
 
 
