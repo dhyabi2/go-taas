@@ -69,6 +69,7 @@ import UsageKeysPage from './pages/UsageKeysPage';
 import UsageKeyDetailPage from './pages/UsageKeyDetailPage';
 import CostAnalyticsPage from './pages/CostAnalyticsPage';
 import CostDetailPage from './pages/CostDetailPage';
+import SystemStatusPage from './pages/SystemStatusPage';
 import UserCostAnalyticsPage from './pages/user/UserCostAnalyticsPage';
 import UserCostDetailPage from './pages/user/UserCostDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -187,6 +188,7 @@ function AdminSurface({ path }: { path: string }) {
               <Route path="/admin/usage/keys/:apiKeyId" element={<UsageKeyDetailPage />} />
               <Route path="/admin/cost" element={<CostAnalyticsPage />} />
               <Route path="/admin/cost/:dimension/:value" element={<CostDetailPage />} />
+              <Route path="/admin/status" element={<SystemStatusPage />} />
               <Route path="*" element={<NotFoundPage homePath="/admin/models" homeLabel="Models" />} />
             </Routes>
           </AdminShell>

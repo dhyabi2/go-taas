@@ -103,6 +103,7 @@ export const zh: Record<string, string> = {
   'nav.webhooks': 'Webhooks',
   'nav.observability': '可观测性',
   'nav.traces': '追踪',
+  'nav.status': '状态',
   'nav.usageKeys': '用量密钥',
   'nav.cost': '成本',
 
@@ -1201,6 +1202,26 @@ export const zh: Record<string, string> = {
   'cost.notFound': '未找到成本维度值。',
   'cost.backOverview': '返回成本',
   'cost.detailTitle': '成本',
+
+  // ---- 系统健康与状态（功能 #30）----
+  'status.title': '系统状态',
+  'status.subtitle': '平台组件健康',
+  'status.refresh': '刷新',
+  'status.lastChecked': '上次检查 {time}',
+  'status.loadFailed': '加载系统状态失败',
+  'status.staleData': '显示的是过期数据 — 最近一次加载失败。',
+  'status.componentsTitle': '组件',
+  'status.empty': '没有组件健康数据。',
+  'status.colComponent': '组件',
+  'status.colType': '类型',
+  'status.colStatus': '状态',
+  'status.colUptime': '运行时间',
+  'status.colLastChecked': '上次检查',
+  'status.colDependencies': '依赖',
+  'status.summaryTitle': '状态页',
+  'status.summaryOverall': '总体状态',
+  'status.summaryComponents': '组件数',
+  'status.summaryLastChecked': '上次检查',
 
   // ---- Traces (feature #27) ----
   'traces.title': '追踪',

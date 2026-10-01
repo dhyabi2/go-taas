@@ -28,6 +28,14 @@ service ObservabilityService {
       additional_bindings: {get: "/api/v1/models/{model_id}/observability"}
     };
   }
+
+  // GetSystemStatus returns the platform component health: an overall
+  // status, a per-component health list, uptime, dependency status, and
+  // a status-page summary. It is admin-only (no user binding) and takes
+  // no range parameters (it is a point-in-time snapshot).
+  rpc GetSystemStatus(GetSystemStatusRequest) returns (GetSystemStatusResponse) {
+    option (google.api.http) = {get: "/api/v1/admin/status"};
+  }
 }
 
 message GetObservabilityOverviewRequest {
@@ -120,4 +128,48 @@ message ObservabilityKeyRow {
   int64 avg_latency_ms = 5;
   int64 p95_latency_ms = 6;
   int64 output_tokens_per_sec = 7;
+}
+
+// ---- System health & status (feature #30) ----
+
+message GetSystemStatusRequest {}
+
+message GetSystemStatusResponse {
+  taas.common.v1.Response response = 1;
+  // overall_status is operational / degraded / outage, derived
+  // server-side (AD2).
+  string overall_status = 2;
+  repeated SystemComponent components = 3;
+  SystemStatusPage status_page = 4;
+  // last_checked_at is the most recent health poll (AD5).
+  int64 last_checked_at = 5;
+}
+
+// SystemComponent is one platform component's health.
+message SystemComponent {
+  string component_id = 1;
+  string component_name = 2;
+  // component_type is gateway / grpc_service / mq / postgresql / redis /
+  // controller.
+  string component_type = 3;
+  // status is healthy / degraded / unhealthy.
+  string status = 4;
+  int64 uptime_seconds = 5;
+  int64 last_checked_at = 6;
+  repeated SystemDependency dependencies = 7;
+}
+
+// SystemDependency is one dependency of a component.
+message SystemDependency {
+  string dependency_id = 1;
+  string dependency_name = 2;
+  // status is healthy / degraded / unhealthy.
+  string status = 3;
+}
+
+// SystemStatusPage is the status-page summary (AD4).
+message SystemStatusPage {
+  string overall_status = 1;
+  int64 last_checked_at = 2;
+  int64 component_count = 3;
 }

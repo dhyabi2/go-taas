@@ -575,6 +575,40 @@ export interface GetCostAnalyticsResponse {
   series?: CostSeriesPoint[];
 }
 
+// ---- system health & status (feature #30) ----
+// Admin surface only: /api/v1/admin/status. int64 fields arrive as
+// strings.
+
+export interface SystemDependency {
+  dependencyId: string;
+  dependencyName: string;
+  status: string;
+}
+
+export interface SystemComponent {
+  componentId: string;
+  componentName: string;
+  componentType: string;
+  status: string;
+  uptimeSeconds: string;
+  lastCheckedAt: string;
+  dependencies?: SystemDependency[];
+}
+
+export interface SystemStatusPage {
+  overallStatus: string;
+  lastCheckedAt: string;
+  componentCount: string;
+}
+
+export interface GetSystemStatusResponse {
+  response: ResponseEnvelope;
+  overallStatus?: string;
+  components?: SystemComponent[];
+  statusPage?: SystemStatusPage;
+  lastCheckedAt?: string;
+}
+
 // ---- request tracing (feature #27) ----
 
 export interface TraceSummary {

@@ -247,6 +247,11 @@ func (c *Configuration) applyDefaults() {
 	if c.Observability.MaxRangeSeconds == 0 {
 		c.Observability.MaxRangeSeconds = 92 * 24 * 3600
 	}
+	// Feature #30: the system-status staleness threshold defaults to 60
+	// seconds (AD5).
+	if c.Observability.Status.StaleAfterSeconds == 0 {
+		c.Observability.Status.StaleAfterSeconds = 60
+	}
 	// Feature #26: notification module defaults (Section 9).
 	if c.Notification.Consumer.Workers == 0 {
 		c.Notification.Consumer.Workers = 4

@@ -204,6 +204,10 @@ loadtest:
 # default, AD7); a longer range returns 10404.
 observability:
   maxRangeSeconds: 7948800
+  # Feature #30: the system-status health poll is considered stale when
+  # last_checked_at is older than staleAfterSeconds (60s default, AD5).
+  status:
+    staleAfterSeconds: 60
 
 # Feature #26: the in-console notification center. The event consumer
 # fans out the event catalog to enabled users; the retention runner

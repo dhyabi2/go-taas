@@ -405,6 +405,9 @@ func TestObservabilityDefaults(t *testing.T) {
 	if cfg.Observability.MaxRangeSeconds != 92*24*3600 {
 		t.Fatalf("observability max range default = %d, want %d", cfg.Observability.MaxRangeSeconds, 92*24*3600)
 	}
+	if cfg.Observability.Status.StaleAfterSeconds != 60 {
+		t.Fatalf("observability status staleAfterSeconds default = %d, want 60", cfg.Observability.Status.StaleAfterSeconds)
+	}
 }
 
 func TestValidateObservabilityConfig(t *testing.T) {

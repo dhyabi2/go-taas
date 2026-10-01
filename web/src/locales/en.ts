@@ -103,6 +103,7 @@ export const en: Record<string, string> = {
   'nav.webhooks': 'Webhooks',
   'nav.observability': 'Observability',
   'nav.traces': 'Traces',
+  'nav.status': 'Status',
   'nav.usageKeys': 'Usage Keys',
   'nav.cost': 'Cost',
 
@@ -1201,6 +1202,26 @@ export const en: Record<string, string> = {
   'cost.notFound': 'Cost dimension value not found.',
   'cost.backOverview': 'Back to Cost',
   'cost.detailTitle': 'Cost',
+
+  // ---- System health & status (feature #30) ----
+  'status.title': 'System Status',
+  'status.subtitle': 'Platform component health',
+  'status.refresh': 'Refresh',
+  'status.lastChecked': 'last checked {time}',
+  'status.loadFailed': 'failed to load system status',
+  'status.staleData': 'Showing stale data — the latest load failed.',
+  'status.componentsTitle': 'Components',
+  'status.empty': 'No component health data.',
+  'status.colComponent': 'Component',
+  'status.colType': 'Type',
+  'status.colStatus': 'Status',
+  'status.colUptime': 'Uptime',
+  'status.colLastChecked': 'Last checked',
+  'status.colDependencies': 'Dependencies',
+  'status.summaryTitle': 'Status page',
+  'status.summaryOverall': 'Overall status',
+  'status.summaryComponents': 'Components',
+  'status.summaryLastChecked': 'Last checked',
 
   // ---- Traces (feature #27) ----
   'traces.title': 'Traces',

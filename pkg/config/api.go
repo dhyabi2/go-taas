@@ -541,6 +541,17 @@ type ObservabilityConfig struct {
 	// RPCs (AD7). Default 7948800 (92 days), mirroring the metering
 	// maxRangeSeconds constant; kept configurable for operational tuning.
 	MaxRangeSeconds int64 `mapstructure:"maxRangeSeconds"`
+	// Status holds the system-status settings (feature #30, Section 9).
+	Status ObservabilityStatusConfig `mapstructure:"status"`
+}
+
+// ObservabilityStatusConfig holds the system-status settings (feature
+// #30, Section 9).
+type ObservabilityStatusConfig struct {
+	// StaleAfterSeconds is the health-poll staleness threshold: the
+	// console shows a stale marker when last_checked_at is older than
+	// this (AD5). Default 60.
+	StaleAfterSeconds int64 `mapstructure:"staleAfterSeconds"`
 }
 
 // TracingConfig holds tracing-module specific settings (feature #27,
