@@ -1,3 +1,10 @@
+## [1.32.2](https://github.com/go-taas/go-taas/compare/v1.32.1...v1.32.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* **billing:** gate admin billing-reports RPCs by org role ([ad4d26d](https://github.com/go-taas/go-taas/commit/ad4d26de2d8f4ecde327db045fb9ac2a1ab7b5aa))
+
 ## [1.32.1](https://github.com/go-taas/go-taas/compare/v1.32.0...v1.32.1) (2026-09-30)
 
 
