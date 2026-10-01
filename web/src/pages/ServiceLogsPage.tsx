@@ -70,10 +70,20 @@ export default function ServiceLogsPage() {
       if (!replica && data.pods && data.pods.length > 0) {
         setReplica(data.pods[0].replicaIndex);
       }
-    } catch {
+      setError('');
+      setStale(false);
+    } catch (e) {
+      // Pod enumeration failed (e.g. no controller kubeconfig -> 10301).
+      // Surface the error and leave the loading state so the page shows
+      // the error banner with a Retry button instead of hanging on the
+      // spinner (feature #33, §5.3 error state).
       setPods([]);
+      setError(e instanceof Error ? e.message : t('servicelogs.loadFailed'));
+      setStale(true);
+    } finally {
+      setLoading(false);
     }
-  }, [serviceId, orgId, replica]);
+  }, [serviceId, orgId, replica, t]);
 
   const sinceFor = useCallback(() => {
     const now = Math.floor(Date.now() / 1000);
