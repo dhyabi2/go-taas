@@ -16,7 +16,9 @@ import (
 
 type fakeMeteringUserResolver struct{ user string }
 
-func (f *fakeMeteringUserResolver) SessionUserID(_ context.Context) (string, error) { return f.user, nil }
+func (f *fakeMeteringUserResolver) SessionUserID(_ context.Context) (string, error) {
+	return f.user, nil
+}
 
 type fakeMeteringRoleGuard struct{ allowed bool }
 
@@ -169,6 +171,8 @@ func TestGetUsageKeysOverviewUserScoped(t *testing.T) {
 
 type fakeMeteringOrgResolver struct{ org string }
 
-func (f *fakeMeteringOrgResolver) SessionActiveOrg(_ context.Context) (string, error) { return f.org, nil }
+func (f *fakeMeteringOrgResolver) SessionActiveOrg(_ context.Context) (string, error) {
+	return f.org, nil
+}
 
 var _ = gorm.ErrRecordNotFound

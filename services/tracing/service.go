@@ -352,9 +352,9 @@ func (s *Service) ListTraces(ctx context.Context, req *tracingv1.ListTracesReque
 		traces = append(traces, s.summarizeTrace(ctx, repo, row, surface))
 	}
 	return &tracingv1.ListTracesResponse{
-		Response:       okResponse(),
-		Traces:         traces,
-		NextPageToken:  nextPageToken(offset, limit, total),
+		Response:      okResponse(),
+		Traces:        traces,
+		NextPageToken: nextPageToken(offset, limit, total),
 	}, nil
 }
 

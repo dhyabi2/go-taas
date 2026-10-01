@@ -239,13 +239,13 @@ func buildUsageKeysSeries(buckets []UsageKeysBucketRow, _ map[string]int64) []*m
 	out := make([]*meteringv1.UsageKeysSeriesPoint, 0, len(buckets))
 	for _, b := range buckets {
 		out = append(out, &meteringv1.UsageKeysSeriesPoint{
-			Bucket:        b.Bucket,
-			RequestCount:  b.RequestCount,
-			ErrorCount:    b.ErrorCount,
-			TotalTokens:   b.TotalTokens,
+			Bucket:         b.Bucket,
+			RequestCount:   b.RequestCount,
+			ErrorCount:     b.ErrorCount,
+			TotalTokens:    b.TotalTokens,
 			TotalCostCents: b.TotalCostCents,
-			AvgLatencyMs:  b.AvgLatencyMs,
-			P95LatencyMs:  b.P95LatencyMs,
+			AvgLatencyMs:   b.AvgLatencyMs,
+			P95LatencyMs:   b.P95LatencyMs,
 		})
 	}
 	return out

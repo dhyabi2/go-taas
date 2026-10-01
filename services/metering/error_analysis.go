@@ -64,10 +64,10 @@ func (s *Service) GetErrorAnalysisOverview(ctx context.Context, req *meteringv1.
 	causeRows := make([]*meteringv1.ErrorCauseRow, 0, len(causes))
 	for _, c := range causes {
 		causeRows = append(causeRows, &meteringv1.ErrorCauseRow{
-			ErrorCode:   c.ErrorCode,
-			ErrorCount:  c.ErrorCount,
-			ErrorRate:   errorRatePct(c.ErrorCount, totalRequests(buckets)),
-			SharePct:    sharePct(c.ErrorCount, cards.ErrorCount),
+			ErrorCode:  c.ErrorCode,
+			ErrorCount: c.ErrorCount,
+			ErrorRate:  errorRatePct(c.ErrorCount, totalRequests(buckets)),
+			SharePct:   sharePct(c.ErrorCount, cards.ErrorCount),
 		})
 	}
 	series := buildErrorSeries(buckets)

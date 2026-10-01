@@ -12,14 +12,14 @@ import (
 
 // UsageKeysBucketRow is one time bucket of the per-key aggregation.
 type UsageKeysBucketRow struct {
-	Bucket        int64
-	RequestCount  int64
-	ErrorCount    int64
-	TotalTokens   int64
+	Bucket         int64
+	RequestCount   int64
+	ErrorCount     int64
+	TotalTokens    int64
 	TotalCostCents int64
-	AvgLatencyMs  int64
-	P95LatencyMs  int64
-	BucketSeconds int64
+	AvgLatencyMs   int64
+	P95LatencyMs   int64
+	BucketSeconds  int64
 }
 
 // UsageKeyAggRow is one API key's aggregate in the per-key table.
@@ -253,13 +253,13 @@ func (a *usageKeyAccum) add(row RequestLog) {
 
 func (a *usageKeyAccum) row(_ int64) UsageKeyAggRow {
 	return UsageKeyAggRow{
-		APIKeyID:      a.apiKeyID,
+		APIKeyID:       a.apiKeyID,
 		OrganizationID: a.orgID,
-		RequestCount:  a.requestCount,
-		ErrorCount:    a.errorCount,
-		TotalTokens:   a.totalTokens,
-		AvgLatencyMs:  avg(a.latencySum, a.requestCount),
-		P95LatencyMs:  percentile(a.latencies, 0.95),
+		RequestCount:   a.requestCount,
+		ErrorCount:     a.errorCount,
+		TotalTokens:    a.totalTokens,
+		AvgLatencyMs:   avg(a.latencySum, a.requestCount),
+		P95LatencyMs:   percentile(a.latencies, 0.95),
 	}
 }
 
